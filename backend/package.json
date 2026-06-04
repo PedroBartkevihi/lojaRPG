@@ -1,0 +1,23 @@
+{
+  "name": "lojarpg-backend",
+  "version": "1.0.0",
+  "description": "API Express para uma loja de D&D com autenticacao, itens, personagens, inventario e compras.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:init": "node src/database/initDb.js",
+    "db:seed": "node src/database/seedDb.js",
+    "db:reset": "node src/database/resetDb.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
