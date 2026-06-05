@@ -81,6 +81,15 @@ Em producao, rode migrations de forma controlada antes de subir a nova versao:
 npx prisma migrate deploy
 ```
 
+Se o ambiente ainda usa o SQLite antigo do projeto, faca backup antes e rode:
+
+```bash
+npm run db:migrate:legacy
+```
+
+O script cria as tabelas novas, migra os dados existentes e preserva as tabelas
+antigas como `*_legacy_backup` para conferencia.
+
 ## Backup do SQLite
 
 Com a aplicacao parada em instalacao local:

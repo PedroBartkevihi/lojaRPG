@@ -10,6 +10,7 @@
     "db:init": "node src/database/initDb.js",
     "db:seed": "node src/database/seedDb.js",
     "db:reset": "node src/database/resetDb.js",
+    "db:migrate:legacy": "node src/database/migrateLegacyDb.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

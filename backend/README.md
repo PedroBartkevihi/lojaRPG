@@ -30,4 +30,10 @@ npx prisma studio
 npx prisma db seed
 ```
 
+Para preservar dados de um SQLite legado:
+
+```bash
+npm run db:migrate:legacy
+```
+
 Rotas principais ficam sob `http://localhost:3001`.

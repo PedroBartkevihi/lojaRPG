@@ -118,6 +118,18 @@ O projeto ainda mantem `database/schema.sql` e `database/seed.sql` para
 bootstrap local e compatibilidade com os scripts antigos, mas a evolucao do
 schema deve acontecer por `backend/prisma/migrations`.
 
+Se voce ja possui um SQLite antigo com dados que nao quer perder, faca backup
+do arquivo e rode:
+
+```bash
+cd C:\lojaRPG\backend
+npm run db:migrate:legacy
+```
+
+Esse script preserva usuarios, personagens, itens, inventario e compras,
+transforma categorias/raridades em tabelas proprias e mantem as tabelas antigas
+como `*_legacy_backup`.
+
 ## Usuarios iniciais
 
 | Perfil | Email | Senha |
