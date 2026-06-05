@@ -136,16 +136,27 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
   }
 
   async function removeCategory(category) {
-    const confirmed = window.confirm(`Remover a categoria ${category.name}?`);
+    const itemCount = Number(category.itemCount || 0);
+
+    if (category.name === 'Sem categoria' && itemCount > 0) {
+      showNotice('Nao e possivel remover Sem categoria enquanto existem itens vinculados.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      itemCount > 0
+        ? `Remover a categoria ${category.name}? ${itemCount} item(ns) sera(o) movido(s) para Sem categoria.`
+        : `Remover a categoria ${category.name}?`
+    );
 
     if (!confirmed) {
       return;
     }
 
     try {
-      await api.deleteCategory(category.id);
+      const data = await api.deleteCategory(category.id);
       await loadAdminData();
-      showNotice('Categoria removida.');
+      showNotice(data.message || 'Categoria removida.');
     } catch (error) {
       showNotice(error.message);
     }
@@ -175,16 +186,27 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
   }
 
   async function removeRarity(rarity) {
-    const confirmed = window.confirm(`Remover a raridade ${rarity.name}?`);
+    const itemCount = Number(rarity.itemCount || 0);
+
+    if (rarity.name === 'Comum' && itemCount > 0) {
+      showNotice('Nao e possivel remover Comum enquanto existem itens vinculados.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      itemCount > 0
+        ? `Remover a raridade ${rarity.name}? ${itemCount} item(ns) sera(o) movido(s) para Comum.`
+        : `Remover a raridade ${rarity.name}?`
+    );
 
     if (!confirmed) {
       return;
     }
 
     try {
-      await api.deleteRarity(rarity.id);
+      const data = await api.deleteRarity(rarity.id);
       await loadAdminData();
-      showNotice('Raridade removida.');
+      showNotice(data.message || 'Raridade removida.');
     } catch (error) {
       showNotice(error.message);
     }
@@ -370,7 +392,10 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                   </>
                 ) : (
                   <>
-                    <span className="category-pill">{category.name}</span>
+                    <span className="category-pill">
+                      {category.name}
+                      {Number(category.itemCount || 0) > 0 ? ` (${category.itemCount})` : ''}
+                    </span>
                     <div className="row-actions">
                       <button type="button" className="icon-button" onClick={() => startCategoryEdit(category)} title="Editar categoria">
                         <Pencil size={17} />
@@ -418,6 +443,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                   <>
                     <span className="rarity">
                       {rarity.name} #{rarity.rank}
+                      {Number(rarity.itemCount || 0) > 0 ? ` (${rarity.itemCount})` : ''}
                     </span>
                     <div className="row-actions">
                       <button type="button" className="icon-button" onClick={() => startRarityEdit(rarity)} title="Editar raridade">

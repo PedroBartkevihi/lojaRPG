@@ -202,6 +202,60 @@ describe('itens', () => {
   });
 });
 
+describe('catalogo', () => {
+  it('remove categoria usada realocando itens para Sem categoria', async () => {
+    const masterToken = await login('mestre@lojarpg.local', 'mestre123');
+
+    const categoriesResponse = await request(app)
+      .get('/catalog/categories')
+      .set('Authorization', `Bearer ${masterToken}`);
+    const weaponsCategory = categoriesResponse.body.categories.find((category) => category.name === 'Armas');
+
+    expect(weaponsCategory.itemCount).toBeGreaterThan(0);
+
+    const deleteResponse = await request(app)
+      .delete(`/catalog/categories/${weaponsCategory.id}`)
+      .set('Authorization', `Bearer ${masterToken}`);
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.message).toContain('Sem categoria');
+    expect(deleteResponse.body.movedItems).toBeGreaterThan(0);
+
+    const itemsResponse = await request(app)
+      .get('/items?includeInactive=true')
+      .set('Authorization', `Bearer ${masterToken}`);
+    const sword = itemsResponse.body.items.find((item) => item.name === 'Espada Longa');
+
+    expect(sword.category).toBe('Sem categoria');
+  });
+
+  it('remove raridade usada realocando itens para Comum', async () => {
+    const masterToken = await login('mestre@lojarpg.local', 'mestre123');
+
+    const raritiesResponse = await request(app)
+      .get('/catalog/rarities')
+      .set('Authorization', `Bearer ${masterToken}`);
+    const rareRarity = raritiesResponse.body.rarities.find((rarity) => rarity.name === 'Raro');
+
+    expect(rareRarity.itemCount).toBeGreaterThan(0);
+
+    const deleteResponse = await request(app)
+      .delete(`/catalog/rarities/${rareRarity.id}`)
+      .set('Authorization', `Bearer ${masterToken}`);
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.message).toContain('Comum');
+    expect(deleteResponse.body.movedItems).toBeGreaterThan(0);
+
+    const itemsResponse = await request(app)
+      .get('/items?includeInactive=true')
+      .set('Authorization', `Bearer ${masterToken}`);
+    const invisibilityPotion = itemsResponse.body.items.find((item) => item.name === 'Pocao de Invisibilidade');
+
+    expect(invisibilityPotion.rarity).toBe('Comum');
+  });
+});
+
 describe('compras e inventario', () => {
   it('recusa compra sem ouro suficiente', async () => {
     const playerToken = await login('aria@lojarpg.local');

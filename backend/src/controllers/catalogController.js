@@ -41,8 +41,13 @@ export async function categoriesUpdate(req, res) {
 }
 
 export async function categoriesRemove(req, res) {
-  await deleteCategory(validate.integer(req.params.id, 'Id da categoria', { min: 1 }));
-  res.json({ message: 'Categoria removida.' });
+  const result = await deleteCategory(validate.integer(req.params.id, 'Id da categoria', { min: 1 }));
+  const message =
+    result.movedItems > 0
+      ? `Categoria removida. ${result.movedItems} item(ns) movido(s) para Sem categoria.`
+      : 'Categoria removida.';
+
+  res.json({ message, ...result });
 }
 
 export async function raritiesIndex(_req, res) {
@@ -60,8 +65,13 @@ export async function raritiesUpdate(req, res) {
 }
 
 export async function raritiesRemove(req, res) {
-  await deleteRarity(validate.integer(req.params.id, 'Id da raridade', { min: 1 }));
-  res.json({ message: 'Raridade removida.' });
+  const result = await deleteRarity(validate.integer(req.params.id, 'Id da raridade', { min: 1 }));
+  const message =
+    result.movedItems > 0
+      ? `Raridade removida. ${result.movedItems} item(ns) movido(s) para Comum.`
+      : 'Raridade removida.';
+
+  res.json({ message, ...result });
 }
 
 export async function stockMovements(req, res) {
