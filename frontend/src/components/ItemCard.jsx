@@ -9,6 +9,7 @@ export default function ItemCard({ item, onAdd, disabled }) {
         <span className="rarity">{item.rarity}</span>
         <span className={item.stock > 0 ? 'stock' : 'stock empty'}>{item.stock} em estoque</span>
       </div>
+      {item.imageUrl && <img className="item-image" src={item.imageUrl} alt="" />}
       <h3>{item.name}</h3>
       <p>{item.description}</p>
       <div className="item-card-footer">

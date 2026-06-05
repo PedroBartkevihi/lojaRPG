@@ -4,7 +4,16 @@ import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
 import ItemCard from '../components/ItemCard.jsx';
 
-export default function ShopPage({ api, user, character, onRefreshSession, showNotice }) {
+export default function ShopPage({
+  api,
+  user,
+  character,
+  characters = [],
+  selectedCharacterId,
+  onSelectCharacter,
+  onRefreshSession,
+  showNotice
+}) {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
@@ -73,6 +82,7 @@ export default function ShopPage({ api, user, character, onRefreshSession, showN
   async function checkout() {
     try {
       const payload = {
+        characterId: character.id,
         items: cart.map((entry) => ({
           itemId: entry.item.id,
           quantity: entry.quantity
@@ -142,6 +152,9 @@ export default function ShopPage({ api, user, character, onRefreshSession, showN
             <CharacterPanel
               api={api}
               character={character}
+              characters={characters}
+              selectedCharacterId={selectedCharacterId}
+              onSelectCharacter={onSelectCharacter}
               onRefreshSession={onRefreshSession}
               showNotice={showNotice}
             />

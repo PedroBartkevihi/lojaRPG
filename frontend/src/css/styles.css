@@ -384,6 +384,24 @@ textarea:focus {
   margin-bottom: 1rem;
 }
 
+.toolbar.admin-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
 .search-field {
   position: relative;
 }
@@ -430,6 +448,15 @@ textarea:focus {
   font-size: 1.22rem;
 }
 
+.item-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
 .item-card p,
 .surface-panel p {
   margin: 0;
@@ -467,6 +494,14 @@ textarea:focus {
   margin: 0;
 }
 
+.character-selector {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .character-stats div {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -486,7 +521,8 @@ textarea:focus {
 
 .cart-list,
 .history-list,
-.admin-list {
+.admin-list,
+.catalog-list {
   display: grid;
   gap: 0.75rem;
 }
@@ -582,8 +618,28 @@ textarea:focus {
   gap: 0.5rem;
 }
 
+.gold-adjust input:not([type="number"]) {
+  min-width: 130px;
+}
+
 .admin-list.compact .admin-row {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.catalog-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.catalog-row:has(input:nth-child(2)) {
+  grid-template-columns: minmax(0, 1fr) 86px auto;
+}
+
+.character-edit {
+  display: grid;
+  gap: 0.7rem;
 }
 
 @media (max-width: 1000px) {
@@ -641,5 +697,10 @@ textarea:focus {
   .gold-adjust {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .catalog-row,
+  .catalog-row:has(input:nth-child(2)) {
+    grid-template-columns: 1fr;
   }
 }

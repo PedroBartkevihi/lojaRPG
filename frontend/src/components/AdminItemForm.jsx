@@ -7,10 +7,12 @@ const emptyForm = {
   description: '',
   price: 0,
   rarity: 'Comum',
-  stock: 0
+  stock: 0,
+  imageUrl: '',
+  stockReason: ''
 };
 
-export default function AdminItemForm({ item, onSave, onCancel }) {
+export default function AdminItemForm({ item, categories = [], rarities = [], onSave, onCancel }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -56,12 +58,30 @@ export default function AdminItemForm({ item, onSave, onCancel }) {
         </label>
         <label>
           Categoria
-          <input value={form.category} onChange={(event) => updateField('category', event.target.value)} required />
+          {categories.length > 0 ? (
+            <select value={form.category} onChange={(event) => updateField('category', event.target.value)} required>
+              {categories.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input value={form.category} onChange={(event) => updateField('category', event.target.value)} required />
+          )}
         </label>
       </div>
       <label>
         Descricao
         <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} />
+      </label>
+      <label>
+        Imagem do item
+        <input
+          value={form.imageUrl || ''}
+          onChange={(event) => updateField('imageUrl', event.target.value)}
+          placeholder="https://..."
+        />
       </label>
       <div className="form-grid three">
         <label>
@@ -76,7 +96,17 @@ export default function AdminItemForm({ item, onSave, onCancel }) {
         </label>
         <label>
           Raridade
-          <input value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required />
+          {rarities.length > 0 ? (
+            <select value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required>
+              {rarities.map((rarity) => (
+                <option key={rarity.id} value={rarity.name}>
+                  {rarity.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required />
+          )}
         </label>
         <label>
           Estoque
@@ -89,6 +119,16 @@ export default function AdminItemForm({ item, onSave, onCancel }) {
           />
         </label>
       </div>
+      {item && (
+        <label>
+          Motivo do ajuste de estoque
+          <input
+            value={form.stockReason || ''}
+            onChange={(event) => updateField('stockReason', event.target.value)}
+            placeholder="Reposicao, correcao, saque da campanha..."
+          />
+        </label>
+      )}
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
         <button className="primary-action" disabled={saving}>

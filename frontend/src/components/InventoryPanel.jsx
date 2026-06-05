@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Backpack } from 'lucide-react';
 
-export default function InventoryPanel({ api, refreshKey, showNotice }) {
+export default function InventoryPanel({ api, character: selectedCharacter, refreshKey, showNotice }) {
   const [inventory, setInventory] = useState([]);
   const [character, setCharacter] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,7 +11,7 @@ export default function InventoryPanel({ api, refreshKey, showNotice }) {
       setLoading(true);
 
       try {
-        const data = await api.myInventory();
+        const data = await api.myInventory({ characterId: selectedCharacter?.id });
         setInventory(data.inventory);
         setCharacter(data.character);
       } catch (error) {
@@ -22,7 +22,7 @@ export default function InventoryPanel({ api, refreshKey, showNotice }) {
     }
 
     loadInventory();
-  }, [api, refreshKey, showNotice]);
+  }, [api, refreshKey, selectedCharacter?.id, showNotice]);
 
   return (
     <section className="wide-section">

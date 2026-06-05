@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ReceiptText } from 'lucide-react';
 
-export default function PurchaseHistory({ api, isMaster, refreshKey, embedded = false }) {
+export default function PurchaseHistory({ api, isMaster, character, refreshKey, embedded = false }) {
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -12,7 +12,7 @@ export default function PurchaseHistory({ api, isMaster, refreshKey, embedded = 
       setError('');
 
       try {
-        const data = isMaster ? await api.listPurchases() : await api.myPurchases();
+        const data = isMaster ? await api.listPurchases() : await api.myPurchases({ characterId: character?.id });
         setPurchases(data.purchases);
       } catch (requestError) {
         setError(requestError.message);
@@ -22,7 +22,7 @@ export default function PurchaseHistory({ api, isMaster, refreshKey, embedded = 
     }
 
     loadPurchases();
-  }, [api, isMaster, refreshKey]);
+  }, [api, isMaster, character?.id, refreshKey]);
 
   const content = (
     <div className="surface-panel">

@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { Save, ScrollText } from 'lucide-react';
 
-export default function CharacterPanel({ api, character, onRefreshSession, showNotice }) {
+export default function CharacterPanel({
+  api,
+  character,
+  characters = [],
+  selectedCharacterId,
+  onSelectCharacter,
+  onRefreshSession,
+  showNotice
+}) {
   const [form, setForm] = useState({
     name: '',
     className: '',
@@ -39,6 +47,21 @@ export default function CharacterPanel({ api, character, onRefreshSession, showN
           <ScrollText size={20} />
           <h3>{character.name}</h3>
         </div>
+        {characters.length > 1 && (
+          <label className="character-selector">
+            Personagem ativo
+            <select
+              value={selectedCharacterId || character.id}
+              onChange={(event) => onSelectCharacter?.(Number(event.target.value))}
+            >
+              {characters.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <dl className="character-stats">
           <div>
             <dt>Classe</dt>
