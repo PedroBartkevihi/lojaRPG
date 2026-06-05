@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  name           String
+  email          String          @unique
+  passwordHash   String          @map("password_hash")
+  role           String
+  createdAt      String          @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  characters     Character[]
+  createdItems   Item[]          @relation("ItemCreator")
+  refreshTokens  RefreshToken[]
+  goldAuditLogs  GoldAuditLog[]  @relation("GoldAuditActor")
+  stockMovements StockMovement[] @relation("StockMovementActor")
+
+  @@map("users")
+}
+
+model Character {
+  id            Int            @id @default(autoincrement())
+  userId        Int            @map("user_id")
+  name          String
+  className     String         @map("class")
+  race          String
+  level         Int            @default(1)
+  gold          Int            @default(0)
+  createdAt     String         @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inventory     Inventory[]
+  purchases     Purchase[]
+  goldAuditLogs GoldAuditLog[]
+
+  @@index([userId])
+  @@map("characters")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String   @default("")
+  createdAt   String   @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  updatedAt   String   @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("updated_at")
+  items       Item[]
+
+  @@map("categories")
+}
+
+model Rarity {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  rank        Int      @default(1)
+  description String   @default("")
+  createdAt   String   @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  updatedAt   String   @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("updated_at")
+  items       Item[]
+
+  @@map("rarities")
+}
+
+model Item {
+  id             Int             @id @default(autoincrement())
+  name           String
+  categoryId     Int             @map("category_id")
+  rarityId       Int             @map("rarity_id")
+  description    String          @default("")
+  price          Int
+  stock          Int             @default(0)
+  imageUrl       String          @default("") @map("image_url")
+  createdBy      Int?            @map("created_by")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      String          @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  updatedAt      String          @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("updated_at")
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  rarity         Rarity          @relation(fields: [rarityId], references: [id], onDelete: Restrict)
+  creator        User?           @relation("ItemCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  inventory      Inventory[]
+  purchaseItems  PurchaseItem[]
+  stockMovements StockMovement[]
+
+  @@index([categoryId])
+  @@index([rarityId])
+  @@index([name])
+  @@map("items")
+}
+
+model Inventory {
+  id          Int       @id @default(autoincrement())
+  characterId Int       @map("character_id")
+  itemId      Int       @map("item_id")
+  quantity    Int
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([characterId, itemId])
+  @@index([characterId])
+  @@map("inventory")
+}
+
+model Purchase {
+  id          Int            @id @default(autoincrement())
+  characterId Int            @map("character_id")
+  totalValue  Int            @map("total_value")
+  purchasedAt String         @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("purchased_at")
+  character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  items       PurchaseItem[]
+
+  @@index([characterId])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         Int      @id @default(autoincrement())
+  purchaseId Int      @map("purchase_id")
+  itemId     Int      @map("item_id")
+  quantity   Int
+  unitPrice  Int      @map("unit_price")
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_items")
+}
+
+model GoldAuditLog {
+  id           Int       @id @default(autoincrement())
+  actorUserId  Int       @map("actor_user_id")
+  characterId  Int       @map("character_id")
+  previousGold Int       @map("previous_gold")
+  newGold      Int       @map("new_gold")
+  delta        Int
+  reason       String
+  createdAt    String    @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  actor        User      @relation("GoldAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  character    Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId])
+  @@index([characterId])
+  @@map("gold_audit_logs")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt String    @map("expires_at")
+  revokedAt String?   @map("revoked_at")
+  createdAt String    @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model StockMovement {
+  id            Int      @id @default(autoincrement())
+  itemId        Int      @map("item_id")
+  actorUserId   Int?     @map("actor_user_id")
+  previousStock Int      @map("previous_stock")
+  newStock      Int      @map("new_stock")
+  delta         Int
+  reason        String
+  createdAt     String   @default(dbgenerated("(strftime('%Y-%m-%dT%H:%M:%fZ','now'))")) @map("created_at")
+  item          Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor         User?    @relation("StockMovementActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([itemId])
+  @@index([actorUserId])
+  @@map("stock_movements")
+}

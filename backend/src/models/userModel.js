@@ -1,71 +1,57 @@
-import { getDatabase } from '../database/connection.js';
+import { getPrisma } from '../database/connection.js';
 
-function mapUser(row) {
-  if (!row) {
+export function mapUser(user) {
+  if (!user) {
     return null;
   }
 
   return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    role: row.role,
-    createdAt: row.createdAt
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt
   };
 }
 
-export function createUser(data, db = getDatabase()) {
-  const result = db
-    .prepare(
-      `INSERT INTO users (name, email, password_hash, role)
-       VALUES (?, ?, ?, ?)`
-    )
-    .run(data.name, data.email, data.passwordHash, data.role);
+export async function createUser(data, prisma = getPrisma()) {
+  const user = await prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      passwordHash: data.passwordHash,
+      role: data.role
+    }
+  });
 
-  return findUserById(result.lastInsertRowid, db);
+  return mapUser(user);
 }
 
-export function findUserById(id, db = getDatabase()) {
-  const row = db
-    .prepare(
-      `SELECT id, name, email, role, created_at AS createdAt
-       FROM users
-       WHERE id = ?`
-    )
-    .get(id);
-
-  return mapUser(row);
+export async function findUserById(id, prisma = getPrisma()) {
+  return mapUser(await prisma.user.findUnique({ where: { id: Number(id) } }));
 }
 
-export function findUserByEmail(email, db = getDatabase()) {
-  const row = db
-    .prepare(
-      `SELECT id, name, email, role, created_at AS createdAt
-       FROM users
-       WHERE email = ?`
-    )
-    .get(email);
-
-  return mapUser(row);
+export async function findUserByEmail(email, prisma = getPrisma()) {
+  return mapUser(await prisma.user.findUnique({ where: { email } }));
 }
 
-export function findUserByEmailWithPassword(email, db = getDatabase()) {
-  return db
-    .prepare(
-      `SELECT
-        id,
-        name,
-        email,
-        role,
-        password_hash AS passwordHash,
-        created_at AS createdAt
-       FROM users
-       WHERE email = ?`
-    )
-    .get(email);
+export async function findUserByEmailWithPassword(email, prisma = getPrisma()) {
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    passwordHash: user.passwordHash,
+    createdAt: user.createdAt
+  };
 }
 
-export function countUsers(db = getDatabase()) {
-  const row = db.prepare('SELECT COUNT(*) AS total FROM users').get();
-  return row.total;
+export async function countUsers(prisma = getPrisma()) {
+  return prisma.user.count();
 }

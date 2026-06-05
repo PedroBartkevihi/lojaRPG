@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { findUserById } from '../models/userModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
-export function authenticate(req, _res, next) {
+export async function authenticate(req, _res, next) {
   const authorization = req.get('authorization') || '';
   const [type, token] = authorization.split(' ');
 
@@ -13,7 +13,7 @@ export function authenticate(req, _res, next) {
 
   try {
     const payload = jwt.verify(token, env.jwtSecret);
-    const user = findUserById(payload.sub);
+    const user = await findUserById(payload.sub);
 
     if (!user) {
       return next(new ApiError(401, 'Usuario nao encontrado.'));

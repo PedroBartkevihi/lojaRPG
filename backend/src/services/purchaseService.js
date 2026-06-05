@@ -1,6 +1,6 @@
 import { ROLES } from '../config/roles.js';
 import { withTransaction } from '../database/transaction.js';
-import { findCharacterByUserId, setCharacterGold } from '../models/characterModel.js';
+import { findCharacterById, findCharacterByUserId, setCharacterGold } from '../models/characterModel.js';
 import { addInventoryItem } from '../models/inventoryModel.js';
 import { findItemsByIds } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase, findPurchaseById } from '../models/purchaseModel.js';
@@ -27,23 +27,41 @@ function normalizeCart(cartItems) {
   return [...grouped.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
 }
 
-export function checkout(user, cartItems) {
+async function resolveCheckoutCharacter(user, characterId, prisma) {
+  if (characterId) {
+    const character = await findCharacterById(Number(characterId), prisma);
+
+    if (!character) {
+      throw new ApiError(404, 'Personagem nao encontrado.');
+    }
+
+    if (character.userId !== user.id) {
+      throw new ApiError(403, 'Voce nao pode comprar com este personagem.');
+    }
+
+    return character;
+  }
+
+  return findCharacterByUserId(user.id, prisma);
+}
+
+export async function checkout(user, cartItems, characterId) {
   if (user.role !== ROLES.PLAYER) {
     throw new ApiError(403, 'Apenas jogadores com personagem podem comprar itens.');
   }
 
   const normalizedCart = normalizeCart(cartItems);
 
-  return withTransaction((db) => {
-    const character = findCharacterByUserId(user.id, db);
+  return withTransaction(async (prisma) => {
+    const character = await resolveCheckoutCharacter(user, characterId, prisma);
 
     if (!character) {
       throw new ApiError(400, 'Crie um personagem antes de comprar.');
     }
 
-    const items = findItemsByIds(
+    const items = await findItemsByIds(
       normalizedCart.map((item) => item.itemId),
-      db
+      prisma
     );
     const itemMap = new Map(items.map((item) => [item.id, item]));
 
@@ -67,41 +85,53 @@ export function checkout(user, cartItems) {
       throw new ApiError(400, 'Ouro insuficiente para concluir a compra.');
     }
 
-    setCharacterGold(character.id, character.gold - totalValue, db);
+    const updatedCharacter = await setCharacterGold(character.id, character.gold - totalValue, prisma);
 
-    const purchase = createPurchase(
+    const purchase = await createPurchase(
       {
         characterId: character.id,
         totalValue
       },
-      db
+      prisma
     );
 
     for (const cartItem of normalizedCart) {
       const item = itemMap.get(cartItem.itemId);
+      const newStock = item.stock - cartItem.quantity;
 
-      db.prepare('UPDATE items SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
-        cartItem.quantity,
-        item.id
-      );
+      await prisma.item.update({
+        where: { id: item.id },
+        data: { stock: newStock }
+      });
 
-      addInventoryItem(character.id, item.id, cartItem.quantity, db);
+      await prisma.stockMovement.create({
+        data: {
+          itemId: item.id,
+          actorUserId: user.id,
+          previousStock: item.stock,
+          newStock,
+          delta: -cartItem.quantity,
+          reason: `Compra #${purchase.id}`
+        }
+      });
 
-      addPurchaseItem(
+      await addInventoryItem(character.id, item.id, cartItem.quantity, prisma);
+
+      await addPurchaseItem(
         {
           purchaseId: purchase.id,
           itemId: item.id,
           quantity: cartItem.quantity,
           unitPrice: item.price
         },
-        db
+        prisma
       );
     }
 
     return {
       message: 'Compra concluida com sucesso.',
-      purchase: findPurchaseById(purchase.id, db),
-      character: findCharacterByUserId(user.id, db)
+      purchase: await findPurchaseById(purchase.id, prisma),
+      character: updatedCharacter
     };
   });
 }

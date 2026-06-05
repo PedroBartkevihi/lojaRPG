@@ -3,10 +3,12 @@ import {
   createCharacter,
   findCharacterById,
   findCharacterByUserId,
+  findCharactersByUserId,
   listCharacters,
   setCharacterGold,
   updateCharacter
 } from '../models/characterModel.js';
+import { createGoldAuditLog, listGoldAuditLogs } from '../models/goldAuditModel.js';
 import { findUserById } from '../models/userModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import * as validate from '../utils/validation.js';
@@ -38,28 +40,25 @@ function canAccessCharacter(user, character) {
   return user.role === ROLES.GAME_MASTER || character.userId === user.id;
 }
 
-export function index(_req, res) {
-  res.json({ characters: listCharacters() });
+export async function index(_req, res) {
+  res.json({ characters: await listCharacters() });
 }
 
-export function me(req, res) {
-  res.json({ character: findCharacterByUserId(req.user.id) });
+export async function me(req, res) {
+  const characters = await findCharactersByUserId(req.user.id);
+  res.json({ character: characters[0] || null, characters });
 }
 
-export function create(req, res) {
+export async function create(req, res) {
   const userId =
     req.user.role === ROLES.GAME_MASTER && req.body.userId
       ? validate.integer(req.body.userId, 'Usuario', { min: 1 })
       : req.user.id;
 
-  const user = findUserById(userId);
+  const user = await findUserById(userId);
 
   if (!user) {
     throw new ApiError(404, 'Usuario nao encontrado.');
-  }
-
-  if (findCharacterByUserId(userId)) {
-    throw new ApiError(409, 'Este usuario ja possui personagem.');
   }
 
   const data = parseCharacter(req.body);
@@ -68,7 +67,7 @@ export function create(req, res) {
       ? validate.integer(req.body.gold || 0, 'Ouro', { min: 0, max: 1000000 })
       : 0;
 
-  const character = createCharacter({
+  const character = await createCharacter({
     ...data,
     userId,
     gold
@@ -77,9 +76,9 @@ export function create(req, res) {
   res.status(201).json({ character });
 }
 
-export function update(req, res) {
+export async function update(req, res) {
   const id = validate.integer(req.params.id, 'Id do personagem', { min: 1 });
-  const existing = findCharacterById(id);
+  const existing = await findCharacterById(id);
 
   if (!existing) {
     throw new ApiError(404, 'Personagem nao encontrado.');
@@ -89,13 +88,13 @@ export function update(req, res) {
     throw new ApiError(403, 'Voce nao pode editar este personagem.');
   }
 
-  const character = updateCharacter(id, parseCharacter(req.body, existing));
+  const character = await updateCharacter(id, parseCharacter(req.body, existing));
   res.json({ character });
 }
 
-export function changeGold(req, res) {
+export async function changeGold(req, res) {
   const id = validate.integer(req.params.id, 'Id do personagem', { min: 1 });
-  const existing = findCharacterById(id);
+  const existing = await findCharacterById(id);
 
   if (!existing) {
     throw new ApiError(404, 'Personagem nao encontrado.');
@@ -111,6 +110,24 @@ export function changeGold(req, res) {
     throw new ApiError(400, 'Ouro nao pode ficar negativo.');
   }
 
-  const character = setCharacterGold(id, nextGold);
-  res.json({ character });
+  const reason = validate.requiredString(req.body.reason, 'Motivo da alteracao de ouro', 240);
+  const character = await setCharacterGold(id, nextGold);
+  const auditLog = await createGoldAuditLog({
+    actorUserId: req.user.id,
+    characterId: existing.id,
+    previousGold: existing.gold,
+    newGold: nextGold,
+    delta: nextGold - existing.gold,
+    reason
+  });
+
+  res.json({ character, auditLog });
+}
+
+export async function goldAudit(req, res) {
+  const characterId = req.query.characterId
+    ? validate.integer(req.query.characterId, 'Id do personagem', { min: 1 })
+    : undefined;
+
+  res.json({ logs: await listGoldAuditLogs({ characterId }) });
 }

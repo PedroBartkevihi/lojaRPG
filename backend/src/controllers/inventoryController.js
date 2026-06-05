@@ -14,22 +14,24 @@ function ensureInventoryAccess(user, character) {
   }
 }
 
-export function me(req, res) {
-  const character = findCharacterByUserId(req.user.id);
+export async function me(req, res) {
+  const character = req.query.characterId
+    ? await findCharacterById(validate.integer(req.query.characterId, 'Id do personagem', { min: 1 }))
+    : await findCharacterByUserId(req.user.id);
   ensureInventoryAccess(req.user, character);
 
   res.json({
     character,
-    inventory: listInventoryByCharacterId(character.id)
+    inventory: await listInventoryByCharacterId(character.id)
   });
 }
 
-export function show(req, res) {
-  const character = findCharacterById(validate.integer(req.params.characterId, 'Id do personagem', { min: 1 }));
+export async function show(req, res) {
+  const character = await findCharacterById(validate.integer(req.params.characterId, 'Id do personagem', { min: 1 }));
   ensureInventoryAccess(req.user, character);
 
   res.json({
     character,
-    inventory: listInventoryByCharacterId(character.id)
+    inventory: await listInventoryByCharacterId(character.id)
   });
 }

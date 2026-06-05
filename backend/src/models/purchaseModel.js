@@ -1,82 +1,91 @@
-import { getDatabase } from '../database/connection.js';
+import { getPrisma } from '../database/connection.js';
 
-function mapPurchase(row, db) {
-  const items = db
-    .prepare(
-      `SELECT
-        pi.id,
-        pi.item_id AS itemId,
-        i.name AS itemName,
-        i.category,
-        pi.quantity,
-        pi.unit_price AS unitPrice,
-        pi.quantity * pi.unit_price AS subtotal
-       FROM purchase_items pi
-       JOIN items i ON i.id = pi.item_id
-       WHERE pi.purchase_id = ?
-       ORDER BY i.name`
-    )
-    .all(row.id);
+function mapPurchase(purchase) {
+  if (!purchase) {
+    return null;
+  }
 
   return {
-    id: row.id,
-    characterId: row.characterId,
-    characterName: row.characterName,
-    userName: row.userName,
-    totalValue: row.totalValue,
-    purchasedAt: row.purchasedAt,
-    items
+    id: purchase.id,
+    characterId: purchase.characterId,
+    characterName: purchase.character?.name,
+    userName: purchase.character?.user?.name,
+    totalValue: purchase.totalValue,
+    purchasedAt: purchase.purchasedAt,
+    items: purchase.items.map((entry) => ({
+      id: entry.id,
+      itemId: entry.itemId,
+      itemName: entry.item?.name,
+      category: entry.item?.category?.name,
+      quantity: entry.quantity,
+      unitPrice: entry.unitPrice,
+      subtotal: entry.quantity * entry.unitPrice
+    }))
   };
 }
 
-const purchaseSelect = `
-  SELECT
-    p.id,
-    p.character_id AS characterId,
-    c.name AS characterName,
-    u.name AS userName,
-    p.total_value AS totalValue,
-    p.purchased_at AS purchasedAt
-  FROM purchases p
-  JOIN characters c ON c.id = p.character_id
-  JOIN users u ON u.id = c.user_id
-`;
-
-export function createPurchase(data, db = getDatabase()) {
-  const result = db
-    .prepare('INSERT INTO purchases (character_id, total_value) VALUES (?, ?)')
-    .run(data.characterId, data.totalValue);
-
-  return findPurchaseById(result.lastInsertRowid, db);
-}
-
-export function addPurchaseItem(data, db = getDatabase()) {
-  db
-    .prepare(
-      `INSERT INTO purchase_items (purchase_id, item_id, quantity, unit_price)
-       VALUES (?, ?, ?, ?)`
-    )
-    .run(data.purchaseId, data.itemId, data.quantity, data.unitPrice);
-}
-
-export function findPurchaseById(id, db = getDatabase()) {
-  const row = db.prepare(`${purchaseSelect} WHERE p.id = ?`).get(id);
-  return row ? mapPurchase(row, db) : null;
-}
-
-export function listPurchases(filters = {}, db = getDatabase()) {
-  const params = [];
-  const where = [];
-
-  if (filters.characterId) {
-    where.push('p.character_id = ?');
-    params.push(filters.characterId);
+const includePurchase = {
+  character: {
+    include: {
+      user: {
+        select: {
+          name: true
+        }
+      }
+    }
+  },
+  items: {
+    include: {
+      item: {
+        include: {
+          category: true
+        }
+      }
+    },
+    orderBy: {
+      id: 'asc'
+    }
   }
+};
 
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+export async function createPurchase(data, prisma = getPrisma()) {
+  const purchase = await prisma.purchase.create({
+    data: {
+      characterId: Number(data.characterId),
+      totalValue: Number(data.totalValue)
+    },
+    include: includePurchase
+  });
 
-  return db
-    .prepare(`${purchaseSelect} ${whereSql} ORDER BY p.purchased_at DESC, p.id DESC`)
-    .all(...params)
-    .map((row) => mapPurchase(row, db));
+  return mapPurchase(purchase);
+}
+
+export async function addPurchaseItem(data, prisma = getPrisma()) {
+  await prisma.purchaseItem.create({
+    data: {
+      purchaseId: Number(data.purchaseId),
+      itemId: Number(data.itemId),
+      quantity: Number(data.quantity),
+      unitPrice: Number(data.unitPrice)
+    }
+  });
+}
+
+export async function findPurchaseById(id, prisma = getPrisma()) {
+  return mapPurchase(
+    await prisma.purchase.findUnique({
+      where: { id: Number(id) },
+      include: includePurchase
+    })
+  );
+}
+
+export async function listPurchases(filters = {}, prisma = getPrisma()) {
+  const purchases = await prisma.purchase.findMany({
+    where: filters.characterId ? { characterId: Number(filters.characterId) } : {},
+    include: includePurchase,
+    orderBy: [{ purchasedAt: 'desc' }, { id: 'desc' }]
+  });
+
+  return purchases.map(mapPurchase);
 }

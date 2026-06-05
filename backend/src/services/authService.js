@@ -3,11 +3,23 @@ import { env } from '../config/env.js';
 import { ROLES } from '../config/roles.js';
 import { withTransaction } from '../database/transaction.js';
 import { createCharacter } from '../models/characterModel.js';
-import { countUsers, createUser, findUserByEmail, findUserByEmailWithPassword } from '../models/userModel.js';
+import {
+  createRefreshToken,
+  findRefreshTokenByHash,
+  revokeRefreshToken
+} from '../models/refreshTokenModel.js';
+import {
+  countUsers,
+  createUser,
+  findUserByEmail,
+  findUserByEmailWithPassword,
+  findUserById
+} from '../models/userModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
+import { createOpaqueToken, daysFromNow, hashToken } from '../utils/tokens.js';
 
-function createToken(user) {
+function createAccessToken(user) {
   return jwt.sign(
     {
       sub: user.id,
@@ -18,50 +30,73 @@ function createToken(user) {
   );
 }
 
+async function issueRefreshToken(userId, db) {
+  const refreshToken = createOpaqueToken();
+  await createRefreshToken(
+    {
+      userId,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: daysFromNow(env.refreshTokenExpiresInDays)
+    },
+    db
+  );
+  return refreshToken;
+}
+
+function authPayload(user, refreshToken) {
+  const accessToken = createAccessToken(user);
+
+  return {
+    user,
+    accessToken,
+    token: accessToken,
+    refreshToken
+  };
+}
+
 export async function registerUser(data) {
   const passwordHash = await hashPassword(data.password);
 
-  return withTransaction((db) => {
-    if (findUserByEmail(data.email, db)) {
+  return withTransaction(async (prisma) => {
+    if (await findUserByEmail(data.email, prisma)) {
       throw new ApiError(409, 'Email ja cadastrado.');
     }
 
-    if (data.role === ROLES.GAME_MASTER && countUsers(db) > 0 && data.masterKey !== env.masterRegistrationKey) {
+    if (data.role === ROLES.GAME_MASTER && (await countUsers(prisma)) > 0 && data.masterKey !== env.masterRegistrationKey) {
       throw new ApiError(403, 'Chave de cadastro de Mestre invalida.');
     }
 
-    const user = createUser(
+    const user = await createUser(
       {
         name: data.name,
         email: data.email,
         passwordHash,
         role: data.role
       },
-      db
+      prisma
     );
 
     const character =
       data.role === ROLES.PLAYER && data.character
-        ? createCharacter(
+        ? await createCharacter(
             {
               ...data.character,
               userId: user.id,
               gold: 0
             },
-            db
+            prisma
           )
         : null;
 
     return {
-      user,
-      character,
-      token: createToken(user)
+      ...authPayload(user, await issueRefreshToken(user.id, prisma)),
+      character
     };
   });
 }
 
 export async function loginUser(email, password) {
-  const user = findUserByEmailWithPassword(email);
+  const user = await findUserByEmailWithPassword(email);
 
   if (!user) {
     throw new ApiError(401, 'Email ou senha invalidos.');
@@ -81,8 +116,37 @@ export async function loginUser(email, password) {
     createdAt: user.createdAt
   };
 
-  return {
-    user: safeUser,
-    token: createToken(safeUser)
-  };
+  return withTransaction(async (prisma) => authPayload(safeUser, await issueRefreshToken(safeUser.id, prisma)));
+}
+
+export async function refreshSession(refreshToken) {
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    throw new ApiError(401, 'Refresh token nao informado.');
+  }
+
+  return withTransaction(async (prisma) => {
+    const tokenHash = hashToken(refreshToken);
+    const storedToken = await findRefreshTokenByHash(tokenHash, prisma);
+
+    if (!storedToken || storedToken.revokedAt || new Date(storedToken.expiresAt) <= new Date()) {
+      throw new ApiError(401, 'Refresh token invalido ou expirado.');
+    }
+
+    await revokeRefreshToken(tokenHash, prisma);
+    const safeUser = await findUserById(storedToken.userId, prisma);
+
+    if (!safeUser) {
+      throw new ApiError(401, 'Usuario nao encontrado.');
+    }
+
+    return authPayload(safeUser, await issueRefreshToken(safeUser.id, prisma));
+  });
+}
+
+export async function logoutSession(refreshToken) {
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    return;
+  }
+
+  await revokeRefreshToken(hashToken(refreshToken));
 }

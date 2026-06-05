@@ -2,12 +2,14 @@ import { Router } from 'express';
 import * as controller from '../controllers/characterController.js';
 import { authenticate } from '../middlewares/authMiddleware.js';
 import { requireGameMaster } from '../middlewares/roleMiddleware.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const characterRoutes = Router();
 
 characterRoutes.use(authenticate);
-characterRoutes.get('/', requireGameMaster, controller.index);
-characterRoutes.get('/me', controller.me);
-characterRoutes.post('/', controller.create);
-characterRoutes.put('/:id', controller.update);
-characterRoutes.patch('/:id/gold', requireGameMaster, controller.changeGold);
+characterRoutes.get('/', requireGameMaster, asyncHandler(controller.index));
+characterRoutes.get('/me', asyncHandler(controller.me));
+characterRoutes.get('/gold-audit', requireGameMaster, asyncHandler(controller.goldAudit));
+characterRoutes.post('/', asyncHandler(controller.create));
+characterRoutes.put('/:id', asyncHandler(controller.update));
+characterRoutes.patch('/:id/gold', requireGameMaster, asyncHandler(controller.changeGold));

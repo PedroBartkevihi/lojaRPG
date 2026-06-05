@@ -1,53 +1,58 @@
-import { getDatabase } from '../database/connection.js';
+import { getPrisma } from '../database/connection.js';
 
-function mapInventoryItem(row) {
+function mapInventoryItem(entry) {
   return {
-    id: row.id,
-    characterId: row.characterId,
-    itemId: row.itemId,
-    quantity: row.quantity,
+    id: entry.id,
+    characterId: entry.characterId,
+    itemId: entry.itemId,
+    quantity: entry.quantity,
     item: {
-      id: row.itemId,
-      name: row.itemName,
-      category: row.category,
-      rarity: row.rarity,
-      description: row.description,
-      price: row.price,
-      isActive: Boolean(row.isActive)
+      id: entry.item.id,
+      name: entry.item.name,
+      category: entry.item.category?.name,
+      rarity: entry.item.rarity?.name,
+      description: entry.item.description,
+      price: entry.item.price,
+      imageUrl: entry.item.imageUrl,
+      isActive: Boolean(entry.item.isActive)
     }
   };
 }
 
-export function listInventoryByCharacterId(characterId, db = getDatabase()) {
-  return db
-    .prepare(
-      `SELECT
-        inv.id,
-        inv.character_id AS characterId,
-        inv.item_id AS itemId,
-        inv.quantity,
-        i.name AS itemName,
-        i.category,
-        i.rarity,
-        i.description,
-        i.price,
-        i.is_active AS isActive
-       FROM inventory inv
-       JOIN items i ON i.id = inv.item_id
-       WHERE inv.character_id = ?
-       ORDER BY i.category, i.name`
-    )
-    .all(characterId)
-    .map(mapInventoryItem);
+export async function listInventoryByCharacterId(characterId, prisma = getPrisma()) {
+  const inventory = await prisma.inventory.findMany({
+    where: { characterId: Number(characterId) },
+    include: {
+      item: {
+        include: {
+          category: true,
+          rarity: true
+        }
+      }
+    },
+    orderBy: [{ item: { name: 'asc' } }]
+  });
+
+  return inventory.map(mapInventoryItem);
 }
 
-export function addInventoryItem(characterId, itemId, quantity, db = getDatabase()) {
-  db
-    .prepare(
-      `INSERT INTO inventory (character_id, item_id, quantity)
-       VALUES (?, ?, ?)
-       ON CONFLICT(character_id, item_id)
-       DO UPDATE SET quantity = quantity + excluded.quantity`
-    )
-    .run(characterId, itemId, quantity);
+export async function addInventoryItem(characterId, itemId, quantity, prisma = getPrisma()) {
+  await prisma.inventory.upsert({
+    where: {
+      characterId_itemId: {
+        characterId: Number(characterId),
+        itemId: Number(itemId)
+      }
+    },
+    update: {
+      quantity: {
+        increment: Number(quantity)
+      }
+    },
+    create: {
+      characterId: Number(characterId),
+      itemId: Number(itemId),
+      quantity: Number(quantity)
+    }
+  });
 }

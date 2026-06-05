@@ -5,7 +5,7 @@ import { closeDatabase, getDatabase } from './connection.js';
 import { projectRoot } from '../config/env.js';
 import { initializeSchema } from './schema.js';
 
-closeDatabase();
+await closeDatabase();
 
 for (const suffix of ['', '-wal', '-shm']) {
   const file = `${env.databaseFile}${suffix}`;

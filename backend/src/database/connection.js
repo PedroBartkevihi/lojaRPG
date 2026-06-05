@@ -1,9 +1,19 @@
+import { PrismaClient } from '@prisma/client';
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { env } from '../config/env.js';
 
 let database;
+let prisma;
+
+export function getPrisma() {
+  if (!prisma) {
+    prisma = new PrismaClient();
+  }
+
+  return prisma;
+}
 
 export function getDatabase() {
   if (!database) {
@@ -16,9 +26,14 @@ export function getDatabase() {
   return database;
 }
 
-export function closeDatabase() {
+export async function closeDatabase() {
   if (database) {
     database.close();
     database = undefined;
+  }
+
+  if (prisma) {
+    await prisma.$disconnect();
+    prisma = undefined;
   }
 }

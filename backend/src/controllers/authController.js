@@ -1,6 +1,6 @@
 import { ROLES } from '../config/roles.js';
-import { findCharacterByUserId } from '../models/characterModel.js';
-import { loginUser, registerUser } from '../services/authService.js';
+import { findCharacterByUserId, findCharactersByUserId } from '../models/characterModel.js';
+import { loginUser, logoutSession, refreshSession, registerUser } from '../services/authService.js';
 import * as validate from '../utils/validation.js';
 
 function parseCharacter(body) {
@@ -36,22 +36,39 @@ export async function register(req, res) {
 
 export async function login(req, res) {
   const result = await loginUser(validate.email(req.body.email), validate.password(req.body.password));
-  const character = findCharacterByUserId(result.user.id);
+  const character = await findCharacterByUserId(result.user.id);
+  const characters = await findCharactersByUserId(result.user.id);
 
   res.json({
     ...result,
-    character
+    character,
+    characters
   });
 }
 
-export function logout(_req, res) {
-  res.json({ message: 'Logout realizado. Remova o token no cliente.' });
+export async function refresh(req, res) {
+  const result = await refreshSession(req.body.refreshToken);
+  const character = await findCharacterByUserId(result.user.id);
+  const characters = await findCharactersByUserId(result.user.id);
+
+  res.json({
+    ...result,
+    character,
+    characters
+  });
 }
 
-export function me(req, res) {
-  const character = findCharacterByUserId(req.user.id);
+export async function logout(req, res) {
+  await logoutSession(req.body.refreshToken);
+  res.json({ message: 'Logout realizado.' });
+}
+
+export async function me(req, res) {
+  const character = await findCharacterByUserId(req.user.id);
+  const characters = await findCharactersByUserId(req.user.id);
   res.json({
     user: req.user,
-    character
+    character,
+    characters
   });
 }
