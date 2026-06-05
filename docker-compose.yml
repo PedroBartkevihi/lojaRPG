@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      JWT_SECRET: "troque-este-segredo-em-producao"
+      JWT_EXPIRES_IN: "15m"
+      REFRESH_TOKEN_EXPIRES_IN_DAYS: 7
+      CORS_ORIGIN: "http://localhost:8080"
+      DB_FILE: "/app/data/loja-rpg.sqlite"
+      DATABASE_URL: "file:/app/data/loja-rpg.sqlite"
+      MASTER_REGISTRATION_KEY: "troque-esta-chave"
+    volumes:
+      - loja_rpg_data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: "http://localhost:3001"
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  loja_rpg_data:

@@ -1,11 +1,23 @@
 # Banco de dados
 
-Este projeto usa SQLite pelo modulo nativo `node:sqlite`, disponivel no Node 24+.
+O projeto usa SQLite com Prisma Client. As migrations versionadas ficam em
+`backend/prisma/migrations`.
 
-- `schema.sql` cria as tabelas, chaves e restricoes.
-- `seed.sql` limpa e insere dados iniciais de desenvolvimento.
+Esta pasta ainda contem:
 
-Execute pelo back-end:
+- `schema.sql`: bootstrap local usado pelos scripts antigos e pela inicializacao
+  da API quando o arquivo SQLite ainda nao existe.
+- `seed.sql`: dados iniciais de desenvolvimento para os scripts antigos.
+
+Para evoluir o banco, crie migrations pelo Prisma:
+
+```bash
+cd backend
+npx prisma migrate dev
+npx prisma generate
+```
+
+Para recriar o banco local de desenvolvimento:
 
 ```bash
 cd backend
