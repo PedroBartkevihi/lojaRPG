@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import CampaignsPage from './CampaignsPage.jsx';
 
 const campaigns = [
-  { id: 1, name: 'Mesa de demonstracao', role: 'JOGADOR', memberCount: 4 },
+  { id: 1, name: 'Mesa de demonstração', role: 'JOGADOR', memberCount: 4 },
   { id: 2, name: 'Mesa do Pedro', role: 'MESTRE', memberCount: 1, inviteCode: 'ABCDEFGH' }
 ];
 
@@ -32,20 +32,20 @@ describe('CampaignsPage', () => {
     expect(onSelect).toHaveBeenCalledWith(campaigns[1], '/shop');
   });
 
-  it('entra numa mesa pelo codigo de convite', async () => {
+  it('entra numa mesa pelo código de convite', async () => {
     const user = userEvent.setup();
     const joined = { id: 3, name: 'Mesa do Caio', role: 'JOGADOR', memberCount: 3 };
     const api = {
-      joinCampaign: vi.fn().mockResolvedValue({ message: 'Voce entrou na mesa Mesa do Caio.', campaign: joined })
+      joinCampaign: vi.fn().mockResolvedValue({ message: 'Você entrou na mesa Mesa do Caio.', campaign: joined })
     };
     const { onSelect, onCampaignsChanged, showNotice } = renderPage({ api });
 
-    await user.type(screen.getByLabelText(/codigo de convite/i), 'abcd-efgh');
+    await user.type(screen.getByLabelText(/código de convite/i), 'abcd-efgh');
     await user.click(screen.getByRole('button', { name: /entrar na mesa/i }));
 
     expect(api.joinCampaign).toHaveBeenCalledWith({ inviteCode: 'abcd-efgh' });
     expect(onCampaignsChanged).toHaveBeenCalledTimes(1);
-    expect(showNotice).toHaveBeenCalledWith('Voce entrou na mesa Mesa do Caio.');
+    expect(showNotice).toHaveBeenCalledWith('Você entrou na mesa Mesa do Caio.');
     expect(onSelect).toHaveBeenCalledWith(joined, '/shop');
   });
 
@@ -55,7 +55,7 @@ describe('CampaignsPage', () => {
     const api = { createCampaign: vi.fn().mockResolvedValue({ campaign: created }) };
     const { onSelect } = renderPage({ api, campaigns: [] });
 
-    expect(screen.getByText(/ainda nao participa de nenhuma mesa/i)).toBeInTheDocument();
+    expect(screen.getByText(/ainda não participa de nenhuma mesa/i)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/nome da mesa/i), 'Mesa nova');
     await user.click(screen.getByRole('button', { name: /criar mesa/i }));

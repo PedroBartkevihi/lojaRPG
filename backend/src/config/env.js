@@ -16,7 +16,11 @@ export const env = {
   corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean)
+    .filter(Boolean),
+  // Quantos proxies ficam entre o usuario e a API. Atras de um proxy, sem esse
+  // numero, a API ve o IP do proxy e todos os usuarios dividem o mesmo rate
+  // limit; um numero maior que o real deixa o cliente forjar o proprio IP.
+  trustProxy: Number.parseInt(process.env.TRUST_PROXY || '0', 10) || 0
 };
 
 // Valores de exemplo que aparecem no repositorio (defaults, .env.*.example e
@@ -38,7 +42,7 @@ export function assertProductionSecrets({ nodeEnv, jwtSecret }) {
 
   if (isWeakSecret(jwtSecret, 32)) {
     throw new Error(
-      'Configuracao invalida para producao: JWT_SECRET precisa ter pelo menos 32 caracteres e nao pode ser um valor de exemplo.'
+      'Configuração inválida para produção: JWT_SECRET precisa ter pelo menos 32 caracteres e não pode ser um valor de exemplo.'
     );
   }
 }

@@ -1,7 +1,7 @@
 import { ApiError } from '../utils/ApiError.js';
 
 export function notFound(_req, _res, next) {
-  next(new ApiError(404, 'Rota nao encontrada.'));
+  next(new ApiError(404, 'Rota não encontrada.'));
 }
 
 export function errorHandler(error, _req, res, _next) {
@@ -10,11 +10,11 @@ export function errorHandler(error, _req, res, _next) {
   }
 
   if (error.code === 'P2003') {
-    return res.status(400).json({ message: 'Referencia invalida.' });
+    return res.status(400).json({ message: 'Referência inválida.' });
   }
 
   if (error.code === 'P2025') {
-    return res.status(404).json({ message: 'Registro nao encontrado.' });
+    return res.status(404).json({ message: 'Registro não encontrado.' });
   }
 
   const statusCode = error.statusCode || 500;

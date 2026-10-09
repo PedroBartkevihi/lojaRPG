@@ -5,7 +5,15 @@ import InventoryLogList from '../components/InventoryLogList.jsx';
 import PurchaseHistory from '../components/PurchaseHistory.jsx';
 import RewardsPanel from '../components/RewardsPanel.jsx';
 
-export default function AdminPage({ api, showNotice, onRefresh }) {
+// Compara sem acentos nem maiusculas: "pocao" encontra "Poção".
+function normalizeText(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
   const [items, setItems] = useState([]);
   const [characters, setCharacters] = useState([]);
   const [goldAuditLogs, setGoldAuditLogs] = useState([]);
@@ -27,8 +35,12 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
   const [characterDraft, setCharacterDraft] = useState({ name: '', className: '', race: '', level: 1 });
   const [loading, setLoading] = useState(true);
 
-  async function loadAdminData() {
-    setLoading(true);
+  // `silent` e a recarga automatica: a lista atual fica na tela ate a nova
+  // chegar, sem "Carregando".
+  async function loadAdminData({ silent = false } = {}) {
+    if (!silent) {
+      setLoading(true);
+    }
 
     try {
       const [itemsData, charactersData, auditData, categoriesData, raritiesData, stockData, logsData] =
@@ -57,6 +69,12 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
     loadAdminData().catch((error) => showNotice(error.message));
   }, []);
 
+  useEffect(() => {
+    if (liveKey) {
+      loadAdminData({ silent: true }).catch(() => {});
+    }
+  }, [liveKey]);
+
   const filteredItems = useMemo(() => {
     return items
       .filter((item) => {
@@ -64,7 +82,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
         if (filters.status === 'inactive' && item.isActive) return false;
         if (filters.category && item.category !== filters.category) return false;
         if (filters.rarity && item.rarity !== filters.rarity) return false;
-        if (filters.search && !item.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
+        if (filters.search && !normalizeText(item.name).includes(normalizeText(filters.search))) return false;
         return true;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -145,13 +163,13 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
     const itemCount = Number(category.itemCount || 0);
 
     if (category.name === 'Sem categoria' && itemCount > 0) {
-      showNotice('Nao e possivel remover Sem categoria enquanto existem itens vinculados.');
+      showNotice('Não é possível remover Sem categoria enquanto existem itens vinculados.');
       return;
     }
 
     const confirmed = window.confirm(
       itemCount > 0
-        ? `Remover a categoria ${category.name}? ${itemCount} item(ns) sera(o) movido(s) para Sem categoria.`
+        ? `Remover a categoria ${category.name}? ${itemCount} item(ns) será(ão) movido(s) para Sem categoria.`
         : `Remover a categoria ${category.name}?`
     );
 
@@ -195,13 +213,13 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
     const itemCount = Number(rarity.itemCount || 0);
 
     if (rarity.name === 'Comum' && itemCount > 0) {
-      showNotice('Nao e possivel remover Comum enquanto existem itens vinculados.');
+      showNotice('Não é possível remover Comum enquanto existem itens vinculados.');
       return;
     }
 
     const confirmed = window.confirm(
       itemCount > 0
-        ? `Remover a raridade ${rarity.name}? ${itemCount} item(ns) sera(o) movido(s) para Comum.`
+        ? `Remover a raridade ${rarity.name}? ${itemCount} item(ns) será(ão) movido(s) para Comum.`
         : `Remover a raridade ${rarity.name}?`
     );
 
@@ -253,7 +271,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
     }
 
     if (!reason) {
-      showNotice('Informe o motivo da alteracao de ouro.');
+      showNotice('Informe o motivo da alteração de ouro.');
       return;
     }
 
@@ -273,7 +291,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
             <p className="eyebrow">Controle do Mestre</p>
             <h2>Painel administrativo</h2>
           </div>
-          <button className="secondary-action" onClick={loadAdminData}>
+          <button className="secondary-action" onClick={() => loadAdminData()}>
             <RefreshCcw size={17} />
             Atualizar
           </button>
@@ -339,7 +357,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                     <strong>{item.name}</strong>
                     <span>
                       {item.category} - {item.rarity} - {item.price} ouro -{' '}
-                      {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja nao compra'} - estoque {item.stock} -{' '}
+                      {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja não compra'} - estoque {item.stock} -{' '}
                       {item.isActive ? 'ativo' : 'inativo'}
                     </span>
                   </div>
@@ -381,8 +399,93 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
         />
         <div className="surface-panel">
           <div className="panel-title">
+            <Coins size={20} />
+            <h3>Ouro dos personagens</h3>
+          </div>
+          <div className="admin-list compact">
+            {characters.map((character) => (
+              <div className="admin-row" key={character.id}>
+                {editingCharacterId === character.id ? (
+                  <div className="character-edit">
+                    <div className="form-grid two">
+                      <input
+                        value={characterDraft.name}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, name: event.target.value }))}
+                        aria-label="Nome do personagem"
+                      />
+                      <input
+                        value={characterDraft.className}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, className: event.target.value }))}
+                        aria-label="Classe do personagem"
+                      />
+                      <input
+                        value={characterDraft.race}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, race: event.target.value }))}
+                        aria-label="Raça do personagem"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={characterDraft.level}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, level: event.target.value }))}
+                        aria-label="Nível do personagem"
+                      />
+                    </div>
+                    <div className="row-actions">
+                      <button type="button" className="secondary-action" onClick={() => saveCharacter(character)}>
+                        <Save size={17} />
+                        Salvar
+                      </button>
+                      <button type="button" className="text-action" onClick={() => setEditingCharacterId(null)}>
+                        <X size={17} />
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <strong>{character.name}</strong>
+                      <span>
+                        {character.userName} - {character.className} nível {character.level} - {character.gold} ouro
+                      </span>
+                    </div>
+                    <div className="row-actions">
+                      <button type="button" className="icon-button" onClick={() => startCharacterEdit(character)} title="Editar personagem">
+                        <Pencil size={17} />
+                      </button>
+                    </div>
+                    <div className="gold-adjust">
+                      <input
+                        type="number"
+                        value={goldInputs[character.id] || ''}
+                        onChange={(event) =>
+                          setGoldInputs((current) => ({ ...current, [character.id]: event.target.value }))
+                        }
+                        placeholder="+/-"
+                      />
+                      <input
+                        value={goldReasons[character.id] || ''}
+                        onChange={(event) =>
+                          setGoldReasons((current) => ({ ...current, [character.id]: event.target.value }))
+                        }
+                        placeholder="Motivo"
+                      />
+                      <button className="secondary-action" onClick={() => applyGold(character)}>
+                        Aplicar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="surface-panel">
+          <div className="panel-title">
             <PackagePlus size={20} />
-            <h3>Catalogo</h3>
+            <h3>Catálogo</h3>
           </div>
           <form className="inline-form" onSubmit={addCategory}>
             <input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Nova categoria" />
@@ -402,7 +505,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                       <button type="button" className="icon-button" onClick={() => saveCategory(category)} title="Salvar categoria">
                         <Save size={17} />
                       </button>
-                      <button type="button" className="icon-button" onClick={() => setEditingCategoryId(null)} title="Cancelar edicao">
+                      <button type="button" className="icon-button" onClick={() => setEditingCategoryId(null)} title="Cancelar edição">
                         <X size={17} />
                       </button>
                     </div>
@@ -451,7 +554,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                       <button type="button" className="icon-button" onClick={() => saveRarity(rarity)} title="Salvar raridade">
                         <Save size={17} />
                       </button>
-                      <button type="button" className="icon-button" onClick={() => setEditingRarityId(null)} title="Cancelar edicao">
+                      <button type="button" className="icon-button" onClick={() => setEditingRarityId(null)} title="Cancelar edição">
                         <X size={17} />
                       </button>
                     </div>
@@ -478,93 +581,8 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
         </div>
         <div className="surface-panel">
           <div className="panel-title">
-            <Coins size={20} />
-            <h3>Ouro dos personagens</h3>
-          </div>
-          <div className="admin-list compact">
-            {characters.map((character) => (
-              <div className="admin-row" key={character.id}>
-                {editingCharacterId === character.id ? (
-                  <div className="character-edit">
-                    <div className="form-grid two">
-                      <input
-                        value={characterDraft.name}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, name: event.target.value }))}
-                        aria-label="Nome do personagem"
-                      />
-                      <input
-                        value={characterDraft.className}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, className: event.target.value }))}
-                        aria-label="Classe do personagem"
-                      />
-                      <input
-                        value={characterDraft.race}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, race: event.target.value }))}
-                        aria-label="Raca do personagem"
-                      />
-                      <input
-                        type="number"
-                        min="1"
-                        max="20"
-                        value={characterDraft.level}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, level: event.target.value }))}
-                        aria-label="Nivel do personagem"
-                      />
-                    </div>
-                    <div className="row-actions">
-                      <button type="button" className="secondary-action" onClick={() => saveCharacter(character)}>
-                        <Save size={17} />
-                        Salvar
-                      </button>
-                      <button type="button" className="text-action" onClick={() => setEditingCharacterId(null)}>
-                        <X size={17} />
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <strong>{character.name}</strong>
-                      <span>
-                        {character.userName} - {character.className} nivel {character.level} - {character.gold} ouro
-                      </span>
-                    </div>
-                    <div className="row-actions">
-                      <button type="button" className="icon-button" onClick={() => startCharacterEdit(character)} title="Editar personagem">
-                        <Pencil size={17} />
-                      </button>
-                    </div>
-                    <div className="gold-adjust">
-                      <input
-                        type="number"
-                        value={goldInputs[character.id] || ''}
-                        onChange={(event) =>
-                          setGoldInputs((current) => ({ ...current, [character.id]: event.target.value }))
-                        }
-                        placeholder="+/-"
-                      />
-                      <input
-                        value={goldReasons[character.id] || ''}
-                        onChange={(event) =>
-                          setGoldReasons((current) => ({ ...current, [character.id]: event.target.value }))
-                        }
-                        placeholder="Motivo"
-                      />
-                      <button className="secondary-action" onClick={() => applyGold(character)}>
-                        Aplicar
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="surface-panel">
-          <div className="panel-title">
             <PackagePlus size={20} />
-            <h3>Historico de estoque</h3>
+            <h3>Histórico de estoque</h3>
           </div>
           <div className="history-list">
             {stockMovements.slice(0, 8).map((movement) => (
@@ -581,7 +599,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                 </p>
               </article>
             ))}
-            {stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentacao registrada.</p>}
+            {stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
           </div>
         </div>
         <div className="surface-panel">
@@ -616,7 +634,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
             {goldAuditLogs.length === 0 && <p className="empty-state">Nenhum ajuste manual registrado.</p>}
           </div>
         </div>
-        <PurchaseHistory api={api} isMaster refreshKey={items.length + characters.length} embedded />
+        <PurchaseHistory api={api} isMaster refreshKey={`${liveKey}:${items.length}:${characters.length}`} embedded />
       </aside>
     </section>
   );

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import CartPanel from './CartPanel.jsx';
 
 describe('CartPanel', () => {
-  it('bloqueia finalizacao quando o carrinho esta vazio', () => {
+  it('bloqueia finalização quando o carrinho está vazio', () => {
     render(<CartPanel cart={[]} setCart={vi.fn()} character={{ id: 1 }} onCheckout={vi.fn()} />);
 
     expect(screen.getByText('Nenhum item selecionado.')).toBeInTheDocument();
@@ -16,14 +16,14 @@ describe('CartPanel', () => {
     const onCheckout = vi.fn();
     const cart = [
       {
-        item: { id: 1, name: 'Pocao de Cura', price: 50, stock: 5 },
+        item: { id: 1, name: 'Poção de Cura', price: 50, stock: 5 },
         quantity: 2
       }
     ];
 
     render(<CartPanel cart={cart} setCart={vi.fn()} character={{ id: 7 }} onCheckout={onCheckout} />);
 
-    expect(screen.getByText('Pocao de Cura')).toBeInTheDocument();
+    expect(screen.getByText('Poção de Cura')).toBeInTheDocument();
     expect(screen.getByText('100 ouro')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /finalizar compra/i }));

@@ -6,6 +6,7 @@ import ItemCard from '../components/ItemCard.jsx';
 
 export default function ShopPage({
   api,
+  liveKey,
   isMaster,
   character,
   characters = [],
@@ -22,13 +23,21 @@ export default function ShopPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
+  const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+
+  // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
+  // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
   async function loadItems() {
-    setLoading(true);
     setError('');
 
     try {
       const data = await api.listItems({ search, category });
+      const freshItems = new Map(data.items.map((item) => [item.id, item]));
       setItems(data.items);
+      setCart((current) =>
+        current.map((entry) => (freshItems.has(entry.item.id) ? { ...entry, item: freshItems.get(entry.item.id) } : entry))
+      );
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -38,14 +47,14 @@ export default function ShopPage({
 
   useEffect(() => {
     loadItems();
-  }, [search, category]);
+  }, [search, category, liveKey]);
 
   useEffect(() => {
     api
       .listItems()
       .then((data) => setCategories([...new Set(data.items.map((item) => item.category))].sort()))
       .catch((requestError) => setError(requestError.message));
-  }, [api]);
+  }, [api, liveKey]);
 
   function addToCart(item) {
     if (isMaster) {
@@ -63,7 +72,7 @@ export default function ShopPage({
       const currentQuantity = existing?.quantity || 0;
 
       if (currentQuantity >= item.stock) {
-        showNotice('Estoque maximo deste item ja esta no carrinho.');
+        showNotice('Estoque máximo deste item já está no carrinho.');
         return current;
       }
 
@@ -101,7 +110,7 @@ export default function ShopPage({
       <div className="shop-column">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Itens disponiveis</p>
+            <p className="eyebrow">Itens disponíveis</p>
             <h2>Loja da campanha</h2>
           </div>
           {!isMaster && character && (
@@ -156,7 +165,9 @@ export default function ShopPage({
               onRefreshSession={onRefreshSession}
               showNotice={showNotice}
             />
-            <CartPanel cart={cart} setCart={setCart} character={character} onCheckout={checkout} disabled={false} />
+            <div id="carrinho">
+              <CartPanel cart={cart} setCart={setCart} character={character} onCheckout={checkout} disabled={false} />
+            </div>
           </>
         ) : (
           <div className="surface-panel">
@@ -165,6 +176,22 @@ export default function ShopPage({
           </div>
         )}
       </aside>
+
+      {/* No celular o carrinho fica depois do catalogo; esta barra leva ate ele. */}
+      {!isMaster && cartCount > 0 && (
+        <div className="mobile-cart-bar">
+          <span>
+            {cartCount} {cartCount === 1 ? 'item' : 'itens'} - {cartTotal} ouro
+          </span>
+          <button
+            className="primary-action"
+            onClick={() => document.getElementById('carrinho')?.scrollIntoView({ behavior: 'smooth' })}
+          >
+            <ShoppingCart size={17} />
+            Ver carrinho
+          </button>
+        </div>
+      )}
     </section>
   );
 }

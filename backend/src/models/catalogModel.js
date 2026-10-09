@@ -40,7 +40,7 @@ async function findCategoryInCampaign(campaignId, id, prisma) {
   });
 
   if (!category) {
-    throw new ApiError(404, 'Categoria nao encontrada.');
+    throw new ApiError(404, 'Categoria não encontrada.');
   }
 
   return category;
@@ -53,7 +53,7 @@ async function findRarityInCampaign(campaignId, id, prisma) {
   });
 
   if (!rarity) {
-    throw new ApiError(404, 'Raridade nao encontrada.');
+    throw new ApiError(404, 'Raridade não encontrada.');
   }
 
   return rarity;
@@ -100,7 +100,7 @@ export async function deleteCategory(campaignId, id, prisma = getPrisma()) {
 
     if (category._count.items > 0) {
       if (category.name === FALLBACK_CATEGORY_NAME) {
-        throw new ApiError(409, 'Nao e possivel remover Sem categoria enquanto existem itens vinculados.');
+        throw new ApiError(409, 'Não é possível remover Sem categoria enquanto existem itens vinculados.');
       }
 
       fallbackCategory = await tx.category.upsert({
@@ -169,7 +169,7 @@ export async function deleteRarity(campaignId, id, prisma = getPrisma()) {
 
     if (rarity._count.items > 0) {
       if (rarity.name === FALLBACK_RARITY_NAME) {
-        throw new ApiError(409, 'Nao e possivel remover Comum enquanto existem itens vinculados.');
+        throw new ApiError(409, 'Não é possível remover Comum enquanto existem itens vinculados.');
       }
 
       fallbackRarity = await tx.rarity.upsert({

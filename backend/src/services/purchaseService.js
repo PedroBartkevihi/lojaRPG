@@ -25,11 +25,11 @@ async function resolveCheckoutCharacter(user, campaignId, characterId, prisma) {
     const character = await findCharacterById(parse(characterIdSchema, characterId), campaignId, prisma);
 
     if (!character) {
-      throw new ApiError(404, 'Personagem nao encontrado.');
+      throw new ApiError(404, 'Personagem não encontrado.');
     }
 
     if (character.userId !== user.id) {
-      throw new ApiError(403, 'Voce nao pode comprar com este personagem.');
+      throw new ApiError(403, 'Você não pode comprar com este personagem.');
     }
 
     return character;
@@ -69,7 +69,7 @@ export async function checkout(user, membership, cartItems, characterId) {
       const item = itemMap.get(cartItem.itemId);
 
       if (!item || !item.isActive) {
-        throw new ApiError(404, `Item ${cartItem.itemId} nao encontrado.`);
+        throw new ApiError(404, `Item ${cartItem.itemId} não encontrado.`);
       }
 
       if (item.stock < cartItem.quantity) {
@@ -130,7 +130,7 @@ export async function checkout(user, membership, cartItems, characterId) {
     }
 
     return {
-      message: 'Compra concluida com sucesso.',
+      message: 'Compra concluída com sucesso.',
       purchase: await findPurchaseById(purchase.id, prisma),
       character: await findCharacterById(character.id, campaignId, prisma)
     };

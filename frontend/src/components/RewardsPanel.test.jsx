@@ -10,8 +10,8 @@ const characters = [
 ];
 
 const items = [
-  { id: 6, name: 'Pocao de Cura', isActive: true },
-  { id: 9, name: 'Anel de Protecao Menor', isActive: false }
+  { id: 6, name: 'Poção de Cura', isActive: true },
+  { id: 9, name: 'Anel de Proteção Menor', isActive: false }
 ];
 
 function renderPanel(api) {
@@ -47,10 +47,10 @@ describe('RewardsPanel', () => {
 
   it('entrega item fora da loja a um personagem', async () => {
     const user = userEvent.setup();
-    const api = { giveItem: vi.fn().mockResolvedValue({ message: 'Lia Brasa recebeu 1x Anel de Protecao Menor.' }) };
+    const api = { giveItem: vi.fn().mockResolvedValue({ message: 'Lia Brasa recebeu 1x Anel de Proteção Menor.' }) };
     renderPanel(api);
 
-    expect(screen.getByRole('option', { name: 'Anel de Protecao Menor (fora da loja)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Anel de Proteção Menor (fora da loja)' })).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText(/^personagem$/i), '3');
     await user.selectOptions(screen.getByLabelText(/^item$/i), '9');

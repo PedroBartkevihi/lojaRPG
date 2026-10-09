@@ -14,7 +14,7 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
   const remainder = mode === 'split' ? total - share * ids.length : 0;
 
   if (share <= 0) {
-    throw new ApiError(400, `${total} de ouro nao da para dividir entre ${ids.length} personagens.`);
+    throw new ApiError(400, `${total} de ouro não dá para dividir entre ${ids.length} personagens.`);
   }
 
   return withTransaction(async (prisma) => {
@@ -24,7 +24,7 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
       const character = await findCharacterById(characterId, campaignId, prisma);
 
       if (!character) {
-        throw new ApiError(404, 'Personagem nao encontrado.');
+        throw new ApiError(404, 'Personagem não encontrado.');
       }
 
       const newGold = await creditCharacterGold(character.id, share, prisma);
@@ -42,10 +42,11 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
       characters.push({ ...character, gold: newGold });
     }
 
+    const leftover = remainder > 0 ? ` Sobrou ${remainder}.` : '';
     const message =
-      mode === 'split'
-        ? `${share} de ouro para cada um dos ${ids.length} personagens.${remainder > 0 ? ` Sobrou ${remainder}.` : ''}`
-        : `${share} de ouro para cada um dos ${ids.length} personagens.`;
+      characters.length === 1
+        ? `${share} de ouro para ${characters[0].name}.${leftover}`
+        : `${share} de ouro para cada um dos ${characters.length} personagens.${leftover}`;
 
     return { message, share, remainder, characters };
   });
@@ -58,13 +59,13 @@ export async function giveItem({ actorUserId, campaignId, characterId, itemId, q
     const character = await findCharacterById(characterId, campaignId, prisma);
 
     if (!character) {
-      throw new ApiError(404, 'Personagem nao encontrado.');
+      throw new ApiError(404, 'Personagem não encontrado.');
     }
 
     const item = await findItemById(itemId, { campaignId, includeInactive: true }, prisma);
 
     if (!item) {
-      throw new ApiError(404, 'Item nao encontrado.');
+      throw new ApiError(404, 'Item não encontrado.');
     }
 
     await addInventoryItem(character.id, item.id, quantity, prisma);

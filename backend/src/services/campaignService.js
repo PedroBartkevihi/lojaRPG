@@ -24,7 +24,7 @@ async function generateUniqueInviteCode(prisma) {
     }
   }
 
-  throw new ApiError(503, 'Nao foi possivel gerar um codigo de convite. Tente novamente.');
+  throw new ApiError(503, 'Não foi possível gerar um código de convite. Tente novamente.');
 }
 
 async function copyStarterCatalog(campaignId, actorUserId, prisma) {
@@ -75,7 +75,7 @@ export async function joinCampaign(user, inviteCode) {
     const campaign = await findCampaignByInviteCode(inviteCode, prisma);
 
     if (!campaign) {
-      throw new ApiError(404, 'Codigo de convite invalido.');
+      throw new ApiError(404, 'Código de convite inválido.');
     }
 
     const existing = await findMembership(campaign.id, user.id, prisma);
@@ -110,7 +110,7 @@ export async function removeMember(membership, targetUserId) {
   const isSelf = membership.userId === targetUserId;
 
   if (isSelf && membership.role === ROLES.GAME_MASTER) {
-    throw new ApiError(400, 'O Mestre nao pode sair da propria mesa. Para encerrar a mesa, exclua-a.');
+    throw new ApiError(400, 'O Mestre não pode sair da própria mesa. Para encerrar a mesa, exclua-a.');
   }
 
   if (!isSelf && membership.role !== ROLES.GAME_MASTER) {
@@ -119,7 +119,7 @@ export async function removeMember(membership, targetUserId) {
 
   return withTransaction(async (prisma) => {
     if (!(await findMembership(membership.campaignId, targetUserId, prisma))) {
-      throw new ApiError(404, 'Participante nao encontrado.');
+      throw new ApiError(404, 'Participante não encontrado.');
     }
 
     await removeMemberRecord(membership.campaignId, targetUserId, prisma);

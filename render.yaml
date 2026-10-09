@@ -30,6 +30,10 @@ services:
         generateValue: true
       - key: DEMO_RESET_ON_START
         value: "true"
+      # Proxies do Render entre o usuario e a API. Confira no log da API a
+      # linha "X-Forwarded-For com N endereco(s)" e use o N medido.
+      - key: TRUST_PROXY
+        value: "2"
 
   - type: web
     name: lojarpg-web

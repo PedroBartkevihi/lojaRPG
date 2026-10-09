@@ -17,11 +17,11 @@ export async function me(req, res) {
     : await findCharacterByUserId(req.user.id, req.campaign.id);
 
   if (!character) {
-    throw new ApiError(404, 'Personagem nao encontrado.');
+    throw new ApiError(404, 'Personagem não encontrado.');
   }
 
   if (character.userId !== req.user.id) {
-    throw new ApiError(403, 'Voce nao pode ver compras deste personagem.');
+    throw new ApiError(403, 'Você não pode ver compras deste personagem.');
   }
 
   res.json({ purchases: await listPurchases({ campaignId: req.campaign.id, characterId: character.id }) });

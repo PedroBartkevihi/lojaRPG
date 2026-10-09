@@ -12,5 +12,5 @@ export const memberIdSchema = id('Id do participante');
 
 export const inviteCodeSchema = z.preprocess(
   normalizeInviteCode,
-  z.string().length(INVITE_CODE_LENGTH, 'Codigo de convite invalido.')
+  z.string().length(INVITE_CODE_LENGTH, 'Código de convite inválido.')
 );

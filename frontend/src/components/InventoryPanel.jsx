@@ -40,7 +40,7 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
     const question =
       action === 'sell'
         ? `Vender ${quantity}x ${item.name} por ${item.effectiveSellPrice * quantity} ouro?`
-        : `Usar ${quantity}x ${item.name}? O item sai do inventario.`;
+        : `Usar ${quantity}x ${item.name}? O item sai do inventário.`;
 
     if (!window.confirm(question)) {
       return;
@@ -73,7 +73,7 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
       <div className="section-heading">
         <div>
           <p className="eyebrow">Itens conquistados</p>
-          <h2>Inventario{character ? ` de ${character.name}` : ''}</h2>
+          <h2>Inventário{character ? ` de ${character.name}` : ''}</h2>
         </div>
         {character && (
           <span className="gold-badge">
@@ -88,7 +88,7 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
           <h3>Equipamentos</h3>
         </div>
         {loading && inventory.length === 0 ? (
-          <p className="empty-state">Carregando inventario...</p>
+          <p className="empty-state">Carregando inventário...</p>
         ) : (
           <div className="inventory-grid">
             {inventory.map((entry) => {
@@ -102,7 +102,7 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
                   <p>{entry.item.description}</p>
                   <b>{entry.quantity}x</b>
                   <small className="sell-hint">
-                    {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja nao compra este item'}
+                    {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja não compra este item'}
                   </small>
                   <div className="inventory-actions">
                     {entry.quantity > 1 && (
@@ -132,14 +132,14 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
                 </article>
               );
             })}
-            {inventory.length === 0 && <p className="empty-state">Inventario vazio.</p>}
+            {inventory.length === 0 && <p className="empty-state">Inventário vazio.</p>}
           </div>
         )}
       </div>
       <div className="surface-panel inventory-history">
         <div className="panel-title">
           <History size={20} />
-          <h3>Movimentacoes</h3>
+          <h3>Movimentações</h3>
         </div>
         <InventoryLogList logs={logs} limit={15} />
       </div>

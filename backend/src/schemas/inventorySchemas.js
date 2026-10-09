@@ -19,7 +19,7 @@ export const goldRewardSchema = z.object({
     .array(id('Id do personagem'), { error: 'Escolha pelo menos um personagem.' })
     .min(1, 'Escolha pelo menos um personagem.'),
   total: integer('Ouro da recompensa', { min: 1, max: 1000000 }),
-  mode: z.enum(['split', 'each'], { error: 'Forma de distribuicao invalida.' }),
+  mode: z.enum(['split', 'each'], { error: 'Forma de distribuição inválida.' }),
   reason: requiredText('Motivo da recompensa', 240)
 });
 

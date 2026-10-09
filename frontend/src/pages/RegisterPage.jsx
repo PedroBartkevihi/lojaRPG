@@ -58,7 +58,7 @@ export default function RegisterPage({ api, onRegister, onSwitch }) {
         {loading ? 'Criando...' : 'Cadastrar'}
       </button>
       <button type="button" className="text-action" onClick={onSwitch}>
-        Ja tenho acesso
+        Já tenho acesso
       </button>
     </form>
   );

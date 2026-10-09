@@ -76,7 +76,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
         </label>
       </div>
       <label>
-        Descricao
+        Descrição
         <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} />
       </label>
       <label>
@@ -89,7 +89,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
       </label>
       <div className="form-grid three">
         <label>
-          Preco
+          Preço
           <input
             value={form.price}
             onChange={(event) => updateField('price', event.target.value)}
@@ -125,13 +125,13 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
       </div>
       <div className="form-grid two">
         <label>
-          Preco de venda a loja
+          Preço de venda à loja
           <input
             value={form.sellPrice}
             onChange={(event) => updateField('sellPrice', event.target.value)}
             type="number"
             min="0"
-            placeholder={`Padrao: ${Math.floor(Number(form.price || 0) / 2)} (metade)`}
+            placeholder={`Padrão: ${Math.floor(Number(form.price || 0) / 2)} (metade)`}
             disabled={!form.isSellable}
           />
         </label>
@@ -141,7 +141,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
             checked={!form.isSellable}
             onChange={(event) => updateField('isSellable', !event.target.checked)}
           />
-          A loja nao compra este item
+          A loja não compra este item
         </label>
       </div>
       {item && (
@@ -150,7 +150,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
           <input
             value={form.stockReason || ''}
             onChange={(event) => updateField('stockReason', event.target.value)}
-            placeholder="Reposicao, correcao, saque da campanha..."
+            placeholder="Reposição, correção, saque da campanha..."
           />
         </label>
       )}

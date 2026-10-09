@@ -8,7 +8,6 @@ export default function PurchaseHistory({ api, isMaster, character, refreshKey, 
 
   useEffect(() => {
     async function loadPurchases() {
-      setLoading(true);
       setError('');
 
       try {
@@ -28,7 +27,7 @@ export default function PurchaseHistory({ api, isMaster, character, refreshKey, 
     <div className="surface-panel">
       <div className="panel-title">
         <ReceiptText size={20} />
-        <h3>Historico de compras</h3>
+        <h3>Histórico de compras</h3>
       </div>
       {error && <p className="form-error">{error}</p>}
       {loading ? (

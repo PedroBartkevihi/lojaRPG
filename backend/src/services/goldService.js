@@ -8,19 +8,19 @@ export async function changeCharacterGold({ campaignId, actorUserId, characterId
     const character = await findCharacterById(characterId, campaignId, prisma);
 
     if (!character) {
-      throw new ApiError(404, 'Personagem nao encontrado.');
+      throw new ApiError(404, 'Personagem não encontrado.');
     }
 
     const nextGold = mode === 'set' ? value : character.gold + value;
 
     if (nextGold < 0) {
-      throw new ApiError(400, 'Ouro nao pode ficar negativo.');
+      throw new ApiError(400, 'Ouro não pode ficar negativo.');
     }
 
     // Se uma compra mudou o ouro depois da leitura, a troca nao acontece e a
     // auditoria nunca registra um valor anterior que ja nao existia.
     if (!(await replaceCharacterGold(character.id, character.gold, nextGold, prisma))) {
-      throw new ApiError(409, 'O ouro do personagem mudou durante a alteracao. Tente novamente.');
+      throw new ApiError(409, 'O ouro do personagem mudou durante a alteração. Tente novamente.');
     }
 
     const auditLog = await createGoldAuditLog(
