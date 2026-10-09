@@ -29,6 +29,8 @@ inicial sempre que ela reinicia, então pode testar à vontade.
 - Carrinho e compra com o ouro do personagem ativo.
 - Inventário e histórico de compras por personagem.
 
+![Login, carrinho, compra e inventário da personagem Aria](docs/images/demo-compra.gif)
+
 **Mestre**
 
 - Cadastro, edição, remoção e reativação de itens.
