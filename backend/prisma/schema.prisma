@@ -19,6 +19,7 @@ model User {
   refreshTokens  RefreshToken[]
   goldAuditLogs  GoldAuditLog[]   @relation("GoldAuditActor")
   stockMovements StockMovement[]  @relation("StockMovementActor")
+  inventoryLogs  InventoryLog[]   @relation("InventoryLogActor")
 
   @@map("users")
 }
@@ -66,6 +67,7 @@ model Character {
   campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   inventory     Inventory[]
+  inventoryLogs InventoryLog[]
   purchases     Purchase[]
   goldAuditLogs GoldAuditLog[]
 
@@ -111,6 +113,10 @@ model Item {
   rarityId       Int             @map("rarity_id")
   description    String          @default("")
   price          Int
+  // Quanto a loja paga ao comprar o item de um jogador. Vazio segue a regra
+  // do D&D 5e (metade do preco); isSellable falso faz a loja recusar o item.
+  sellPrice      Int?            @map("sell_price")
+  isSellable     Boolean         @default(true) @map("is_sellable")
   stock          Int             @default(0)
   imageUrl       String          @default("") @map("image_url")
   createdBy      Int?            @map("created_by")
@@ -122,6 +128,7 @@ model Item {
   rarity         Rarity          @relation(fields: [rarityId], references: [id], onDelete: Restrict)
   creator        User?           @relation("ItemCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   inventory      Inventory[]
+  inventoryLogs  InventoryLog[]
   purchaseItems  PurchaseItem[]
   stockMovements StockMovement[]
 
@@ -143,6 +150,27 @@ model Inventory {
   @@unique([characterId, itemId])
   @@index([characterId])
   @@map("inventory")
+}
+
+// Tudo o que muda o inventario fora de uma compra: vendas a loja, itens
+// usados e recompensas dadas pelo Mestre.
+model InventoryLog {
+  id          Int       @id @default(autoincrement())
+  characterId Int       @map("character_id")
+  itemId      Int       @map("item_id")
+  actorUserId Int?      @map("actor_user_id")
+  type        String
+  quantity    Int
+  unitPrice   Int       @default(0) @map("unit_price")
+  reason      String    @default("")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor       User?     @relation("InventoryLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([characterId])
+  @@index([itemId])
+  @@map("inventory_logs")
 }
 
 model Purchase {

@@ -15,6 +15,8 @@ function parseItem(body, existing) {
     category: existing.category,
     description: existing.description || '',
     price: existing.price,
+    sellPrice: existing.sellPrice,
+    isSellable: existing.isSellable,
     rarity: existing.rarity || 'Comum',
     stock: existing.stock,
     imageUrl: existing.imageUrl || '',

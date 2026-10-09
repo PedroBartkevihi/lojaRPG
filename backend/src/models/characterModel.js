@@ -115,6 +115,17 @@ export async function debitCharacterGold(id, amount, prisma = getPrisma()) {
   return result.count > 0;
 }
 
+// Soma ouro de forma atomica e retorna o saldo novo.
+export async function creditCharacterGold(id, amount, prisma = getPrisma()) {
+  const character = await prisma.character.update({
+    where: { id: Number(id) },
+    data: { gold: { increment: Number(amount) } },
+    select: { gold: true }
+  });
+
+  return character.gold;
+}
+
 // Troca o ouro so se ele ainda for o valor lido antes da alteracao.
 export async function replaceCharacterGold(id, expectedGold, newGold, prisma = getPrisma()) {
   const result = await prisma.character.updateMany({

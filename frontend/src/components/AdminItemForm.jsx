@@ -6,6 +6,8 @@ const emptyForm = {
   category: 'Armas',
   description: '',
   price: 0,
+  sellPrice: '',
+  isSellable: true,
   rarity: 'Comum',
   stock: 0,
   imageUrl: '',
@@ -18,7 +20,8 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setForm(item || emptyForm);
+    // Preco de venda vazio segue a regra padrao (metade do preco).
+    setForm(item ? { ...item, sellPrice: item.sellPrice ?? '' } : emptyForm);
     setError('');
   }, [item]);
 
@@ -35,6 +38,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
       await onSave({
         ...form,
         price: Number(form.price),
+        sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
         stock: Number(form.stock)
       });
       setForm(emptyForm);
@@ -117,6 +121,27 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
             min="0"
             required
           />
+        </label>
+      </div>
+      <div className="form-grid two">
+        <label>
+          Preco de venda a loja
+          <input
+            value={form.sellPrice}
+            onChange={(event) => updateField('sellPrice', event.target.value)}
+            type="number"
+            min="0"
+            placeholder={`Padrao: ${Math.floor(Number(form.price || 0) / 2)} (metade)`}
+            disabled={!form.isSellable}
+          />
+        </label>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={!form.isSellable}
+            onChange={(event) => updateField('isSellable', !event.target.checked)}
+          />
+          A loja nao compra este item
         </label>
       </div>
       {item && (

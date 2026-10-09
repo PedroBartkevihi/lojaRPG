@@ -1,6 +1,16 @@
 import { getPrisma } from '../database/connection.js';
 import { ApiError } from '../utils/ApiError.js';
 
+// Quanto a loja paga por uma unidade, ou null se ela nao compra o item. Sem
+// preco definido pelo Mestre, vale a regra do D&D 5e: metade do preco.
+export function effectiveSellPrice(item) {
+  if (!item.isSellable) {
+    return null;
+  }
+
+  return item.sellPrice ?? Math.floor(item.price / 2);
+}
+
 function mapItem(item) {
   if (!item) {
     return null;
@@ -14,6 +24,9 @@ function mapItem(item) {
     category: item.category?.name,
     description: item.description,
     price: item.price,
+    sellPrice: item.sellPrice,
+    isSellable: item.isSellable,
+    effectiveSellPrice: effectiveSellPrice(item),
     rarityId: item.rarityId,
     rarity: item.rarity?.name,
     stock: item.stock,
@@ -153,6 +166,8 @@ export async function createItem(data, prisma = getPrisma()) {
       rarityId,
       description: data.description || '',
       price: Number(data.price),
+      sellPrice: data.sellPrice ?? null,
+      isSellable: data.isSellable ?? true,
       stock: Number(data.stock),
       imageUrl: data.imageUrl || '',
       createdBy: data.createdBy ? Number(data.createdBy) : null
@@ -175,6 +190,8 @@ export async function updateItem(id, data, prisma = getPrisma()) {
       rarityId,
       description: data.description || '',
       price: Number(data.price),
+      sellPrice: data.sellPrice ?? null,
+      isSellable: data.isSellable ?? true,
       stock: Number(data.stock),
       imageUrl: data.imageUrl || ''
     },
@@ -217,6 +234,17 @@ export async function decrementItemStock(id, quantity, prisma = getPrisma()) {
   });
 
   return result.count > 0;
+}
+
+// Devolve itens ao estoque e retorna o estoque novo.
+export async function incrementItemStock(id, quantity, prisma = getPrisma()) {
+  const item = await prisma.item.update({
+    where: { id: Number(id) },
+    data: { stock: { increment: Number(quantity) } },
+    select: { stock: true }
+  });
+
+  return item.stock;
 }
 
 // Troca o estoque so se ele ainda for o valor lido antes da edicao.

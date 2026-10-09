@@ -48,7 +48,11 @@ personagem.
 - Personagens por mesa, com vários por conta.
 - Catálogo com busca e filtro por categoria.
 - Carrinho e compra com o ouro do personagem ativo.
-- Inventário e histórico de compras por personagem.
+- Venda de itens à loja pela regra do D&D 5e (metade do preço) ou pelo valor
+  que o Mestre definir; o item volta ao estoque.
+- Uso de itens consumíveis, como poções, que saem do inventário.
+- Inventário, histórico de compras e de vendas, usos e recompensas por
+  personagem.
 
 ![Login, carrinho, compra e inventário da personagem Aria](docs/images/demo-compra.gif)
 
@@ -57,6 +61,10 @@ personagem.
 - Cadastro, edição, remoção e reativação de itens.
 - Categorias e raridades próprias; ao remover uma em uso, os itens são
   realocados.
+- Recompensas: ouro dividido entre o grupo (avisando o que sobra da divisão)
+  ou o mesmo valor para cada um, e itens entregues direto no inventário,
+  inclusive itens que não estão à venda.
+- Preço de venda por item e itens que a loja não compra, como itens de missão.
 - Ajuste de ouro com motivo obrigatório e auditoria de cada alteração.
 - Histórico de movimentações de estoque.
 
@@ -88,11 +96,12 @@ pede participa da mesa e qual é o papel dele nela.
   rate limit.
 - **Demonstração e mesas reais no mesmo banco.** O reset da demonstração apaga
   só a mesa `MESA-DEMO`, as contas de exemplo e as mesas criadas por elas.
-- **Compras simultâneas sem perder dinheiro nem estoque.** O desconto de ouro
-  e de estoque é um update condicional ("só desconta se ainda houver saldo"),
-  e as edições do Mestre rodam em transação e só gravam se o valor lido não
-  mudou (senão respondem 409). Testes disparam compras e ajustes ao mesmo
-  tempo para garantir isso.
+- **Compras e vendas simultâneas sem perder dinheiro nem estoque.** O desconto
+  de ouro e de estoque é um update condicional ("só desconta se ainda houver
+  saldo"), a venda só paga depois de tirar o item do inventário do mesmo
+  jeito, e as edições do Mestre rodam em transação e só gravam se o valor lido
+  não mudou (senão respondem 409). Testes disparam compras, vendas e ajustes ao
+  mesmo tempo para garantir isso.
 - **Regras de integridade no próprio banco.** As migrations têm restrições
   `CHECK` (ouro e estoque nunca negativos, nível de 1 a 20), que valem mesmo
   para código que grave direto no banco.
@@ -163,11 +172,12 @@ cd frontend
 npm test
 ```
 
-Os 36 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+Os 44 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
 mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
-itens e catálogo, compras e inventário, compras e ajustes simultâneos,
+itens e catálogo, compras, vendas, uso de itens e recompensas, compras, vendas
+e ajustes simultâneos,
 validação das entradas, regras `CHECK` do banco, o reset da demonstração e a
 verificação dos segredos de produção.
 
@@ -218,8 +228,17 @@ Compras e inventário:
 - `POST /purchases`
 - `GET /purchases/me?characterId=ID`
 - `GET /purchases` (Mestre)
-- `GET /inventory/me?characterId=ID`
+- `GET /inventory/me?characterId=ID`: itens e histórico do personagem
 - `GET /inventory/:characterId`
+- `POST /inventory/:characterId/sell` e `POST /inventory/:characterId/use`
+  (dono do personagem, com `itemId` e `quantity`)
+- `GET /inventory/logs` (Mestre): vendas, usos e recompensas da mesa
+
+Recompensas (Mestre):
+
+- `POST /rewards/gold`: `characterIds`, `total`, `mode` (`split` divide,
+  `each` dá o valor a cada um) e `reason`
+- `POST /rewards/items`: `characterId`, `itemId`, `quantity` e `reason`
 
 ## Estrutura
 

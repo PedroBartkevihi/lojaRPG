@@ -31,6 +31,7 @@ const TABLES_WITH_SERIAL_ID = [
   'rarities',
   'items',
   'inventory',
+  'inventory_logs',
   'purchases',
   'purchase_items',
   'gold_audit_logs',
@@ -88,6 +89,15 @@ async function createDemoData(prisma) {
       createdBy: 1
     }))
   });
+
+  // Itens iniciais para quem testa a demonstracao poder vender e usar sem
+  // precisar comprar antes.
+  await prisma.inventory.createMany({
+    data: [
+      { characterId: 1, itemId: 10, quantity: 1 },
+      { characterId: 2, itemId: 6, quantity: 2 }
+    ]
+  });
 }
 
 // Recria so a demonstracao: a mesa MESADEMO, as contas de exemplo e as mesas
@@ -124,6 +134,7 @@ export async function seed(prisma) {
     prisma.purchaseItem.deleteMany(),
     prisma.purchase.deleteMany(),
     prisma.inventory.deleteMany(),
+    prisma.inventoryLog.deleteMany(),
     prisma.goldAuditLog.deleteMany(),
     prisma.stockMovement.deleteMany(),
     prisma.refreshToken.deleteMany(),

@@ -389,7 +389,13 @@ function AppContent() {
             isMaster ? (
               <Navigate to="/shop" replace />
             ) : (
-              <InventoryPanel api={api} character={selectedCharacter} refreshKey={refreshCount} showNotice={showNotice} />
+              <InventoryPanel
+                api={api}
+                character={selectedCharacter}
+                refreshKey={refreshCount}
+                showNotice={showNotice}
+                onRefreshSession={refreshSession}
+              />
             )
           )}
         />
