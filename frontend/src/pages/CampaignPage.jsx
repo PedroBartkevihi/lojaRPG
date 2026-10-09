@@ -13,7 +13,7 @@ function describeCharacters(characters) {
   return characters.map((character) => `${character.name} (${character.className} nivel ${character.level})`).join(', ');
 }
 
-export default function CampaignPage({ api, campaign, user, showNotice, onCampaignsChanged, onLeave }) {
+export default function CampaignPage({ api, liveKey, campaign, user, showNotice, onCampaignsChanged, onLeave }) {
   const [members, setMembers] = useState([]);
   const [inviteCode, setInviteCode] = useState(campaign.inviteCode);
   const [loading, setLoading] = useState(true);
@@ -21,15 +21,20 @@ export default function CampaignPage({ api, campaign, user, showNotice, onCampai
   const isMaster = campaign.role === 'MESTRE';
   const inviteLink = inviteCode ? `${window.location.origin}/convite/${inviteCode}` : '';
 
-  async function loadCampaign() {
-    setLoading(true);
+  // `silent` e a recarga automatica: sem "Carregando" e sem aviso de erro.
+  async function loadCampaign({ silent = false } = {}) {
+    if (!silent) {
+      setLoading(true);
+    }
 
     try {
       const data = await api.getCampaign();
       setMembers(data.members);
       setInviteCode(data.campaign.inviteCode);
     } catch (error) {
-      showNotice(error.message);
+      if (!silent) {
+        showNotice(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -38,6 +43,12 @@ export default function CampaignPage({ api, campaign, user, showNotice, onCampai
   useEffect(() => {
     loadCampaign();
   }, []);
+
+  useEffect(() => {
+    if (liveKey) {
+      loadCampaign({ silent: true });
+    }
+  }, [liveKey]);
 
   async function copy(text, message) {
     try {
@@ -117,7 +128,7 @@ export default function CampaignPage({ api, campaign, user, showNotice, onCampai
             <p className="eyebrow">Participantes</p>
             <h2>{campaign.name}</h2>
           </div>
-          <button className="secondary-action" onClick={loadCampaign}>
+          <button className="secondary-action" onClick={() => loadCampaign()}>
             <RefreshCcw size={17} />
             Atualizar
           </button>

@@ -6,6 +6,7 @@ import ItemCard from '../components/ItemCard.jsx';
 
 export default function ShopPage({
   api,
+  liveKey,
   isMaster,
   character,
   characters = [],
@@ -22,13 +23,18 @@ export default function ShopPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
+  // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
   async function loadItems() {
-    setLoading(true);
     setError('');
 
     try {
       const data = await api.listItems({ search, category });
+      const freshItems = new Map(data.items.map((item) => [item.id, item]));
       setItems(data.items);
+      setCart((current) =>
+        current.map((entry) => (freshItems.has(entry.item.id) ? { ...entry, item: freshItems.get(entry.item.id) } : entry))
+      );
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -38,14 +44,14 @@ export default function ShopPage({
 
   useEffect(() => {
     loadItems();
-  }, [search, category]);
+  }, [search, category, liveKey]);
 
   useEffect(() => {
     api
       .listItems()
       .then((data) => setCategories([...new Set(data.items.map((item) => item.category))].sort()))
       .catch((requestError) => setError(requestError.message));
-  }, [api]);
+  }, [api, liveKey]);
 
   function addToCart(item) {
     if (isMaster) {

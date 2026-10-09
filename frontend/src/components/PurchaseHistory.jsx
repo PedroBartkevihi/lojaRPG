@@ -8,7 +8,6 @@ export default function PurchaseHistory({ api, isMaster, character, refreshKey, 
 
   useEffect(() => {
     async function loadPurchases() {
-      setLoading(true);
       setError('');
 
       try {

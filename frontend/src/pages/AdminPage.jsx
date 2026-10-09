@@ -5,7 +5,7 @@ import InventoryLogList from '../components/InventoryLogList.jsx';
 import PurchaseHistory from '../components/PurchaseHistory.jsx';
 import RewardsPanel from '../components/RewardsPanel.jsx';
 
-export default function AdminPage({ api, showNotice, onRefresh }) {
+export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
   const [items, setItems] = useState([]);
   const [characters, setCharacters] = useState([]);
   const [goldAuditLogs, setGoldAuditLogs] = useState([]);
@@ -27,8 +27,12 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
   const [characterDraft, setCharacterDraft] = useState({ name: '', className: '', race: '', level: 1 });
   const [loading, setLoading] = useState(true);
 
-  async function loadAdminData() {
-    setLoading(true);
+  // `silent` e a recarga automatica: a lista atual fica na tela ate a nova
+  // chegar, sem "Carregando".
+  async function loadAdminData({ silent = false } = {}) {
+    if (!silent) {
+      setLoading(true);
+    }
 
     try {
       const [itemsData, charactersData, auditData, categoriesData, raritiesData, stockData, logsData] =
@@ -56,6 +60,12 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
   useEffect(() => {
     loadAdminData().catch((error) => showNotice(error.message));
   }, []);
+
+  useEffect(() => {
+    if (liveKey) {
+      loadAdminData({ silent: true }).catch(() => {});
+    }
+  }, [liveKey]);
 
   const filteredItems = useMemo(() => {
     return items
@@ -273,7 +283,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
             <p className="eyebrow">Controle do Mestre</p>
             <h2>Painel administrativo</h2>
           </div>
-          <button className="secondary-action" onClick={loadAdminData}>
+          <button className="secondary-action" onClick={() => loadAdminData()}>
             <RefreshCcw size={17} />
             Atualizar
           </button>
@@ -616,7 +626,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
             {goldAuditLogs.length === 0 && <p className="empty-state">Nenhum ajuste manual registrado.</p>}
           </div>
         </div>
-        <PurchaseHistory api={api} isMaster refreshKey={items.length + characters.length} embedded />
+        <PurchaseHistory api={api} isMaster refreshKey={`${liveKey}:${items.length}:${characters.length}`} embedded />
       </aside>
     </section>
   );

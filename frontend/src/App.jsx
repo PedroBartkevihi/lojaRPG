@@ -11,6 +11,7 @@ import {
   useParams
 } from 'react-router-dom';
 import { createApi } from './js/api.js';
+import { useLiveTick } from './js/useLiveTick.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import CampaignsPage from './pages/CampaignsPage.jsx';
@@ -71,6 +72,7 @@ function AppContent() {
   // A renovacao do token troca o valor dele; as cargas abaixo so dependem de
   // haver sessao, para nao recarregar tudo a cada renovacao.
   const loggedIn = Boolean(token);
+  const liveTick = useLiveTick(loggedIn);
 
   const showNotice = useCallback((message) => {
     setNotice(message);
@@ -191,6 +193,16 @@ function AppContent() {
       refreshSession().catch((error) => showNotice(error.message));
     }
   }, [loggedIn, campaignId, refreshSession, showNotice]);
+
+  // A cada batida, recarrega as mesas (alguem pode ter sido removido) e os
+  // personagens; a atualizacao da sessao tambem recarrega inventario e compras.
+  // Falhas aqui ficam quietas para nao encher a tela de avisos.
+  useEffect(() => {
+    if (liveTick > 0) {
+      loadCampaigns().catch(() => {});
+      refreshSession().catch(() => {});
+    }
+  }, [liveTick, loadCampaigns, refreshSession]);
 
   const campaign = campaigns.find((entry) => entry.id === campaignId) || null;
 
@@ -373,6 +385,7 @@ function AppContent() {
           element={inCampaign(
             <ShopPage
               api={api}
+              liveKey={liveTick}
               isMaster={isMaster}
               character={selectedCharacter}
               characters={characters}
@@ -410,6 +423,7 @@ function AppContent() {
           element={inCampaign(
             <CampaignPage
               api={api}
+              liveKey={liveTick}
               campaign={campaign}
               user={user}
               showNotice={showNotice}
@@ -422,7 +436,7 @@ function AppContent() {
           path="/admin"
           element={inCampaign(
             isMaster ? (
-              <AdminPage api={api} showNotice={showNotice} onRefresh={refreshSession} />
+              <AdminPage api={api} liveKey={liveTick} showNotice={showNotice} onRefresh={refreshSession} />
             ) : (
               <Navigate to="/shop" replace />
             )
