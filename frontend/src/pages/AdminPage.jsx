@@ -103,6 +103,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
           api={api}
           characters={characters}
           items={items}
+          loading={loading}
           reload={reload}
           onRefresh={onRefresh}
           showNotice={showNotice}
@@ -120,7 +121,14 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         />
       )}
       {activeTab === 'catalogo' && (
-        <CatalogTab api={api} categories={categories} rarities={rarities} reload={reload} showNotice={showNotice} />
+        <CatalogTab
+          api={api}
+          categories={categories}
+          rarities={rarities}
+          loading={loading}
+          reload={reload}
+          showNotice={showNotice}
+        />
       )}
       {activeTab === 'historicos' && (
         <HistoryTab
@@ -128,6 +136,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
           stockMovements={stockMovements}
           inventoryLogs={inventoryLogs}
           goldAuditLogs={goldAuditLogs}
+          loading={loading}
           purchasesKey={`${liveKey}:${items.length}:${characters.length}`}
         />
       )}

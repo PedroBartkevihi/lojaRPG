@@ -24,6 +24,7 @@ import {
 } from 'react-router-dom';
 import { createApi } from './js/api.js';
 import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
+import { SkeletonCards } from './components/Skeleton.jsx';
 import { useLiveTick } from './js/useLiveTick.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -339,7 +340,11 @@ function AppContent() {
   // pagina ao trocar de mesa, para ela buscar os dados da mesa nova.
   function inCampaign(element) {
     if (!campaignsLoaded || autoSelecting) {
-      return <p className="empty-state">Carregando mesas...</p>;
+      return (
+        <div className="wide-section">
+          <SkeletonCards count={6} />
+        </div>
+      );
     }
 
     return campaign ? <Fragment key={campaign.id}>{element}</Fragment> : <Navigate to="/mesas" replace />;
@@ -409,6 +414,7 @@ function AppContent() {
             <CampaignsPage
               api={api}
               campaigns={campaigns}
+              loadingCampaigns={!campaignsLoaded}
               activeCampaignId={campaign?.id}
               onSelect={selectCampaign}
               onCampaignsChanged={loadCampaigns}

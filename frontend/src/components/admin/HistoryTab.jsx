@@ -1,8 +1,9 @@
 import { Coins, Gift, PackagePlus } from 'lucide-react';
 import InventoryLogList from '../InventoryLogList.jsx';
 import PurchaseHistory from '../PurchaseHistory.jsx';
+import { SkeletonRows } from '../Skeleton.jsx';
 
-export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAuditLogs, purchasesKey }) {
+export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAuditLogs, loading, purchasesKey }) {
   return (
     <div className="panel-grid admin-tab">
       <div className="surface-panel">
@@ -10,7 +11,7 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
           <Gift size={20} />
           <h3>Vendas, usos e recompensas</h3>
         </div>
-        <InventoryLogList logs={inventoryLogs} showCharacter limit={15} />
+        {loading ? <SkeletonRows count={3} /> : <InventoryLogList logs={inventoryLogs} showCharacter limit={15} />}
       </div>
 
       <div className="surface-panel">
@@ -35,7 +36,8 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
               </p>
             </article>
           ))}
-          {goldAuditLogs.length === 0 && <p className="empty-state">Nenhum ajuste de ouro registrado.</p>}
+          {loading && <SkeletonRows count={3} />}
+          {!loading && goldAuditLogs.length === 0 && <p className="empty-state">Nenhum ajuste de ouro registrado.</p>}
         </div>
       </div>
 
@@ -59,7 +61,8 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
               </p>
             </article>
           ))}
-          {stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
+          {loading && <SkeletonRows count={3} />}
+          {!loading && stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
         </div>
       </div>
 

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Coins, Pencil, Save, X } from 'lucide-react';
 import RewardsPanel from '../RewardsPanel.jsx';
+import { SkeletonRows } from '../Skeleton.jsx';
 
 // Aba usada durante a sessao: recompensas para o grupo e o ouro e os dados de
 // cada personagem.
-export default function PartyTab({ api, characters, items, reload, onRefresh, showNotice }) {
+export default function PartyTab({ api, characters, items, loading, reload, onRefresh, showNotice }) {
   const [goldInputs, setGoldInputs] = useState({});
   const [goldReasons, setGoldReasons] = useState({});
   const [editingCharacterId, setEditingCharacterId] = useState(null);
@@ -156,12 +157,19 @@ export default function PartyTab({ api, characters, items, reload, onRefresh, sh
               )}
             </div>
           ))}
-          {characters.length === 0 && (
+          {loading && <SkeletonRows count={3} />}
+          {!loading && characters.length === 0 && (
             <p className="empty-state">Nenhum personagem ainda. Envie o convite da aba Mesa para os jogadores.</p>
           )}
         </div>
       </div>
-      <RewardsPanel api={api} characters={characters} items={items} showNotice={showNotice} onDone={refreshAll} />
+      {loading ? (
+        <div className="surface-panel">
+          <SkeletonRows count={4} />
+        </div>
+      ) : (
+        <RewardsPanel api={api} characters={characters} items={items} showNotice={showNotice} onDone={refreshAll} />
+      )}
     </div>
   );
 }

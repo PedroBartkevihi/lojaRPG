@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Gem, Pencil, Save, Tags, Trash2, X } from 'lucide-react';
 import { rarityTier } from '../../js/itemVisuals.js';
+import { SkeletonRows } from '../Skeleton.jsx';
 
-export default function CatalogTab({ api, categories, rarities, reload, showNotice }) {
+export default function CatalogTab({ api, categories, rarities, loading, reload, showNotice }) {
   const [newCategory, setNewCategory] = useState('');
   const [newRarity, setNewRarity] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState(null);
@@ -117,6 +118,7 @@ export default function CatalogTab({ api, categories, rarities, reload, showNoti
           <button className="secondary-action">Adicionar</button>
         </form>
         <div className="catalog-list">
+          {loading && <SkeletonRows count={4} />}
           {categories.map((category) => (
             <div className="catalog-row" key={category.id}>
               {editingCategoryId === category.id ? (
@@ -172,6 +174,7 @@ export default function CatalogTab({ api, categories, rarities, reload, showNoti
         </form>
         <p className="form-hint">O rank define a cor: 1 comum, 2 incomum, 3 raro, 4 muito raro, 5 lendário.</p>
         <div className="catalog-list">
+          {loading && <SkeletonRows count={3} />}
           {rarities.map((rarity) => (
             <div className="catalog-row" key={rarity.id} data-rarity-tier={rarityTier(rarity.rank)}>
               {editingRarityId === rarity.id ? (

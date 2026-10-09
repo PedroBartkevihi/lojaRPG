@@ -32,6 +32,13 @@ describe('CampaignsPage', () => {
     expect(onSelect).toHaveBeenCalledWith(campaigns[1], '/shop');
   });
 
+  it('mostra blocos de carregamento em vez de dizer que não há mesas', () => {
+    renderPage({ campaigns: [], loadingCampaigns: true });
+
+    expect(screen.getByRole('status')).toHaveTextContent('Carregando...');
+    expect(screen.queryByText(/ainda não participa de nenhuma mesa/i)).not.toBeInTheDocument();
+  });
+
   it('entra numa mesa pelo código de convite', async () => {
     const user = userEvent.setup();
     const joined = { id: 3, name: 'Mesa do Caio', role: 'JOGADOR', memberCount: 3 };

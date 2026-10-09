@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PackagePlus, Pencil, RefreshCcw, Trash2 } from 'lucide-react';
 import AdminItemForm from '../AdminItemForm.jsx';
+import { SkeletonRows } from '../Skeleton.jsx';
 
 // Compara sem acentos nem maiusculas: "pocao" encontra "Poção".
 function normalizeText(value) {
@@ -117,7 +118,7 @@ export default function ItemsTab({ api, items, categories, rarities, loading, re
           </select>
         </div>
         {loading ? (
-          <p className="empty-state">Carregando...</p>
+          <SkeletonRows count={6} />
         ) : (
           <div className="admin-list">
             {filteredItems.map((item) => (

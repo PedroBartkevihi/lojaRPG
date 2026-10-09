@@ -3,6 +3,7 @@ import { Backpack, Coins, HandCoins, History, Sparkles } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
 import InventoryLogList from './InventoryLogList.jsx';
 import ItemIcon from './ItemIcon.jsx';
+import { SkeletonCards } from './Skeleton.jsx';
 
 export default function InventoryPanel({ api, character: selectedCharacter, refreshKey, showNotice, onRefreshSession }) {
   const [inventory, setInventory] = useState([]);
@@ -90,7 +91,7 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
           <h3>Equipamentos</h3>
         </div>
         {loading && inventory.length === 0 ? (
-          <p className="empty-state">Carregando inventário...</p>
+          <SkeletonCards count={3} variant="inventory" />
         ) : (
           <div className="inventory-grid">
             {inventory.map((entry) => {

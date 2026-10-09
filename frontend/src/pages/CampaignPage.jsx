@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Copy, Crown, DoorOpen, Link2, RefreshCcw, ScrollText, Trash2, UserMinus, Users } from 'lucide-react';
+import { SkeletonRows } from '../components/Skeleton.jsx';
 
 export function formatInviteCode(code = '') {
   return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
@@ -139,7 +140,7 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
             <h3>Grupo</h3>
           </div>
           {loading ? (
-            <p className="empty-state">Carregando participantes...</p>
+            <SkeletonRows count={4} />
           ) : (
             <div className="admin-list">
               {members.map((member) => (
