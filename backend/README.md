@@ -1,7 +1,7 @@
 # Back-end lojaRPG
 
-API Express com Prisma, PostgreSQL, validacao com Zod, JWT access token,
-refresh token revogavel, Helmet, rate limit e testes de integracao.
+API Express com Prisma, PostgreSQL, validação com Zod, JWT (access token e
+refresh token revogável), Helmet, rate limit e testes de integração.
 
 ## Comandos
 
@@ -9,11 +9,13 @@ Suba o PostgreSQL antes (`docker compose up -d db` na raiz do projeto).
 
 ```bash
 npm install
-copy .env.example .env
+cp .env.example .env
 npx prisma generate
 npm run db:reset
 npm run dev
 ```
+
+A API fica em `http://localhost:3001`.
 
 ## Testes
 
@@ -32,7 +34,5 @@ npx prisma studio
 npx prisma db seed
 ```
 
-As migrations sao a unica definicao do banco; os testes tambem montam o banco
+As migrations são a única definição do banco; os testes também montam o banco
 por elas.
-
-Rotas principais ficam sob `http://localhost:3001`.

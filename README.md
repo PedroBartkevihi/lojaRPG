@@ -2,171 +2,145 @@
 
 [![CI](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml)
 
-Aplicacao web para uma loja de campanha de RPG. O Mestre administra itens,
-categorias, raridades, estoque, personagens e ouro. Jogadores escolhem o
-personagem ativo, montam carrinho e compram itens com o ouro daquele
-personagem. Inventario e historico de compras ficam separados por personagem.
+Loja virtual para campanhas de RPG de mesa. O Mestre administra itens,
+categorias, raridades, estoque e o ouro dos personagens; os jogadores escolhem
+um personagem, montam o carrinho e compram com o ouro dele. Inventário e
+histórico de compras ficam separados por personagem.
+
+**Demonstração online:** <https://lojarpg-web.onrender.com>
+
+| Perfil | Email | Senha |
+| --- | --- | --- |
+| Jogador | aria@lojarpg.local | jogador123 |
+| Mestre | mestre@lojarpg.local | mestre123 |
+
+A demonstração roda no plano gratuito do Render: depois de 15 minutos sem
+acesso, a API leva cerca de 1 minuto para acordar. Os dados voltam ao estado
+inicial sempre que ela reinicia, então pode testar à vontade.
+
+![Loja com o carrinho da personagem Aria](docs/images/loja-carrinho.jpg)
+
+## Funcionalidades
+
+**Jogador**
+
+- Cadastro com personagem e vários personagens por conta.
+- Catálogo com busca e filtro por categoria.
+- Carrinho e compra com o ouro do personagem ativo.
+- Inventário e histórico de compras por personagem.
+
+![Login, carrinho, compra e inventário da personagem Aria](docs/images/demo-compra.gif)
+
+**Mestre**
+
+- Cadastro, edição, remoção e reativação de itens.
+- Categorias e raridades próprias; ao remover uma em uso, os itens são
+  realocados.
+- Ajuste de ouro com motivo obrigatório e auditoria de cada alteração.
+- Histórico de movimentações de estoque.
+
+![Painel administrativo do Mestre](docs/images/painel-mestre.jpg)
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+  navegador[Navegador] --> web["Front-end<br/>React + Vite<br/>site estático no Render"]
+  web -- "HTTPS + JWT" --> api["API<br/>Node.js + Express<br/>Render"]
+  api -- Prisma --> db[("PostgreSQL<br/>Neon")]
+```
+
+Na API, cada requisição passa por `routes` → `controllers` (validação com Zod)
+→ `services` (regras e transações) → `models` (consultas pelo Prisma).
+
+## Decisões técnicas
+
+- **Compras simultâneas sem perder dinheiro nem estoque.** O desconto de ouro
+  e de estoque é um update condicional ("só desconta se ainda houver saldo"),
+  e as edições do Mestre rodam em transação e só gravam se o valor lido não
+  mudou (senão respondem 409). Testes disparam compras e ajustes ao mesmo
+  tempo para garantir isso.
+- **Regras de integridade no próprio banco.** As migrations têm restrições
+  `CHECK` (ouro e estoque nunca negativos, nível de 1 a 20), que valem mesmo
+  para código que grave direto no banco.
+- **Validação de entrada com Zod**, com schemas por domínio em
+  `backend/src/schemas`.
+- **Autenticação** com access token curto, refresh token com rotação e
+  revogação, rate limit nas rotas de autenticação e Helmet.
+- **Segredos verificados na inicialização:** em produção, a API não sobe com
+  `JWT_SECRET` ou `MASTER_REGISTRATION_KEY` curtos ou iguais aos exemplos do
+  repositório.
+- **CI no GitHub Actions** a cada push: testes do back-end com PostgreSQL e
+  testes e build do front-end.
 
 ## Stack
 
 - Front-end: React, Vite e React Router.
-- Back-end: Node.js, Express, validacao com Zod, JWT access token + refresh token.
-- Banco: PostgreSQL com Prisma Client e migrations versionadas.
+- Back-end: Node.js, Express, Zod, JWT (access + refresh token).
+- Banco: PostgreSQL com Prisma e migrations versionadas.
 - Testes: Vitest, Supertest e Testing Library.
-- Deploy: Dockerfile para API, Dockerfile para front-end e docker compose.
+- Infra: Docker Compose, GitHub Actions, Render e Neon.
 
-## Estrutura
+## Como rodar localmente
 
-```text
-lojaRPG/
-  backend/
-    prisma/
-      migrations/
-      schema.prisma
-      seed.js
-    src/
-      controllers/
-      database/
-      middlewares/
-      models/
-      routes/
-      services/
-      utils/
-    tests/
-  frontend/
-    src/
-      components/
-      css/
-      js/
-      pages/
-      test/
-  docker/
-    postgres/
-  DEPLOY.md
-  docker-compose.yml
-```
-
-## Desenvolvimento
-
-Banco (PostgreSQL no Docker, na raiz do projeto):
+Pré-requisitos: Node.js 24 e Docker.
 
 ```bash
+# Banco (na raiz do projeto)
 docker compose up -d db
-```
 
-O container cria o banco `lojarpg` para desenvolvimento e o `lojarpg_test`
-para os testes.
-
-Back-end:
-
-```bash
-cd C:\lojaRPG\backend
+# API
+cd backend
 npm install
-copy .env.example .env
+cp .env.example .env
 npx prisma generate
 npm run db:reset
 npm run dev
-```
 
-Front-end:
-
-```bash
-cd C:\lojaRPG\frontend
+# Front-end (em outro terminal)
+cd frontend
 npm install
-copy .env.example .env
+cp .env.example .env
 npm run dev
 ```
 
-Em desenvolvimento, ajuste `frontend/.env` para:
+No Prompt de Comando do Windows, troque `cp` por `copy`; no PowerShell e no
+Git Bash, `cp` funciona.
 
-```text
-VITE_API_URL=http://localhost:3001
-```
+- Front-end: <http://localhost:5173>
+- API: <http://localhost:3001>
 
-URLs locais:
+O container do banco cria o `lojarpg` (desenvolvimento) e o `lojarpg_test`
+(testes). Os usuários de exemplo são os da tabela acima, mais os jogadores
+`borin@lojarpg.local` e `lia@lojarpg.local` (senha `jogador123`).
 
-- API: `http://localhost:3001`
-- Front-end: `http://localhost:5173`
+Scripts do diretório `backend`:
+
+- `npm run db:init`: aplica as migrations pendentes.
+- `npm run db:seed`: recria os dados de exemplo de `prisma/seed.js`.
+- `npm run db:reset`: apaga o banco local, reaplica as migrations e roda o
+  seed.
 
 ## Testes
 
-Back-end:
-
 ```bash
-cd C:\lojaRPG\backend
+cd backend
 npm test
-npm run test:watch
-npm run test:coverage
-```
 
-Front-end:
-
-```bash
-cd C:\lojaRPG\frontend
+cd frontend
 npm test
-npm run test:watch
-npm run test:coverage
 ```
 
-A suite do back-end cobre login, autorizacao de Mestre/Jogador, CRUD de itens,
-compra sem ouro, compra sem estoque, inventario apos compra, auditoria de ouro,
-rotas protegidas, validacao das entradas, compras simultaneas (inclusive com
-ajuste de ouro e edicao de item pelo Mestre ao mesmo tempo) e as regras CHECK
-do banco. Ela precisa do PostgreSQL do `docker compose` rodando, aplica as
-mesmas migrations do desenvolvimento no banco `lojarpg_test` e recria os dados
-do seed antes de cada teste (por seguranca, so roda em bancos cujo nome termina
-em `_test`). A suite do
-front-end cobre comportamento basico de carrinho e selecao/criacao de
-personagem.
+Os 32 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
+Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
+autenticação e permissões, CRUD de itens e catálogo, compras e inventário,
+compras e ajustes simultâneos, validação das entradas, regras `CHECK` do banco
+e a verificação dos segredos de produção.
 
-## Prisma
+## Rotas da API
 
-Comandos principais no diretorio `backend`:
-
-```bash
-npx prisma migrate dev
-npx prisma generate
-npx prisma studio
-npx prisma db seed
-```
-
-As migrations em `backend/prisma/migrations` sao a unica definicao do banco.
-Regras que o Prisma nao descreve no `schema.prisma`, como os `CHECK` de ouro,
-estoque e nivel, ficam escritas no SQL das migrations.
-
-Scripts do diretorio `backend`:
-
-- `npm run db:init`: aplica as migrations pendentes.
-- `npm run db:seed`: insere os dados iniciais de `prisma/seed.js`.
-- `npm run db:reset`: apaga o banco local, reaplica as migrations e roda o seed.
-
-## Usuarios iniciais
-
-| Perfil | Email | Senha |
-| --- | --- | --- |
-| Mestre | mestre@lojarpg.local | mestre123 |
-| Jogador | aria@lojarpg.local | jogador123 |
-| Jogador | borin@lojarpg.local | jogador123 |
-| Jogador | lia@lojarpg.local | jogador123 |
-
-## Funcionalidades
-
-- Cadastro, login, refresh token e logout com revogacao do refresh token.
-- Access token curto, Helmet e rate limit nas rotas sensiveis de autenticacao.
-- Permissoes separadas entre Mestre e Jogador.
-- Multiplos personagens por jogador.
-- Compra associada ao personagem ativo.
-- Inventario e historico de compras separados por personagem.
-- CRUD de itens, categorias e raridades para Mestre.
-- Reativacao de item removido.
-- Historico de estoque.
-- Auditoria de ajuste manual de ouro com motivo obrigatorio.
-- Painel do Mestre com filtros por nome, categoria, raridade e status.
-- Rotas reais no front-end com protecao por autenticacao e perfil.
-
-## Rotas principais
-
-Autenticacao:
+Autenticação:
 
 - `POST /auth/register`
 - `POST /auth/login`
@@ -174,37 +148,56 @@ Autenticacao:
 - `POST /auth/logout`
 - `GET /auth/me`
 
-Catalogo e itens:
+Catálogo e itens:
 
 - `GET /items`
-- `POST /items` somente Mestre
-- `PUT /items/:id` somente Mestre
-- `DELETE /items/:id` somente Mestre
-- `PATCH /items/:id/reactivate` somente Mestre
-- `GET /catalog/categories`
-- `POST|PUT|DELETE /catalog/categories` somente Mestre para escrita
-- `GET /catalog/rarities`
-- `POST|PUT|DELETE /catalog/rarities` somente Mestre para escrita
-- `GET /catalog/stock-movements` somente Mestre
+- `POST /items`, `PUT /items/:id`, `DELETE /items/:id` e
+  `PATCH /items/:id/reactivate` (Mestre)
+- `GET /catalog/categories` e `GET /catalog/rarities`
+- `POST|PUT|DELETE /catalog/categories` e `/catalog/rarities` (Mestre)
+- `GET /catalog/stock-movements` (Mestre)
 
 Personagens:
 
-- `GET /characters` somente Mestre
+- `GET /characters` (Mestre)
 - `GET /characters/me`
 - `POST /characters`
 - `PUT /characters/:id`
-- `PATCH /characters/:id/gold` somente Mestre, com `reason`
-- `GET /characters/gold-audit` somente Mestre
+- `PATCH /characters/:id/gold` (Mestre, com `reason`)
+- `GET /characters/gold-audit` (Mestre)
 
-Compras e inventario:
+Compras e inventário:
 
 - `POST /purchases`
 - `GET /purchases/me?characterId=ID`
-- `GET /purchases` somente Mestre
+- `GET /purchases` (Mestre)
 - `GET /inventory/me?characterId=ID`
 - `GET /inventory/:characterId`
 
+## Estrutura
+
+```text
+lojaRPG/
+  backend/
+    prisma/        schema, migrations e seed
+    src/
+      routes/      rotas Express
+      controllers/ entrada e saída HTTP
+      schemas/     validação com Zod
+      services/    regras de negócio e transações
+      models/      consultas pelo Prisma
+      middlewares/ autenticação, permissões, erros e rate limit
+    tests/
+  frontend/
+    src/           páginas, componentes e chamadas à API
+  docker/          inicialização do PostgreSQL local
+  docs/images/     capturas de tela
+  .github/         workflow de CI
+  render.yaml      deploy no Render
+  DEPLOY.md
+```
+
 ## Deploy
 
-Consulte [DEPLOY.md](./DEPLOY.md) para Docker, producao local, hospedagem real,
-variaveis de ambiente e backup do banco.
+O [DEPLOY.md](./DEPLOY.md) explica o deploy no Render com Neon, a produção
+local com Docker, as variáveis de ambiente e o backup do banco.
