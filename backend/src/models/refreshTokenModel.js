@@ -31,8 +31,9 @@ export async function findRefreshTokenByHash(tokenHash, prisma = getPrisma()) {
   return mapRefreshToken(await prisma.refreshToken.findUnique({ where: { tokenHash } }));
 }
 
+// Devolve quantos tokens foram revogados agora: 0 se ele ja estava revogado.
 export async function revokeRefreshToken(tokenHash, prisma = getPrisma()) {
-  await prisma.refreshToken.updateMany({
+  const { count } = await prisma.refreshToken.updateMany({
     where: {
       tokenHash,
       revokedAt: null
@@ -41,4 +42,6 @@ export async function revokeRefreshToken(tokenHash, prisma = getPrisma()) {
       revokedAt: new Date().toISOString()
     }
   });
+
+  return count;
 }

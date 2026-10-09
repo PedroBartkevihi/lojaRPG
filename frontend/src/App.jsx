@@ -101,6 +101,15 @@ function AppContent() {
     window.setTimeout(() => setNotice(''), 3500);
   }, []);
 
+  // O navigate do React Router muda a cada troca de pagina. Guardado num ref,
+  // ele nao recria a API a cada navegacao; com uma API so, as requisicoes
+  // dividem a mesma renovacao de sessao e as cargas abaixo nao se repetem.
+  const navigateRef = useRef(navigate);
+
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -113,8 +122,8 @@ function AppContent() {
     setCampaignId(null);
     setCharacters([]);
     setSelectedCharacterId(null);
-    navigate('/login', { replace: true });
-  }, [navigate]);
+    navigateRef.current('/login', { replace: true });
+  }, []);
 
   const storeTokens = useCallback((data) => {
     const accessToken = data.accessToken || data.token;

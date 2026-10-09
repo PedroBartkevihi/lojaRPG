@@ -20,6 +20,36 @@ function withQuery(path, params = {}) {
 // de /campaigns/:id.
 export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefresh, getCampaignId) {
   const campaignPath = (path = '') => `/campaigns/${getCampaignId?.()}${path}`;
+  let renewing = null;
+
+  // Quando o access token vence, varias requisicoes recebem 401 juntas. Cada
+  // refresh token so vale uma vez, entao todas esperam a mesma renovacao.
+  async function renewSession(usedToken) {
+    // Outra requisicao (ou outra aba) ja renovou: basta repetir com o token novo.
+    if (getToken() !== usedToken) {
+      return true;
+    }
+
+    const refreshToken = getRefreshToken?.();
+
+    if (!refreshToken) {
+      return false;
+    }
+
+    if (!renewing) {
+      renewing = request('/auth/refresh', { method: 'POST', body: { refreshToken }, retry: false })
+        .then((refreshed) => {
+          onTokenRefresh?.(refreshed);
+          return true;
+        })
+        .catch(() => getRefreshToken?.() !== refreshToken)
+        .finally(() => {
+          renewing = null;
+        });
+    }
+
+    return renewing;
+  }
 
   async function request(path, options = {}) {
     const retry = options.retry !== false;
@@ -47,29 +77,17 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     });
     const data = await parseResponse(response);
 
-    if (!response.ok) {
-      if (response.status === 401 && retry && path !== '/auth/refresh') {
-        const refreshToken = getRefreshToken?.();
-
-        if (refreshToken) {
-          try {
-            const refreshed = await request('/auth/refresh', {
-              method: 'POST',
-              body: { refreshToken },
-              retry: false
-            });
-            onTokenRefresh?.(refreshed);
-            return request(path, options);
-          } catch (_refreshError) {
-            onUnauthorized?.();
-          }
-        } else {
-          onUnauthorized?.();
-        }
-      } else if (response.status === 401) {
-        onUnauthorized?.();
+    // So e sessao vencida quando a requisicao levava um token. Um 401 sem token
+    // (senha errada) ou da propria renovacao e so um erro para quem chamou.
+    if (response.status === 401 && token && path !== '/auth/refresh') {
+      if (retry && (await renewSession(token))) {
+        return request(path, { ...options, retry: false });
       }
 
+      onUnauthorized?.();
+    }
+
+    if (!response.ok) {
       throw new Error(data.message || 'Erro ao comunicar com a API.');
     }
 
