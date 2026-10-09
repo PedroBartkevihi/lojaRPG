@@ -45,6 +45,9 @@ Limites do plano gratuito:
   não são tocadas, então dá para usar o mesmo site com um grupo de verdade.
   Para desligar a demonstração, mude essa variável para `false` no painel do
   Render.
+- Os botões "Entrar como jogador" e "Entrar como Mestre" da tela de entrada
+  usam as contas da demonstração. Sem demonstração, defina
+  `VITE_DEMO_LOGIN=false` no front-end e refaça o deploy dele para escondê-los.
 
 ## Produção local com Docker
 
