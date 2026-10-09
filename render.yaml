@@ -6,6 +6,10 @@ services:
     name: lojarpg-api
     runtime: node
     plan: free
+    # O Render nao tem regiao na America do Sul; a API fica na Virginia, junto
+    # do banco no Neon (AWS us-east-1), porque cada requisicao faz varias
+    # consultas e a distancia entre os dois pesaria em todas elas.
+    region: virginia
     rootDir: backend
     buildCommand: npm ci --include=dev && npx prisma generate
     # Com DEMO_RESET_ON_START=true o seed recria os dados de demonstracao a
