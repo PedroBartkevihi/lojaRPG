@@ -32,7 +32,8 @@ describe('RewardsPanel', () => {
     await user.click(screen.getByLabelText('Lia Brasa'));
     expect(screen.getByText('Cada personagem recebe 50 de ouro.')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/^motivo$/i), 'Tesouro do covil');
+    await user.click(screen.getByLabelText(/^motivo$/i));
+    await user.paste('Tesouro do covil');
     await user.click(screen.getByRole('button', { name: /dar ouro/i }));
 
     expect(api.giveGold).toHaveBeenCalledWith({

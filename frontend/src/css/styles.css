@@ -454,8 +454,7 @@ textarea:focus {
   box-shadow: var(--shadow);
 }
 
-.content-grid,
-.admin-grid {
+.content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
   gap: 1rem;
@@ -464,15 +463,59 @@ textarea:focus {
 }
 
 .shop-column,
-.admin-main,
 .wide-section {
   min-width: 0;
 }
 
-.side-column,
-.admin-side {
+.side-column {
   display: grid;
   gap: 1rem;
+}
+
+/* Abas do painel do Mestre. */
+.subtabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.subtabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  padding: 0.6rem 0.9rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.subtabs button.active {
+  border-bottom-color: var(--gold);
+  color: var(--ink);
+}
+
+.subtabs button:hover:not(.active) {
+  color: var(--ink);
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+.character-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .section-heading {
@@ -937,10 +980,17 @@ textarea:focus {
   color: var(--gold);
 }
 
-/* `.admin-row span` vira bloco; o selo de papel precisa continuar em linha
-   para o icone nao grudar no texto. */
-.campaign-row .category-pill {
+/* `.admin-row span` vira bloco e muda a cor do texto das linhas; os selos
+   dentro delas continuam em linha, para o icone nao grudar no texto. */
+.admin-row .category-pill,
+.admin-row .gold-badge,
+.admin-row .rarity {
   display: inline-flex;
+  font-size: 0.82rem;
+}
+
+.admin-row .gold-badge {
+  color: #ffe3a0;
 }
 
 .invite-code {
@@ -979,13 +1029,8 @@ textarea:focus {
 @media (max-width: 1000px) {
   .topbar,
   .content-grid,
-  .admin-grid {
+  .panel-grid {
     grid-template-columns: 1fr;
-  }
-
-  /* Em uma coluna, recompensas e ouro do grupo vem antes do cadastro de itens. */
-  .admin-side {
-    order: -1;
   }
 
   .tabs {
