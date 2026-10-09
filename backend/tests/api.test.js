@@ -80,8 +80,8 @@ afterAll(async () => {
   await closeDatabase();
 });
 
-describe('validacao das entradas', () => {
-  it('recusa cadastro com email invalido ou sem nome', async () => {
+describe('validação das entradas', () => {
+  it('recusa cadastro com email inválido ou sem nome', async () => {
     const invalidEmail = await request(app).post('/auth/register').send({
       name: 'Teste',
       email: 'sem-arroba',
@@ -89,7 +89,7 @@ describe('validacao das entradas', () => {
     });
 
     expect(invalidEmail.status).toBe(400);
-    expect(invalidEmail.body.message).toBe('Email invalido.');
+    expect(invalidEmail.body.message).toBe('Email inválido.');
 
     const missingName = await request(app).post('/auth/register').send({
       name: '  ',
@@ -98,7 +98,7 @@ describe('validacao das entradas', () => {
     });
 
     expect(missingName.status).toBe(400);
-    expect(missingName.body.message).toBe('Nome e obrigatorio.');
+    expect(missingName.body.message).toBe('Nome é obrigatório.');
   });
 
   it('recusa personagem incompleto', async () => {
@@ -107,10 +107,10 @@ describe('validacao das entradas', () => {
     const response = await as(playerToken).post(`${DEMO}/characters`, { name: 'Heroi', race: 'Humano', level: 1 });
 
     expect(response.status).toBe(400);
-    expect(response.body.message).toBe('Classe e obrigatorio.');
+    expect(response.body.message).toBe('Classe é obrigatório.');
   });
 
-  it('recusa carrinho vazio ou com quantidade invalida', async () => {
+  it('recusa carrinho vazio ou com quantidade inválida', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const emptyCart = await request(app)
@@ -127,10 +127,10 @@ describe('validacao das entradas', () => {
       .send({ items: [{ itemId: 6, quantity: 0 }] });
 
     expect(zeroQuantity.status).toBe(400);
-    expect(zeroQuantity.body.message).toBe('Itens do carrinho invalidos.');
+    expect(zeroQuantity.body.message).toBe('Itens do carrinho inválidos.');
   });
 
-  it('responde 400 para id de personagem que nao e numero', async () => {
+  it('responde 400 para id de personagem que não e número', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
@@ -141,20 +141,20 @@ describe('validacao das entradas', () => {
     expect(response.body.message).toContain('Id do personagem');
   });
 
-  it('edita so os campos enviados e valida o que chegou', async () => {
+  it('edita só os campos enviados e valida o que chegou', async () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
     const partialUpdate = await request(app)
       .put(`${DEMO}/items/1`)
       .set('Authorization', `Bearer ${masterToken}`)
-      .send({ description: 'Forjada por anoes.' });
+      .send({ description: 'Forjada por anões.' });
 
     expect(partialUpdate.status).toBe(200);
     expect(partialUpdate.body.item).toMatchObject({
       name: 'Espada Longa',
       price: 75,
       stock: 5,
-      description: 'Forjada por anoes.'
+      description: 'Forjada por anões.'
     });
 
     const invalidPrice = await request(app)
@@ -163,12 +163,12 @@ describe('validacao das entradas', () => {
       .send({ price: -10 });
 
     expect(invalidPrice.status).toBe(400);
-    expect(invalidPrice.body.message).toBe('Preco deve ser um numero inteiro entre 0 e 1000000.');
+    expect(invalidPrice.body.message).toBe('Preço deve ser um número inteiro entre 0 e 1000000.');
   });
 });
 
 describe('integridade do banco', () => {
-  it('recusa ouro, estoque e nivel invalidos mesmo fora da API', async () => {
+  it('recusa ouro, estoque e nível inválidos mesmo fora da API', async () => {
     const prisma = getPrisma();
 
     await expect(prisma.character.update({ where: { id: 1 }, data: { gold: -1 } })).rejects.toThrow(
@@ -183,8 +183,8 @@ describe('integridade do banco', () => {
   });
 });
 
-describe('autenticacao e autorizacao', () => {
-  it('realiza login e retorna usuario e token', async () => {
+describe('autenticação e autorização', () => {
+  it('realiza login e retorna usuário e token', async () => {
     const response = await request(app)
       .post('/auth/login')
       .send({ email: 'mestre@lojarpg.local', password: 'mestre123' });
@@ -223,7 +223,7 @@ describe('autenticacao e autorizacao', () => {
     expect(revokedRefreshResponse.status).toBe(401);
   });
 
-  it('separa o rate limit por usuario atras de proxy', async () => {
+  it('separa o rate limit por usuário atras de proxy', async () => {
     const attempt = (ip) =>
       request(app)
         .post('/auth/login')
@@ -280,7 +280,7 @@ describe('autenticacao e autorizacao', () => {
     const response = await request(app)
       .patch(`${DEMO}/characters/1/gold`)
       .set('Authorization', `Bearer ${masterToken}`)
-      .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' });
+      .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessão' });
 
     expect(response.status).toBe(200);
     expect(response.body.character.gold).toBe(275);
@@ -288,7 +288,7 @@ describe('autenticacao e autorizacao', () => {
       previousGold: 250,
       newGold: 275,
       delta: 25,
-      reason: 'Recompensa de sessao'
+      reason: 'Recompensa de sessão'
     });
 
     const auditResponse = await request(app)
@@ -301,6 +301,14 @@ describe('autenticacao e autorizacao', () => {
 });
 
 describe('itens', () => {
+  it('busca itens sem diferenciar acentos nem maiúsculas', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const response = await as(playerToken).get(`${DEMO}/items?search=POCAO`);
+
+    expect(response.body.items.map((item) => item.name)).toEqual(['Poção de Cura', 'Poção de Invisibilidade']);
+  });
+
   it('permite CRUD de itens para o Mestre', async () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
@@ -336,7 +344,7 @@ describe('itens', () => {
   });
 });
 
-describe('catalogo', () => {
+describe('catálogo', () => {
   it('remove categoria usada realocando itens para Sem categoria', async () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
@@ -384,13 +392,13 @@ describe('catalogo', () => {
     const itemsResponse = await request(app)
       .get(`${DEMO}/items?includeInactive=true`)
       .set('Authorization', `Bearer ${masterToken}`);
-    const invisibilityPotion = itemsResponse.body.items.find((item) => item.name === 'Pocao de Invisibilidade');
+    const invisibilityPotion = itemsResponse.body.items.find((item) => item.name === 'Poção de Invisibilidade');
 
     expect(invisibilityPotion.rarity).toBe('Comum');
   });
 });
 
-describe('compras e inventario', () => {
+describe('compras e inventário', () => {
   it('recusa compra sem ouro suficiente', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
@@ -415,7 +423,7 @@ describe('compras e inventario', () => {
     expect(response.body.message).toContain('Estoque insuficiente');
   });
 
-  it('atualiza ouro, estoque, inventario e historico apos compra', async () => {
+  it('atualiza ouro, estoque, inventário e histórico apos compra', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const purchaseResponse = await request(app)
@@ -435,7 +443,7 @@ describe('compras e inventario', () => {
       expect.arrayContaining([
         expect.objectContaining({
           quantity: 1,
-          item: expect.objectContaining({ name: 'Pocao de Cura' })
+          item: expect.objectContaining({ name: 'Poção de Cura' })
         })
       ])
     );
@@ -448,7 +456,7 @@ describe('compras e inventario', () => {
     expect(historyResponse.body.purchases).toHaveLength(1);
   });
 
-  it('nao vende alem do estoque com compras simultaneas', async () => {
+  it('não vende alem do estoque com compras simultaneas', async () => {
     const tokens = await Promise.all(
       ['aria@lojarpg.local', 'borin@lojarpg.local', 'lia@lojarpg.local'].map((email) => login(email))
     );
@@ -469,7 +477,7 @@ describe('compras e inventario', () => {
     expect(scroll.stock).toBe(0);
   });
 
-  it('nao gasta o mesmo ouro duas vezes com compras simultaneas', async () => {
+  it('não gasta o mesmo ouro duas vezes com compras simultaneas', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const responses = await Promise.all(
@@ -488,7 +496,7 @@ describe('compras e inventario', () => {
     expect(aria.gold).toBe(30);
   });
 
-  it('nao perde a compra quando o Mestre ajusta o ouro ao mesmo tempo', async () => {
+  it('não perde a compra quando o Mestre ajusta o ouro ao mesmo tempo', async () => {
     const [playerToken, masterToken] = [
       await login('aria@lojarpg.local'),
       await login('mestre@lojarpg.local', 'mestre123')
@@ -502,7 +510,7 @@ describe('compras e inventario', () => {
       request(app)
         .patch(`${DEMO}/characters/1/gold`)
         .set('Authorization', `Bearer ${masterToken}`)
-        .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' })
+        .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessão' })
     ]);
 
     // O ajuste entra antes ou depois da compra, ou e recusado (409) porque o
@@ -520,7 +528,7 @@ describe('compras e inventario', () => {
     }
   });
 
-  it('nao desfaz a compra quando o Mestre edita o item ao mesmo tempo', async () => {
+  it('não desfaz a compra quando o Mestre edita o item ao mesmo tempo', async () => {
     const [playerToken, masterToken] = [
       await login('borin@lojarpg.local'),
       await login('mestre@lojarpg.local', 'mestre123')
@@ -549,7 +557,7 @@ describe('compras e inventario', () => {
 });
 
 describe('mesas', () => {
-  it('cria conta sem papel e a mesa nova ja vem com o catalogo inicial', async () => {
+  it('cria conta sem papel e a mesa nova já vem com o catálogo inicial', async () => {
     const register = await request(app).post('/auth/register').send({
       name: 'Pedro',
       email: 'pedro@exemplo.com',
@@ -608,7 +616,7 @@ describe('mesas', () => {
     expect(createInOwn.status).toBe(201);
   });
 
-  it('jogador entra pelo codigo de convite e cria personagem na mesa', async () => {
+  it('jogador entra pelo código de convite e cria personagem na mesa', async () => {
     const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
     const campaign = await createCampaign(borinToken);
     const typedCode = `${campaign.inviteCode.slice(0, 4)}-${campaign.inviteCode.slice(4)}`.toLowerCase();
@@ -621,11 +629,11 @@ describe('mesas', () => {
 
     const joinAgain = await as(liaToken).post('/campaigns/join', { inviteCode: campaign.inviteCode });
     expect(joinAgain.status).toBe(200);
-    expect(joinAgain.body.message).toContain('ja participa');
+    expect(joinAgain.body.message).toContain('já participa');
 
     const wrongCode = await as(liaToken).post('/campaigns/join', { inviteCode: 'ZZZZZZZZ' });
     expect(wrongCode.status).toBe(404);
-    expect(wrongCode.body.message).toBe('Codigo de convite invalido.');
+    expect(wrongCode.body.message).toBe('Código de convite inválido.');
 
     const malformedCode = await as(liaToken).post('/campaigns/join', { inviteCode: 'ABC' });
     expect(malformedCode.status).toBe(400);
@@ -656,7 +664,7 @@ describe('mesas', () => {
     ]);
   });
 
-  it('uma mesa nao ve nem altera itens, personagens e catalogo de outra', async () => {
+  it('uma mesa não ve nem altera itens, personagens e catálogo de outra', async () => {
     const [borinToken, masterToken, ariaToken] = [
       await login('borin@lojarpg.local'),
       await login('mestre@lojarpg.local', 'mestre123'),
@@ -668,7 +676,7 @@ describe('mesas', () => {
 
     const outsider = await as(masterToken).get(`/campaigns/${campaign.id}/items`);
     expect(outsider.status).toBe(404);
-    expect(outsider.body.message).toBe('Mesa nao encontrada.');
+    expect(outsider.body.message).toBe('Mesa não encontrada.');
 
     const foreignGold = await borin.patch(`/campaigns/${campaign.id}/characters/1/gold`, {
       amount: 1000,
@@ -682,7 +690,7 @@ describe('mesas', () => {
 
     const foreignCategory = await borin.delete(`/campaigns/${campaign.id}/catalog/categories/1`);
     expect(foreignCategory.status).toBe(404);
-    expect(foreignCategory.body.message).toBe('Categoria nao encontrada.');
+    expect(foreignCategory.body.message).toBe('Categoria não encontrada.');
 
     const crossPurchase = await as(ariaToken).post(`${DEMO}/purchases`, {
       items: [{ itemId: ownItems[0].id, quantity: 1 }]
@@ -690,7 +698,7 @@ describe('mesas', () => {
     expect(crossPurchase.status).toBe(404);
 
     const newItem = await borin.post(`/campaigns/${campaign.id}/items`, {
-      name: 'Machado Runico',
+      name: 'Machado Rúnico',
       category: 'Armas',
       price: 120,
       rarity: 'Raro',
@@ -707,7 +715,7 @@ describe('mesas', () => {
     expect(await prisma.item.findUnique({ where: { id: 1 } })).toMatchObject({ price: 75 });
   });
 
-  it('Mestre troca o codigo, remove jogador e ele volta com os personagens', async () => {
+  it('Mestre troca o código, remove jogador e ele volta com os personagens', async () => {
     const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
     const campaign = await createCampaign(borinToken);
     const [borin, lia] = [as(borinToken), as(liaToken)];
@@ -745,10 +753,10 @@ describe('mesas', () => {
 
     const leave = await lia.delete(`${base}/members/4`);
     expect(leave.status).toBe(200);
-    expect(leave.body.message).toContain('Voce saiu');
+    expect(leave.body.message).toContain('Você saiu');
   });
 
-  it('Mestre exclui a mesa mesmo com compras e inventario', async () => {
+  it('Mestre exclui a mesa mesmo com compras e inventário', async () => {
     const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
     const campaign = await createCampaign(borinToken);
     const [borin, lia] = [as(borinToken), as(liaToken)];
@@ -758,7 +766,7 @@ describe('mesas', () => {
     const character = (
       await lia.post(`${base}/characters`, { name: 'Lia Sombra', className: 'Bruxa', race: 'Tiefling', level: 2 })
     ).body.character;
-    await borin.patch(`${base}/characters/${character.id}/gold`, { amount: 100, mode: 'adjust', reason: 'Inicio' });
+    await borin.patch(`${base}/characters/${character.id}/gold`, { amount: 100, mode: 'adjust', reason: 'Início' });
     const potion = (await lia.get(`${base}/items?search=Cura`)).body.items[0];
 
     const purchase = await lia.post(`${base}/purchases`, {
@@ -782,7 +790,7 @@ describe('mesas', () => {
     expect(await prisma.item.count({ where: { campaignId: 1 } })).toBe(10);
   });
 
-  it('o reset da demonstracao preserva as mesas reais', async () => {
+  it('o reset da demonstração preserva as mesas reais', async () => {
     const register = await request(app).post('/auth/register').send({
       name: 'Pedro',
       email: 'pedro@exemplo.com',
@@ -800,7 +808,7 @@ describe('mesas', () => {
     const prisma = getPrisma();
     const campaigns = await prisma.campaign.findMany({ orderBy: { id: 'asc' } });
 
-    expect(campaigns.map((campaign) => campaign.name)).toEqual(['Mesa de demonstracao', 'Mesa do Pedro']);
+    expect(campaigns.map((campaign) => campaign.name)).toEqual(['Mesa de demonstração', 'Mesa do Pedro']);
     expect(campaigns.some((campaign) => campaign.id === ariaCampaign.id)).toBe(false);
     expect(await prisma.campaignMember.findMany({ where: { campaignId: realCampaign.id } })).toEqual([
       expect.objectContaining({ userId: register.body.user.id, role: 'MESTRE' })
@@ -816,22 +824,22 @@ describe('mesas', () => {
   });
 });
 
-describe('inventario e recompensas', () => {
-  it('vende pela metade do preco, paga o personagem e devolve o item ao estoque', async () => {
+describe('inventário e recompensas', () => {
+  it('vende pela metade do preço, paga o personagem e devolve o item ao estoque', async () => {
     const borin = as(await login('borin@lojarpg.local'));
 
     const sale = await borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 });
 
     expect(sale.status).toBe(200);
-    expect(sale.body.message).toBe('Venda concluida: 1x Pocao de Cura por 25 ouro.');
+    expect(sale.body.message).toBe('Venda concluída: 1x Poção de Cura por 25 ouro.');
     expect(sale.body.character.gold).toBe(345);
 
     const inventory = await borin.get(`${DEMO}/inventory/me`);
     expect(inventory.body.inventory).toEqual([
-      expect.objectContaining({ quantity: 1, item: expect.objectContaining({ name: 'Pocao de Cura', effectiveSellPrice: 25 }) })
+      expect.objectContaining({ quantity: 1, item: expect.objectContaining({ name: 'Poção de Cura', effectiveSellPrice: 25 }) })
     ]);
     expect(inventory.body.logs).toEqual([
-      expect.objectContaining({ type: 'VENDA', itemName: 'Pocao de Cura', quantity: 1, unitPrice: 25, total: 25 })
+      expect.objectContaining({ type: 'VENDA', itemName: 'Poção de Cura', quantity: 1, unitPrice: 25, total: 25 })
     ]);
 
     const prisma = getPrisma();
@@ -843,7 +851,7 @@ describe('inventario e recompensas', () => {
     });
   });
 
-  it('usa o preco de venda do Mestre e recusa o que a loja nao compra', async () => {
+  it('usa o preço de venda do Mestre e recusa o que a loja não compra', async () => {
     const [master, borin] = [as(await login('mestre@lojarpg.local', 'mestre123')), as(await login('borin@lojarpg.local'))];
 
     const items = (await master.get(`${DEMO}/items`)).body.items;
@@ -864,18 +872,18 @@ describe('inventario e recompensas', () => {
 
     const refused = await borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 });
     expect(refused.status).toBe(400);
-    expect(refused.body.message).toBe('A loja nao compra Pocao de Cura.');
+    expect(refused.body.message).toBe('A loja não compra Poção de Cura.');
 
     const invalidPrice = await master.put(`${DEMO}/items/6`, { sellPrice: -5 });
     expect(invalidPrice.status).toBe(400);
   });
 
-  it('nao vende o que o personagem nao tem nem itens de outro jogador', async () => {
+  it('não vende o que o personagem não tem nem itens de outro jogador', async () => {
     const [aria, master] = [as(await login('aria@lojarpg.local')), as(await login('mestre@lojarpg.local', 'mestre123'))];
 
     const missing = await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 });
     expect(missing.status).toBe(400);
-    expect(missing.body.message).toBe('Quantidade insuficiente de Pocao de Cura no inventario.');
+    expect(missing.body.message).toBe('Quantidade insuficiente de Poção de Cura no inventário.');
 
     const tooMany = await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 10, quantity: 2 });
     expect(tooMany.status).toBe(400);
@@ -885,7 +893,7 @@ describe('inventario e recompensas', () => {
     expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 10, quantity: 0 })).status).toBe(400);
   });
 
-  it('vendas simultaneas do ultimo item pagam uma vez so', async () => {
+  it('vendas simultaneas do último item pagam uma vez só', async () => {
     const aria = as(await login('aria@lojarpg.local'));
 
     const responses = await Promise.all(
@@ -900,12 +908,12 @@ describe('inventario e recompensas', () => {
     expect(await prisma.item.findUnique({ where: { id: 10 } })).toMatchObject({ stock: 9 });
   });
 
-  it('usa item, tira do inventario e registra no historico', async () => {
+  it('usa item, tira do inventário e registra no histórico', async () => {
     const borin = as(await login('borin@lojarpg.local'));
 
     const used = await borin.post(`${DEMO}/inventory/2/use`, { itemId: 6, quantity: 1, reason: 'Curou a Lia' });
     expect(used.status).toBe(200);
-    expect(used.body.message).toBe('Item usado: 1x Pocao de Cura.');
+    expect(used.body.message).toBe('Item usado: 1x Poção de Cura.');
 
     const tooMany = await borin.post(`${DEMO}/inventory/2/use`, { itemId: 6, quantity: 2 });
     expect(tooMany.status).toBe(400);
@@ -925,7 +933,7 @@ describe('inventario e recompensas', () => {
       characterIds: [1, 2, 3],
       total: 100,
       mode: 'split',
-      reason: 'Tesouro do dragao'
+      reason: 'Tesouro do dragão'
     });
 
     expect(split.status).toBe(200);
@@ -935,13 +943,13 @@ describe('inventario e recompensas', () => {
 
     const audit = (await master.get(`${DEMO}/characters/gold-audit`)).body.logs;
     expect(audit).toHaveLength(3);
-    expect(audit.every((log) => log.delta === 33 && log.reason === 'Tesouro do dragao')).toBe(true);
+    expect(audit.every((log) => log.delta === 33 && log.reason === 'Tesouro do dragão')).toBe(true);
 
     const each = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [1, 2],
       total: 10,
       mode: 'each',
-      reason: 'Missao concluida'
+      reason: 'Missão concluída'
     });
     expect(each.body.characters.map((character) => character.gold)).toEqual([293, 363]);
 
@@ -960,12 +968,12 @@ describe('inventario e recompensas', () => {
       characterIds: [1],
       total: 1000,
       mode: 'each',
-      reason: 'Trapaca'
+      reason: 'Trapaça'
     });
     expect(byPlayer.status).toBe(403);
   });
 
-  it('Mestre nao da ouro a personagem de outra mesa', async () => {
+  it('Mestre não da ouro a personagem de outra mesa', async () => {
     const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
     const campaign = await createCampaign(borinToken);
     await as(liaToken).post('/campaigns/join', { inviteCode: campaign.inviteCode });
@@ -991,7 +999,7 @@ describe('inventario e recompensas', () => {
     expect(await getPrisma().character.findUnique({ where: { id: outsider.id } })).toMatchObject({ gold: 0 });
   });
 
-  it('Mestre da item fora da loja direto no inventario sem mexer no estoque', async () => {
+  it('Mestre da item fora da loja direto no inventário sem mexer no estoque', async () => {
     const [master, lia] = [as(await login('mestre@lojarpg.local', 'mestre123')), as(await login('lia@lojarpg.local'))];
 
     await master.delete(`${DEMO}/items/9`);
@@ -1000,20 +1008,20 @@ describe('inventario e recompensas', () => {
       characterId: 3,
       itemId: 9,
       quantity: 1,
-      reason: 'Bau do templo'
+      reason: 'Baú do templo'
     });
     expect(reward.status).toBe(200);
-    expect(reward.body.message).toBe('Lia Brasa recebeu 1x Anel de Protecao Menor.');
+    expect(reward.body.message).toBe('Lia Brasa recebeu 1x Anel de Proteção Menor.');
 
     const inventory = await lia.get(`${DEMO}/inventory/me`);
     expect(inventory.body.inventory).toEqual([
-      expect.objectContaining({ quantity: 1, item: expect.objectContaining({ name: 'Anel de Protecao Menor', isActive: false }) })
+      expect.objectContaining({ quantity: 1, item: expect.objectContaining({ name: 'Anel de Proteção Menor', isActive: false }) })
     ]);
     expect(await getPrisma().item.findUnique({ where: { id: 9 } })).toMatchObject({ stock: 0 });
 
     const logs = await master.get(`${DEMO}/inventory/logs`);
     expect(logs.body.logs).toEqual([
-      expect.objectContaining({ type: 'RECOMPENSA', characterName: 'Lia Brasa', actorName: 'Mestre do Cofre', reason: 'Bau do templo' })
+      expect.objectContaining({ type: 'RECOMPENSA', characterName: 'Lia Brasa', actorName: 'Mestre do Cofre', reason: 'Baú do templo' })
     ]);
 
     expect((await lia.get(`${DEMO}/inventory/logs`)).status).toBe(403);

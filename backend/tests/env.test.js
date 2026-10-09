@@ -6,7 +6,7 @@ const strongSecrets = {
   jwtSecret: 'a'.repeat(48)
 };
 
-describe('segredos de producao', () => {
+describe('segredos de produção', () => {
   it('aceita segredos fortes', () => {
     expect(() => assertProductionSecrets(strongSecrets)).not.toThrow();
   });
@@ -21,7 +21,7 @@ describe('segredos de producao', () => {
     expect(() => assertProductionSecrets({ ...strongSecrets, jwtSecret })).toThrow(/JWT_SECRET/);
   });
 
-  it('nao exige segredos fora de producao', () => {
+  it('não exige segredos fora de produção', () => {
     expect(() =>
       assertProductionSecrets({
         nodeEnv: 'development',

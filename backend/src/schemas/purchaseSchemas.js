@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const INVALID_CART_ITEM = 'Itens do carrinho invalidos.';
+const INVALID_CART_ITEM = 'Itens do carrinho inválidos.';
 
 const positiveInteger = z.coerce
   .number({ error: INVALID_CART_ITEM })

@@ -319,7 +319,7 @@ function AppContent() {
           </div>
         </div>
         {showTabs ? (
-          <nav className="tabs" aria-label="Navegacao principal">
+          <nav className="tabs" aria-label="Navegação principal">
             <button className={activeRoute === 'shop' ? 'active' : ''} onClick={() => navigate('/shop')}>
               <Store size={18} />
               Loja
@@ -327,7 +327,7 @@ function AppContent() {
             {!isMaster && (
               <button className={activeRoute === 'inventory' ? 'active' : ''} onClick={() => navigate('/inventory')}>
                 <Package size={18} />
-                Inventario
+                Inventário
               </button>
             )}
             <button className={activeRoute === 'history' ? 'active' : ''} onClick={() => navigate('/history')}>

@@ -9,11 +9,11 @@ async function findOwnCharacter(user, campaignId, characterId, action, prisma) {
   const character = await findCharacterById(characterId, campaignId, prisma);
 
   if (!character) {
-    throw new ApiError(404, 'Personagem nao encontrado.');
+    throw new ApiError(404, 'Personagem não encontrado.');
   }
 
   if (character.userId !== user.id) {
-    throw new ApiError(403, `Voce so pode ${action} itens dos seus personagens.`);
+    throw new ApiError(403, `Você só pode ${action} itens dos seus personagens.`);
   }
 
   return character;
@@ -23,7 +23,7 @@ async function findCampaignItem(campaignId, itemId, prisma) {
   const item = await findItemById(itemId, { campaignId, includeInactive: true }, prisma);
 
   if (!item) {
-    throw new ApiError(404, 'Item nao encontrado.');
+    throw new ApiError(404, 'Item não encontrado.');
   }
 
   return item;
@@ -38,11 +38,11 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
     const item = await findCampaignItem(campaignId, itemId, prisma);
 
     if (item.effectiveSellPrice === null) {
-      throw new ApiError(400, `A loja nao compra ${item.name}.`);
+      throw new ApiError(400, `A loja não compra ${item.name}.`);
     }
 
     if (!(await removeInventoryItem(character.id, item.id, quantity, prisma))) {
-      throw new ApiError(400, `Quantidade insuficiente de ${item.name} no inventario.`);
+      throw new ApiError(400, `Quantidade insuficiente de ${item.name} no inventário.`);
     }
 
     const total = item.effectiveSellPrice * quantity;
@@ -73,7 +73,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
     );
 
     return {
-      message: `Venda concluida: ${quantity}x ${item.name} por ${total} ouro.`,
+      message: `Venda concluída: ${quantity}x ${item.name} por ${total} ouro.`,
       character: await findCharacterById(character.id, campaignId, prisma)
     };
   });
@@ -85,7 +85,7 @@ export async function useItem({ user, campaignId, characterId, itemId, quantity,
     const item = await findCampaignItem(campaignId, itemId, prisma);
 
     if (!(await removeInventoryItem(character.id, item.id, quantity, prisma))) {
-      throw new ApiError(400, `Quantidade insuficiente de ${item.name} no inventario.`);
+      throw new ApiError(400, `Quantidade insuficiente de ${item.name} no inventário.`);
     }
 
     await createInventoryLog(

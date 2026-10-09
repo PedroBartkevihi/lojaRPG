@@ -68,11 +68,11 @@ export default function CharacterPanel({
             <dd>{character.className}</dd>
           </div>
           <div>
-            <dt>Raca</dt>
+            <dt>Raça</dt>
             <dd>{character.race}</dd>
           </div>
           <div>
-            <dt>Nivel</dt>
+            <dt>Nível</dt>
             <dd>{character.level}</dd>
           </div>
           <div>
@@ -100,11 +100,11 @@ export default function CharacterPanel({
           <input value={form.className} onChange={(event) => updateField('className', event.target.value)} required />
         </label>
         <label>
-          Raca
+          Raça
           <input value={form.race} onChange={(event) => updateField('race', event.target.value)} required />
         </label>
         <label>
-          Nivel
+          Nível
           <input
             value={form.level}
             onChange={(event) => updateField('level', event.target.value)}

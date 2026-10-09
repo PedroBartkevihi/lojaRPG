@@ -55,7 +55,7 @@ export async function registerUser(data) {
 
   return withTransaction(async (prisma) => {
     if (await findUserByEmail(data.email, prisma)) {
-      throw new ApiError(409, 'Email ja cadastrado.');
+      throw new ApiError(409, 'Email já cadastrado.');
     }
 
     // A conta nao tem papel: quem cria uma mesa e o Mestre dela, e quem entra
@@ -77,13 +77,13 @@ export async function loginUser(email, password) {
   const user = await findUserByEmailWithPassword(email);
 
   if (!user) {
-    throw new ApiError(401, 'Email ou senha invalidos.');
+    throw new ApiError(401, 'Email ou senha inválidos.');
   }
 
   const validPassword = await verifyPassword(password, user.passwordHash);
 
   if (!validPassword) {
-    throw new ApiError(401, 'Email ou senha invalidos.');
+    throw new ApiError(401, 'Email ou senha inválidos.');
   }
 
   const safeUser = {
@@ -98,7 +98,7 @@ export async function loginUser(email, password) {
 
 export async function refreshSession(refreshToken) {
   if (!refreshToken || typeof refreshToken !== 'string') {
-    throw new ApiError(401, 'Refresh token nao informado.');
+    throw new ApiError(401, 'Refresh token não informado.');
   }
 
   return withTransaction(async (prisma) => {
@@ -106,14 +106,14 @@ export async function refreshSession(refreshToken) {
     const storedToken = await findRefreshTokenByHash(tokenHash, prisma);
 
     if (!storedToken || storedToken.revokedAt || new Date(storedToken.expiresAt) <= new Date()) {
-      throw new ApiError(401, 'Refresh token invalido ou expirado.');
+      throw new ApiError(401, 'Refresh token inválido ou expirado.');
     }
 
     await revokeRefreshToken(tokenHash, prisma);
     const safeUser = await findUserById(storedToken.userId, prisma);
 
     if (!safeUser) {
-      throw new ApiError(401, 'Usuario nao encontrado.');
+      throw new ApiError(401, 'Usuário não encontrado.');
     }
 
     return authPayload(safeUser, await issueRefreshToken(safeUser.id, prisma));

@@ -17,11 +17,11 @@ async function inventoryResponse(req, character) {
 
 function ensureInventoryAccess(req, character) {
   if (!character) {
-    throw new ApiError(404, 'Personagem nao encontrado.');
+    throw new ApiError(404, 'Personagem não encontrado.');
   }
 
   if (!isGameMaster(req) && character.userId !== req.user.id) {
-    throw new ApiError(403, 'Voce nao pode ver este inventario.');
+    throw new ApiError(403, 'Você não pode ver este inventário.');
   }
 }
 

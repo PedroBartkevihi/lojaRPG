@@ -11,7 +11,7 @@ const jogadorHash =
 // Contas e mesa da demonstracao publica. O codigo MESADEMO nunca sai do
 // gerador de convites (que nao usa a letra O), entao nao colide com uma mesa
 // real.
-const DEMO_CAMPAIGN = { id: 1, name: 'Mesa de demonstracao', inviteCode: 'MESADEMO' };
+const DEMO_CAMPAIGN = { id: 1, name: 'Mesa de demonstração', inviteCode: 'MESADEMO' };
 
 const DEMO_USERS = [
   { id: 1, name: 'Mestre do Cofre', email: 'mestre@lojarpg.local', passwordHash: mestreHash, role: 'MESTRE' },
@@ -74,7 +74,7 @@ async function createDemoData(prisma) {
   await prisma.character.createMany({
     data: [
       { id: 1, campaignId, userId: 2, name: 'Aria Luaferro', className: 'Ladino', race: 'Elfo', level: 4, gold: 250 },
-      { id: 2, campaignId, userId: 3, name: 'Borin Escudoforte', className: 'Guerreiro', race: 'Anao', level: 5, gold: 320 },
+      { id: 2, campaignId, userId: 3, name: 'Borin Escudoforte', className: 'Guerreiro', race: 'Anão', level: 5, gold: 320 },
       { id: 3, campaignId, userId: 4, name: 'Lia Brasa', className: 'Maga', race: 'Humana', level: 3, gold: 180 }
     ]
   });

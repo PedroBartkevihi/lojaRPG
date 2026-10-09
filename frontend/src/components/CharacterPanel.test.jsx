@@ -9,7 +9,7 @@ describe('CharacterPanel', () => {
     const onSelectCharacter = vi.fn();
     const characters = [
       { id: 1, name: 'Aria', className: 'Ladino', race: 'Elfo', level: 4, gold: 250 },
-      { id: 2, name: 'Borin', className: 'Guerreiro', race: 'Anao', level: 5, gold: 320 }
+      { id: 2, name: 'Borin', className: 'Guerreiro', race: 'Anão', level: 5, gold: 320 }
     ];
 
     render(
@@ -26,7 +26,7 @@ describe('CharacterPanel', () => {
     expect(onSelectCharacter).toHaveBeenCalledWith(2);
   });
 
-  it('cria personagem e atualiza a sessao', async () => {
+  it('cria personagem e atualiza a sessão', async () => {
     const user = userEvent.setup();
     const api = {
       createCharacter: vi.fn().mockResolvedValue({ character: { id: 10 } })
@@ -38,9 +38,9 @@ describe('CharacterPanel', () => {
 
     await user.type(screen.getByLabelText(/^nome$/i), 'Nym');
     await user.type(screen.getByLabelText(/^classe$/i), 'Bardo');
-    await user.type(screen.getByLabelText(/^raca$/i), 'Humano');
-    await user.clear(screen.getByLabelText(/^nivel$/i));
-    await user.type(screen.getByLabelText(/^nivel$/i), '3');
+    await user.type(screen.getByLabelText(/^raça$/i), 'Humano');
+    await user.clear(screen.getByLabelText(/^nível$/i));
+    await user.type(screen.getByLabelText(/^nível$/i), '3');
     await user.click(screen.getByRole('button', { name: /salvar personagem/i }));
 
     expect(api.createCharacter).toHaveBeenCalledWith({

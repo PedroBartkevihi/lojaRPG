@@ -69,7 +69,7 @@ export default function ShopPage({
       const currentQuantity = existing?.quantity || 0;
 
       if (currentQuantity >= item.stock) {
-        showNotice('Estoque maximo deste item ja esta no carrinho.');
+        showNotice('Estoque máximo deste item já está no carrinho.');
         return current;
       }
 
@@ -107,7 +107,7 @@ export default function ShopPage({
       <div className="shop-column">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Itens disponiveis</p>
+            <p className="eyebrow">Itens disponíveis</p>
             <h2>Loja da campanha</h2>
           </div>
           {!isMaster && character && (

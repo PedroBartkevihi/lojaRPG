@@ -5,6 +5,14 @@ import InventoryLogList from '../components/InventoryLogList.jsx';
 import PurchaseHistory from '../components/PurchaseHistory.jsx';
 import RewardsPanel from '../components/RewardsPanel.jsx';
 
+// Compara sem acentos nem maiusculas: "pocao" encontra "Poção".
+function normalizeText(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
   const [items, setItems] = useState([]);
   const [characters, setCharacters] = useState([]);
@@ -74,7 +82,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         if (filters.status === 'inactive' && item.isActive) return false;
         if (filters.category && item.category !== filters.category) return false;
         if (filters.rarity && item.rarity !== filters.rarity) return false;
-        if (filters.search && !item.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
+        if (filters.search && !normalizeText(item.name).includes(normalizeText(filters.search))) return false;
         return true;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -155,13 +163,13 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
     const itemCount = Number(category.itemCount || 0);
 
     if (category.name === 'Sem categoria' && itemCount > 0) {
-      showNotice('Nao e possivel remover Sem categoria enquanto existem itens vinculados.');
+      showNotice('Não é possível remover Sem categoria enquanto existem itens vinculados.');
       return;
     }
 
     const confirmed = window.confirm(
       itemCount > 0
-        ? `Remover a categoria ${category.name}? ${itemCount} item(ns) sera(o) movido(s) para Sem categoria.`
+        ? `Remover a categoria ${category.name}? ${itemCount} item(ns) será(ão) movido(s) para Sem categoria.`
         : `Remover a categoria ${category.name}?`
     );
 
@@ -205,13 +213,13 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
     const itemCount = Number(rarity.itemCount || 0);
 
     if (rarity.name === 'Comum' && itemCount > 0) {
-      showNotice('Nao e possivel remover Comum enquanto existem itens vinculados.');
+      showNotice('Não é possível remover Comum enquanto existem itens vinculados.');
       return;
     }
 
     const confirmed = window.confirm(
       itemCount > 0
-        ? `Remover a raridade ${rarity.name}? ${itemCount} item(ns) sera(o) movido(s) para Comum.`
+        ? `Remover a raridade ${rarity.name}? ${itemCount} item(ns) será(ão) movido(s) para Comum.`
         : `Remover a raridade ${rarity.name}?`
     );
 
@@ -263,7 +271,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
     }
 
     if (!reason) {
-      showNotice('Informe o motivo da alteracao de ouro.');
+      showNotice('Informe o motivo da alteração de ouro.');
       return;
     }
 
@@ -349,7 +357,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                     <strong>{item.name}</strong>
                     <span>
                       {item.category} - {item.rarity} - {item.price} ouro -{' '}
-                      {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja nao compra'} - estoque {item.stock} -{' '}
+                      {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja não compra'} - estoque {item.stock} -{' '}
                       {item.isActive ? 'ativo' : 'inativo'}
                     </span>
                   </div>
@@ -392,7 +400,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         <div className="surface-panel">
           <div className="panel-title">
             <PackagePlus size={20} />
-            <h3>Catalogo</h3>
+            <h3>Catálogo</h3>
           </div>
           <form className="inline-form" onSubmit={addCategory}>
             <input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Nova categoria" />
@@ -412,7 +420,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                       <button type="button" className="icon-button" onClick={() => saveCategory(category)} title="Salvar categoria">
                         <Save size={17} />
                       </button>
-                      <button type="button" className="icon-button" onClick={() => setEditingCategoryId(null)} title="Cancelar edicao">
+                      <button type="button" className="icon-button" onClick={() => setEditingCategoryId(null)} title="Cancelar edição">
                         <X size={17} />
                       </button>
                     </div>
@@ -461,7 +469,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                       <button type="button" className="icon-button" onClick={() => saveRarity(rarity)} title="Salvar raridade">
                         <Save size={17} />
                       </button>
-                      <button type="button" className="icon-button" onClick={() => setEditingRarityId(null)} title="Cancelar edicao">
+                      <button type="button" className="icon-button" onClick={() => setEditingRarityId(null)} title="Cancelar edição">
                         <X size={17} />
                       </button>
                     </div>
@@ -510,7 +518,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                       <input
                         value={characterDraft.race}
                         onChange={(event) => setCharacterDraft((current) => ({ ...current, race: event.target.value }))}
-                        aria-label="Raca do personagem"
+                        aria-label="Raça do personagem"
                       />
                       <input
                         type="number"
@@ -518,7 +526,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                         max="20"
                         value={characterDraft.level}
                         onChange={(event) => setCharacterDraft((current) => ({ ...current, level: event.target.value }))}
-                        aria-label="Nivel do personagem"
+                        aria-label="Nível do personagem"
                       />
                     </div>
                     <div className="row-actions">
@@ -537,7 +545,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                     <div>
                       <strong>{character.name}</strong>
                       <span>
-                        {character.userName} - {character.className} nivel {character.level} - {character.gold} ouro
+                        {character.userName} - {character.className} nível {character.level} - {character.gold} ouro
                       </span>
                     </div>
                     <div className="row-actions">
@@ -574,7 +582,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         <div className="surface-panel">
           <div className="panel-title">
             <PackagePlus size={20} />
-            <h3>Historico de estoque</h3>
+            <h3>Histórico de estoque</h3>
           </div>
           <div className="history-list">
             {stockMovements.slice(0, 8).map((movement) => (
@@ -591,7 +599,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                 </p>
               </article>
             ))}
-            {stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentacao registrada.</p>}
+            {stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
           </div>
         </div>
         <div className="surface-panel">

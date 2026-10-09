@@ -3,7 +3,7 @@ import { createStockMovement } from '../models/catalogModel.js';
 import { deactivateItem, replaceItemStock, updateItem } from '../models/itemModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
-const STOCK_CHANGED_MESSAGE = 'O estoque do item mudou durante a edicao. Recarregue e tente novamente.';
+const STOCK_CHANGED_MESSAGE = 'O estoque do item mudou durante a edição. Recarregue e tente novamente.';
 
 // `existing` e o item lido antes da edicao. A troca de estoque confere que
 // nenhuma compra alterou esse valor no meio do caminho; sem isso, salvar so o

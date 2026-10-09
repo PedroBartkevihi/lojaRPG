@@ -42,7 +42,7 @@ export function assertProductionSecrets({ nodeEnv, jwtSecret }) {
 
   if (isWeakSecret(jwtSecret, 32)) {
     throw new Error(
-      'Configuracao invalida para producao: JWT_SECRET precisa ter pelo menos 32 caracteres e nao pode ser um valor de exemplo.'
+      'Configuração inválida para produção: JWT_SECRET precisa ter pelo menos 32 caracteres e não pode ser um valor de exemplo.'
     );
   }
 }

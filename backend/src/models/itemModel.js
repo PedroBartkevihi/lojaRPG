@@ -56,7 +56,7 @@ async function resolveCategoryId(campaignId, value, prisma) {
     const category = await prisma.category.findFirst({ where: { id: Number(value), campaignId } });
 
     if (!category) {
-      throw new ApiError(400, 'Categoria invalida.');
+      throw new ApiError(400, 'Categoria inválida.');
     }
 
     return category.id;
@@ -77,7 +77,7 @@ async function resolveRarityId(campaignId, value, prisma) {
     const rarity = await prisma.rarity.findFirst({ where: { id: Number(value), campaignId } });
 
     if (!rarity) {
-      throw new ApiError(400, 'Raridade invalida.');
+      throw new ApiError(400, 'Raridade inválida.');
     }
 
     return rarity.id;
@@ -93,6 +93,14 @@ async function resolveRarityId(campaignId, value, prisma) {
   return rarity.id;
 }
 
+// Compara sem acentos nem maiusculas: "pocao" encontra "Poção".
+function normalizeSearch(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 export async function listItems(filters, prisma = getPrisma()) {
   const where = { campaignId: Number(filters.campaignId) };
 
@@ -102,10 +110,6 @@ export async function listItems(filters, prisma = getPrisma()) {
     where.isActive = true;
   } else if (filters.status === 'inactive') {
     where.isActive = false;
-  }
-
-  if (filters.search) {
-    where.name = { contains: filters.search, mode: 'insensitive' };
   }
 
   if (filters.category) {
@@ -128,7 +132,10 @@ export async function listItems(filters, prisma = getPrisma()) {
     orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }]
   });
 
-  return items.map(mapItem);
+  // O catalogo de uma mesa tem dezenas de itens, entao a busca roda aqui, onde
+  // da para ignorar acentos sem depender de extensao do PostgreSQL.
+  const term = filters.search ? normalizeSearch(filters.search) : '';
+  return items.map(mapItem).filter((item) => !term || normalizeSearch(item.name).includes(term));
 }
 
 export async function findItemById(id, options, prisma = getPrisma()) {

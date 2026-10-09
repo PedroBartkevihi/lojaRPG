@@ -57,7 +57,7 @@ export default function CampaignsPage({ api, campaigns, activeCampaignId, onSele
         <div className="surface-panel">
           <div className="panel-title">
             <Users size={20} />
-            <h3>Mesas em que voce participa</h3>
+            <h3>Mesas em que você participa</h3>
           </div>
           <div className="admin-list">
             {campaigns.map((campaign) => (
@@ -81,7 +81,7 @@ export default function CampaignsPage({ api, campaigns, activeCampaignId, onSele
             ))}
             {campaigns.length === 0 && (
               <p className="empty-state">
-                Voce ainda nao participa de nenhuma mesa. Crie a sua ou entre com o codigo que o Mestre passou.
+                Você ainda não participa de nenhuma mesa. Crie a sua ou entre com o código que o Mestre passou.
               </p>
             )}
           </div>
@@ -95,7 +95,7 @@ export default function CampaignsPage({ api, campaigns, activeCampaignId, onSele
             <h3>Entrar com convite</h3>
           </div>
           <label>
-            Codigo de convite
+            Código de convite
             <input
               value={inviteCode}
               onChange={(event) => setInviteCode(event.target.value)}
@@ -119,7 +119,7 @@ export default function CampaignsPage({ api, campaigns, activeCampaignId, onSele
             <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
           </label>
           <p className="form-hint">
-            Voce sera o Mestre. A mesa comeca com o catalogo de exemplo, que voce pode editar.
+            Você será o Mestre. A mesa começa com o catálogo de exemplo, que você pode editar.
           </p>
           <button className="secondary-action" disabled={loading === 'create'}>
             <Plus size={17} />

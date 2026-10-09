@@ -21,8 +21,8 @@ export async function create(req, res) {
 export async function join(req, res) {
   const result = await joinCampaign(req.user, parse(inviteCodeSchema, req.body.inviteCode));
   const message = result.joined
-    ? `Voce entrou na mesa "${result.campaign.name}".`
-    : `Voce ja participa da mesa "${result.campaign.name}".`;
+    ? `Você entrou na mesa "${result.campaign.name}".`
+    : `Você já participa da mesa "${result.campaign.name}".`;
 
   res.status(result.joined ? 201 : 200).json({ message, campaign: result.campaign });
 }
@@ -36,7 +36,7 @@ export async function show(req, res) {
 
 export async function remove(req, res) {
   await deleteCampaign(req.campaign.id);
-  res.json({ message: `Mesa "${req.campaign.name}" excluida.` });
+  res.json({ message: `Mesa "${req.campaign.name}" excluída.` });
 }
 
 export async function newInviteCode(req, res) {
@@ -48,6 +48,6 @@ export async function removeMemberAction(req, res) {
   await removeMember(req.membership, userId);
 
   res.json({
-    message: userId === req.user.id ? `Voce saiu da mesa "${req.campaign.name}".` : 'Jogador removido da mesa.'
+    message: userId === req.user.id ? `Você saiu da mesa "${req.campaign.name}".` : 'Jogador removido da mesa.'
   });
 }

@@ -10,7 +10,7 @@ export async function loadCampaign(req, _res, next) {
   const membership = await findMembership(campaignId, req.user.id);
 
   if (!membership) {
-    throw new ApiError(404, 'Mesa nao encontrada.');
+    throw new ApiError(404, 'Mesa não encontrada.');
   }
 
   req.campaign = membership.campaign;

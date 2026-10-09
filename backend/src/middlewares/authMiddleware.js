@@ -8,7 +8,7 @@ export async function authenticate(req, _res, next) {
   const [type, token] = authorization.split(' ');
 
   if (type !== 'Bearer' || !token) {
-    return next(new ApiError(401, 'Token de autenticacao nao informado.'));
+    return next(new ApiError(401, 'Token de autenticação não informado.'));
   }
 
   try {
@@ -16,12 +16,12 @@ export async function authenticate(req, _res, next) {
     const user = await findUserById(payload.sub);
 
     if (!user) {
-      return next(new ApiError(401, 'Usuario nao encontrado.'));
+      return next(new ApiError(401, 'Usuário não encontrado.'));
     }
 
     req.user = user;
     return next();
   } catch (_error) {
-    return next(new ApiError(401, 'Token invalido ou expirado.'));
+    return next(new ApiError(401, 'Token inválido ou expirado.'));
   }
 }

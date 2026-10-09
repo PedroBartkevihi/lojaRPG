@@ -10,7 +10,7 @@ function describeCharacters(characters) {
     return 'Sem personagem ainda';
   }
 
-  return characters.map((character) => `${character.name} (${character.className} nivel ${character.level})`).join(', ');
+  return characters.map((character) => `${character.name} (${character.className} nível ${character.level})`).join(', ');
 }
 
 export default function CampaignPage({ api, liveKey, campaign, user, showNotice, onCampaignsChanged, onLeave }) {
@@ -55,19 +55,19 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
       await navigator.clipboard.writeText(text);
       showNotice(message);
     } catch (_error) {
-      showNotice('Nao foi possivel copiar. Selecione o texto e copie manualmente.');
+      showNotice('Não foi possível copiar. Selecione o texto e copie manualmente.');
     }
   }
 
   async function regenerateCode() {
-    if (!window.confirm('Gerar um novo codigo? O codigo e o link atuais deixam de funcionar.')) {
+    if (!window.confirm('Gerar um novo código? O código e o link atuais deixam de funcionar.')) {
       return;
     }
 
     try {
       const data = await api.regenerateInviteCode();
       setInviteCode(data.campaign.inviteCode);
-      showNotice('Novo codigo de convite gerado.');
+      showNotice('Novo código de convite gerado.');
     } catch (error) {
       showNotice(error.message);
     }
@@ -105,7 +105,7 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
   async function deleteCampaign() {
     if (
       !window.confirm(
-        `Excluir a mesa "${campaign.name}"? Itens, personagens, compras e historicos dela serao apagados para todos.`
+        `Excluir a mesa "${campaign.name}"? Itens, personagens, compras e históricos dela serão apagados para todos.`
       )
     ) {
       return;
@@ -147,7 +147,7 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
                   <div>
                     <strong>
                       {member.name}
-                      {member.userId === user.id ? ' (voce)' : ''}
+                      {member.userId === user.id ? ' (você)' : ''}
                     </strong>
                     <span>
                       {member.role === 'MESTRE' && member.characters.length === 0
@@ -182,8 +182,8 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
                 <Link2 size={20} />
                 <h3>Convite</h3>
               </div>
-              <p className="form-hint">Envie o link ou o codigo para os jogadores entrarem na mesa.</p>
-              <p className="invite-code" aria-label="Codigo de convite">
+              <p className="form-hint">Envie o link ou o código para os jogadores entrarem na mesa.</p>
+              <p className="invite-code" aria-label="Código de convite">
                 {formatInviteCode(inviteCode)}
               </p>
               <input className="invite-link" value={inviteLink} readOnly aria-label="Link de convite" />
@@ -194,14 +194,14 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
                 </button>
                 <button
                   className="secondary-action"
-                  onClick={() => copy(formatInviteCode(inviteCode), 'Codigo copiado.')}
+                  onClick={() => copy(formatInviteCode(inviteCode), 'Código copiado.')}
                 >
                   <Copy size={17} />
-                  Copiar codigo
+                  Copiar código
                 </button>
                 <button className="text-action" onClick={regenerateCode}>
                   <RefreshCcw size={17} />
-                  Gerar novo codigo
+                  Gerar novo código
                 </button>
               </div>
             </div>
@@ -210,7 +210,7 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
                 <Trash2 size={20} />
                 <h3>Encerrar mesa</h3>
               </div>
-              <p className="form-hint">Apaga a mesa e tudo o que pertence a ela. Nao da para desfazer.</p>
+              <p className="form-hint">Apaga a mesa e tudo o que pertence a ela. Não dá para desfazer.</p>
               <button className="danger-action full" onClick={deleteCampaign}>
                 <Trash2 size={17} />
                 Excluir mesa
@@ -223,7 +223,7 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
               <DoorOpen size={20} />
               <h3>Sair da mesa</h3>
             </div>
-            <p className="form-hint">Seus personagens ficam guardados e voltam se voce entrar de novo com um convite.</p>
+            <p className="form-hint">Seus personagens ficam guardados e voltam se você entrar de novo com um convite.</p>
             <button className="danger-action full" onClick={leaveCampaign}>
               <DoorOpen size={17} />
               Sair da mesa

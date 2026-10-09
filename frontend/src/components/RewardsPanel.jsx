@@ -117,7 +117,7 @@ export default function RewardsPanel({ api, characters, items, showNotice, onDon
             />
           </label>
           <label>
-            Distribuicao
+            Distribuição
             <select value={goldReward.mode} onChange={(event) => updateGold('mode', event.target.value)}>
               <option value="split">Dividir entre eles</option>
               <option value="each">Cada um recebe</option>
@@ -129,7 +129,7 @@ export default function RewardsPanel({ api, characters, items, showNotice, onDon
           <input
             value={goldReward.reason}
             onChange={(event) => updateGold('reason', event.target.value)}
-            placeholder="Tesouro do covil, pagamento da missao..."
+            placeholder="Tesouro do covil, pagamento da missão..."
             required
           />
         </label>
@@ -192,10 +192,10 @@ export default function RewardsPanel({ api, characters, items, showNotice, onDon
           <input
             value={itemReward.reason}
             onChange={(event) => updateItem('reason', event.target.value)}
-            placeholder="Bau do templo, presente do rei..."
+            placeholder="Baú do templo, presente do rei..."
           />
         </label>
-        <p className="form-hint">O item vem da aventura: o estoque da loja nao muda.</p>
+        <p className="form-hint">O item vem da aventura: o estoque da loja não muda.</p>
         <button className="secondary-action" disabled={saving === 'item'}>
           <PackagePlus size={17} />
           {saving === 'item' ? 'Entregando...' : 'Dar item'}

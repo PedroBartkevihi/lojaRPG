@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe('useLiveTick', () => {
-  it('bate a cada intervalo so com a aba visivel e bate ao voltar para a aba', () => {
+  it('bate a cada intervalo só com a aba visível e bate ao voltar para a aba', () => {
     const { result } = renderHook(() => useLiveTick(true, 1000));
 
     act(() => vi.advanceTimersByTime(3000));
@@ -32,7 +32,7 @@ describe('useLiveTick', () => {
     expect(result.current).toBe(4);
   });
 
-  it('nao bate sem sessao', () => {
+  it('não bate sem sessão', () => {
     const { result } = renderHook(() => useLiveTick(false, 1000));
 
     act(() => vi.advanceTimersByTime(5000));

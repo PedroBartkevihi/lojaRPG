@@ -65,7 +65,7 @@ export async function create(req, res) {
     isGameMaster(req) && req.body.userId ? parse(characterOwnerSchema, req.body.userId) : req.user.id;
 
   if (!(await findMembership(req.campaign.id, userId))) {
-    throw new ApiError(404, 'Participante nao encontrado.');
+    throw new ApiError(404, 'Participante não encontrado.');
   }
 
   const data = parseCharacter(req.body);
@@ -86,11 +86,11 @@ export async function update(req, res) {
   const existing = await findCharacterById(id, req.campaign.id);
 
   if (!existing) {
-    throw new ApiError(404, 'Personagem nao encontrado.');
+    throw new ApiError(404, 'Personagem não encontrado.');
   }
 
   if (!canAccessCharacter(req, existing)) {
-    throw new ApiError(403, 'Voce nao pode editar este personagem.');
+    throw new ApiError(403, 'Você não pode editar este personagem.');
   }
 
   const character = await updateCharacter(id, parseCharacter(req.body, existing));

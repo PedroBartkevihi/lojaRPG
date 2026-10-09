@@ -31,7 +31,7 @@ export default function InventoryLogList({ logs, showCharacter = false, limit })
           {log.reason && <p>{log.reason}</p>}
         </article>
       ))}
-      {logs.length === 0 && <p className="empty-state">Nenhuma movimentacao registrada.</p>}
+      {logs.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
     </div>
   );
 }
