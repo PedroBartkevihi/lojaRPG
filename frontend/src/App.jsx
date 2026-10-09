@@ -53,6 +53,14 @@ function readStoredCampaignId() {
   return Number(localStorage.getItem(CAMPAIGN_KEY)) || null;
 }
 
+// Destino logo depois de entrar: o convite guardado, se houver, ou a loja.
+// O convite so e apagado quando a entrada na mesa acontece, porque a tela
+// ainda passa por /login ou /register antes de chegar a /convite.
+function landingPath() {
+  const pendingInvite = localStorage.getItem(INVITE_KEY);
+  return pendingInvite ? `/convite/${pendingInvite}` : '/shop';
+}
+
 // Entra na mesa do link de convite assim que existe uma sessao.
 function InviteRoute({ onJoin }) {
   const { code } = useParams();
@@ -180,6 +188,8 @@ function AppContent() {
 
   const joinWithCode = useCallback(
     async (code) => {
+      localStorage.removeItem(INVITE_KEY);
+
       try {
         const data = await api.joinCampaign({ inviteCode: code });
         await loadCampaigns();
@@ -247,9 +257,7 @@ function AppContent() {
     (data) => {
       storeTokens(data);
       showNotice(`Bem-vindo, ${data.user.name}.`);
-      const pendingInvite = localStorage.getItem(INVITE_KEY);
-      localStorage.removeItem(INVITE_KEY);
-      navigate(pendingInvite ? `/convite/${pendingInvite}` : '/shop', { replace: true });
+      navigate(landingPath(), { replace: true });
     },
     [navigate, showNotice, storeTokens]
   );
@@ -408,6 +416,8 @@ function AppContent() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/shop" replace />} />
+        <Route path="/login" element={<Navigate to={landingPath()} replace />} />
+        <Route path="/register" element={<Navigate to={landingPath()} replace />} />
         <Route
           path="/mesas"
           element={
