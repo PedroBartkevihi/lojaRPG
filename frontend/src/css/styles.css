@@ -107,6 +107,112 @@ button:disabled {
   border-radius: 8px;
 }
 
+/* Tela de entrada: apresentacao e demonstracao a esquerda, formulario a
+   direita; no celular, um embaixo do outro. */
+.auth-layout {
+  width: min(100%, 1040px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.auth-intro {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.auth-intro .brand-lockup {
+  margin-bottom: 0;
+}
+
+.auth-intro h2 {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 2.2rem;
+  line-height: 1.15;
+}
+
+.auth-intro > p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.feature-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.feature-list svg {
+  flex: none;
+  color: var(--gold);
+}
+
+.demo-login {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgba(217, 164, 65, 0.35);
+  border-radius: 8px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+}
+
+.demo-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.demo-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.15rem 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(217, 164, 65, 0.1);
+  text-align: left;
+}
+
+.demo-button svg {
+  grid-row: span 2;
+  color: var(--gold);
+}
+
+.demo-button strong {
+  font-weight: 800;
+}
+
+.demo-button span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.demo-button:hover:not(:disabled),
+.demo-button:focus-visible {
+  border-color: var(--gold);
+  background: rgba(217, 164, 65, 0.2);
+}
+
+.slow-hint {
+  color: #ffe3a0;
+}
+
 .brand-lockup {
   display: flex;
   align-items: center;
@@ -859,6 +965,17 @@ textarea:focus {
   display: none;
 }
 
+@media (max-width: 860px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .auth-panel {
+    width: 100%;
+  }
+}
+
 @media (max-width: 1000px) {
   .topbar,
   .content-grid,
@@ -957,6 +1074,14 @@ textarea:focus {
 
   .auth-panel {
     padding: 1.1rem;
+  }
+
+  .auth-intro h2 {
+    font-size: 1.7rem;
+  }
+
+  .demo-buttons {
+    grid-template-columns: 1fr;
   }
 
   .toolbar,

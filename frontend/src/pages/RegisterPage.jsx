@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { UserPlus } from 'lucide-react';
+import { SLOW_API_MESSAGE, useSlowHint } from '../js/useSlowHint.js';
 
 // A conta nao tem papel: quem cria uma mesa e o Mestre dela, e quem entra por
 // convite cria o personagem dentro da mesa.
@@ -11,6 +12,7 @@ export default function RegisterPage({ api, onRegister, onSwitch }) {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const slow = useSlowHint(loading);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -52,6 +54,7 @@ export default function RegisterPage({ api, onRegister, onSwitch }) {
           required
         />
       </label>
+      {slow && <p className="form-hint slow-hint">{SLOW_API_MESSAGE}</p>}
       {error && <p className="form-error">{error}</p>}
       <button className="primary-action" disabled={loading}>
         <UserPlus size={18} />
