@@ -9,7 +9,6 @@ COPY backend/prisma ./prisma
 RUN npx prisma generate
 
 COPY backend/src ./src
-COPY database ./database
 
 ENV NODE_ENV=production
 ENV PORT=3001

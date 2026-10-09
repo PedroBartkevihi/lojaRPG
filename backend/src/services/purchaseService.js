@@ -1,26 +1,19 @@
 import { ROLES } from '../config/roles.js';
 import { withTransaction } from '../database/transaction.js';
-import { findCharacterById, findCharacterByUserId, setCharacterGold } from '../models/characterModel.js';
+import { createStockMovement } from '../models/catalogModel.js';
+import { debitCharacterGold, findCharacterById, findCharacterByUserId } from '../models/characterModel.js';
 import { addInventoryItem } from '../models/inventoryModel.js';
-import { findItemsByIds } from '../models/itemModel.js';
+import { decrementItemStock, findItemsByIds } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase, findPurchaseById } from '../models/purchaseModel.js';
+import { characterIdSchema } from '../schemas/characterSchemas.js';
+import { cartSchema } from '../schemas/purchaseSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
+import { parse } from '../utils/validation.js';
 
 function normalizeCart(cartItems) {
-  if (!Array.isArray(cartItems) || cartItems.length === 0) {
-    throw new ApiError(400, 'Carrinho vazio.');
-  }
-
   const grouped = new Map();
 
-  for (const cartItem of cartItems) {
-    const itemId = Number(cartItem.itemId ?? cartItem.item_id);
-    const quantity = Number(cartItem.quantity);
-
-    if (!Number.isInteger(itemId) || itemId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
-      throw new ApiError(400, 'Itens do carrinho invalidos.');
-    }
-
+  for (const { itemId, quantity } of parse(cartSchema, cartItems)) {
     grouped.set(itemId, (grouped.get(itemId) || 0) + quantity);
   }
 
@@ -29,7 +22,7 @@ function normalizeCart(cartItems) {
 
 async function resolveCheckoutCharacter(user, characterId, prisma) {
   if (characterId) {
-    const character = await findCharacterById(Number(characterId), prisma);
+    const character = await findCharacterById(parse(characterIdSchema, characterId), prisma);
 
     if (!character) {
       throw new ApiError(404, 'Personagem nao encontrado.');
@@ -81,11 +74,11 @@ export async function checkout(user, cartItems, characterId) {
       totalValue += item.price * cartItem.quantity;
     }
 
-    if (character.gold < totalValue) {
+    // Os valores lidos acima podem ter mudado por outra compra ou por um ajuste
+    // do Mestre; os descontos so acontecem se ainda houver saldo na escrita.
+    if (!(await debitCharacterGold(character.id, totalValue, prisma))) {
       throw new ApiError(400, 'Ouro insuficiente para concluir a compra.');
     }
-
-    const updatedCharacter = await setCharacterGold(character.id, character.gold - totalValue, prisma);
 
     const purchase = await createPurchase(
       {
@@ -97,23 +90,26 @@ export async function checkout(user, cartItems, characterId) {
 
     for (const cartItem of normalizedCart) {
       const item = itemMap.get(cartItem.itemId);
-      const newStock = item.stock - cartItem.quantity;
 
-      await prisma.item.update({
+      if (!(await decrementItemStock(item.id, cartItem.quantity, prisma))) {
+        throw new ApiError(400, `Estoque insuficiente para ${item.name}.`);
+      }
+
+      const { stock: newStock } = await prisma.item.findUnique({
         where: { id: item.id },
-        data: { stock: newStock }
+        select: { stock: true }
       });
 
-      await prisma.stockMovement.create({
-        data: {
+      await createStockMovement(
+        {
           itemId: item.id,
           actorUserId: user.id,
-          previousStock: item.stock,
+          previousStock: newStock + cartItem.quantity,
           newStock,
-          delta: -cartItem.quantity,
           reason: `Compra #${purchase.id}`
-        }
-      });
+        },
+        prisma
+      );
 
       await addInventoryItem(character.id, item.id, cartItem.quantity, prisma);
 
@@ -131,7 +127,7 @@ export async function checkout(user, cartItems, characterId) {
     return {
       message: 'Compra concluida com sucesso.',
       purchase: await findPurchaseById(purchase.id, prisma),
-      character: updatedCharacter
+      character: await findCharacterById(character.id, prisma)
     };
   });
 }

@@ -97,12 +97,22 @@ export async function updateCharacter(id, data, prisma = getPrisma()) {
   return mapCharacter(character);
 }
 
-export async function setCharacterGold(id, gold, prisma = getPrisma()) {
-  const character = await prisma.character.update({
-    where: { id: Number(id) },
-    data: { gold: Number(gold) },
-    include: includeUser
+// Desconta o ouro so se o personagem ainda tiver saldo no momento da escrita.
+export async function debitCharacterGold(id, amount, prisma = getPrisma()) {
+  const result = await prisma.character.updateMany({
+    where: { id: Number(id), gold: { gte: Number(amount) } },
+    data: { gold: { decrement: Number(amount) } }
   });
 
-  return mapCharacter(character);
+  return result.count > 0;
+}
+
+// Troca o ouro so se ele ainda for o valor lido antes da alteracao.
+export async function replaceCharacterGold(id, expectedGold, newGold, prisma = getPrisma()) {
+  const result = await prisma.character.updateMany({
+    where: { id: Number(id), gold: Number(expectedGold) },
+    data: { gold: Number(newGold) }
+  });
+
+  return result.count > 0;
 }

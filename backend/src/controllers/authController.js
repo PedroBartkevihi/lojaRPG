@@ -1,8 +1,11 @@
 import { ROLES } from '../config/roles.js';
 import { findCharacterByUserId, findCharactersByUserId } from '../models/characterModel.js';
+import { loginSchema, registerSchema, roleSchema } from '../schemas/authSchemas.js';
+import { characterSchema } from '../schemas/characterSchemas.js';
 import { loginUser, logoutSession, refreshSession, registerUser } from '../services/authService.js';
-import * as validate from '../utils/validation.js';
+import { parse } from '../utils/validation.js';
 
+// O cadastro aceita o personagem aninhado em `character` ou em campos soltos.
 function parseCharacter(body) {
   const source = body.character || {};
 
@@ -10,22 +13,23 @@ function parseCharacter(body) {
     return null;
   }
 
-  return {
-    name: validate.requiredString(source.name || body.characterName, 'Nome do personagem', 120),
-    className: validate.requiredString(source.className || source.class || body.className, 'Classe', 80),
-    race: validate.requiredString(source.race || source.raca || body.race, 'Raca', 80),
-    level: validate.integer(source.level || body.level || 1, 'Nivel', { min: 1, max: 20 })
-  };
+  return parse(characterSchema, {
+    name: source.name || body.characterName,
+    className: source.className || source.class || body.className,
+    race: source.race || source.raca || body.race,
+    level: source.level || body.level || 1
+  });
 }
 
 export async function register(req, res) {
-  const role = validate.role(req.body.role);
+  const role = parse(roleSchema, req.body.role);
   const character = role === ROLES.PLAYER ? parseCharacter(req.body) : null;
+  const { name, email, password } = parse(registerSchema, req.body);
 
   const result = await registerUser({
-    name: validate.requiredString(req.body.name, 'Nome', 120),
-    email: validate.email(req.body.email),
-    password: validate.password(req.body.password),
+    name,
+    email,
+    password,
     role,
     masterKey: req.body.masterKey || req.get('x-master-key'),
     character
@@ -35,7 +39,8 @@ export async function register(req, res) {
 }
 
 export async function login(req, res) {
-  const result = await loginUser(validate.email(req.body.email), validate.password(req.body.password));
+  const { email, password } = parse(loginSchema, req.body);
+  const result = await loginUser(email, password);
   const character = await findCharacterByUserId(result.user.id);
   const characters = await findCharactersByUserId(result.user.id);
 

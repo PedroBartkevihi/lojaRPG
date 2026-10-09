@@ -27,10 +27,24 @@ Para desenvolvimento, use `VITE_API_URL=http://localhost:3001` no
 
 ## Producao local com Docker
 
-Na raiz do projeto:
+Na raiz do projeto, crie o `.env` com os segredos (o Git ignora esse arquivo):
 
 ```bash
 cd C:\lojaRPG
+copy .env.example .env
+```
+
+Preencha `JWT_SECRET` (pelo menos 32 caracteres) e `MASTER_REGISTRATION_KEY`
+(pelo menos 16) com valores aleatorios, gerados por exemplo com:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+```
+
+Sem esse arquivo o `docker compose` nao sobe, e a API recusa iniciar em
+producao com valores curtos ou iguais aos exemplos do repositorio. Depois:
+
+```bash
 docker compose up --build
 ```
 
@@ -40,10 +54,8 @@ Servicos:
 - API: `http://localhost:3001`
 - Banco SQLite: volume Docker `loja_rpg_data`, montado em `/app/data`
 
-Antes de usar em producao, altere:
+Antes de usar em producao fora da sua maquina, ajuste tambem:
 
-- `JWT_SECRET`
-- `MASTER_REGISTRATION_KEY`
 - `CORS_ORIGIN`
 - `VITE_API_URL`
 
@@ -81,14 +93,17 @@ Em producao, rode migrations de forma controlada antes de subir a nova versao:
 npx prisma migrate deploy
 ```
 
-Se o ambiente ainda usa o SQLite antigo do projeto, faca backup antes e rode:
+A migration `202610090001_check_constraints` recria as tabelas para adicionar
+as regras `CHECK`, dentro de uma transacao. Se um banco existente tiver dados
+invalidos (ouro ou estoque negativo, por exemplo), ela falha sem alterar as
+tabelas. Para seguir, corrija esses registros e rode:
 
 ```bash
-npm run db:migrate:legacy
+npx prisma migrate resolve --rolled-back 202610090001_check_constraints
+npx prisma migrate deploy
 ```
 
-O script cria as tabelas novas, migra os dados existentes e preserva as tabelas
-antigas como `*_legacy_backup` para conferencia.
+Faca backup antes, como em qualquer migration.
 
 ## Backup do SQLite
 

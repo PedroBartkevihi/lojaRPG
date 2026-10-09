@@ -187,3 +187,23 @@ export async function reactivateItem(id, prisma = getPrisma()) {
 
   return mapItem(item);
 }
+
+// Retira do estoque so se o item continuar ativo e com unidades suficientes.
+export async function decrementItemStock(id, quantity, prisma = getPrisma()) {
+  const result = await prisma.item.updateMany({
+    where: { id: Number(id), isActive: true, stock: { gte: Number(quantity) } },
+    data: { stock: { decrement: Number(quantity) } }
+  });
+
+  return result.count > 0;
+}
+
+// Troca o estoque so se ele ainda for o valor lido antes da edicao.
+export async function replaceItemStock(id, expectedStock, newStock, prisma = getPrisma()) {
+  const result = await prisma.item.updateMany({
+    where: { id: Number(id), stock: Number(expectedStock) },
+    data: { stock: Number(newStock) }
+  });
+
+  return result.count > 0;
+}

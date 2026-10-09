@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,8 +7,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(testDir, '..');
-const projectRoot = path.resolve(backendRoot, '..');
-const testDbFile = path.join(backendRoot, 'data', 'test-loja-rpg.sqlite');
+const dataDir = path.join(backendRoot, 'data');
+const testDbFile = path.join(dataDir, 'test-loja-rpg.sqlite');
+const templateDbFile = path.join(dataDir, 'test-template.sqlite');
+const prismaCli = path.join(backendRoot, 'node_modules', 'prisma', 'build', 'index.js');
 
 process.env.NODE_ENV = 'test';
 process.env.DB_FILE = testDbFile;
@@ -19,47 +22,160 @@ process.env.MASTER_REGISTRATION_KEY = 'test-master-key';
 
 let app;
 let closeDatabase;
-let getDatabase;
-let initializeSchema;
+let getPrisma;
 
-function deleteTestDatabase() {
-  for (const suffix of ['', '-wal', '-shm']) {
-    const file = `${testDbFile}${suffix}`;
-
-    if (fs.existsSync(file)) {
-      fs.rmSync(file, { force: true });
-    }
+function deleteDatabaseFiles(file) {
+  for (const suffix of ['', '-journal', '-wal', '-shm']) {
+    fs.rmSync(`${file}${suffix}`, { force: true });
   }
 }
 
-async function seedTestDatabase() {
-  await closeDatabase();
-  deleteTestDatabase();
-  initializeSchema();
-  const seedSql = fs.readFileSync(path.join(projectRoot, 'database', 'seed.sql'), 'utf8');
-  getDatabase().exec(seedSql);
-  await closeDatabase();
+// Cria o banco-modelo pelas mesmas migrations e seed usadas fora dos testes.
+function createTemplateDatabase() {
+  fs.mkdirSync(dataDir, { recursive: true });
+  deleteDatabaseFiles(templateDbFile);
+
+  const options = {
+    cwd: backendRoot,
+    env: { ...process.env, DATABASE_URL: 'file:../data/test-template.sqlite' },
+    stdio: 'pipe'
+  };
+
+  execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], options);
+  execFileSync(process.execPath, ['prisma/seed.js'], options);
 }
 
+async function resetTestDatabase() {
+  await closeDatabase();
+  deleteDatabaseFiles(testDbFile);
+  fs.copyFileSync(templateDbFile, testDbFile);
+}
+
+const tokenCache = new Map();
+
+// O seed recria sempre os mesmos usuarios, entao o token continua valido entre
+// testes; reaproveita-lo evita esbarrar no rate limit das rotas de autenticacao.
 async function login(email, password = 'jogador123') {
-  const response = await request(app).post('/auth/login').send({ email, password });
-  expect(response.status).toBe(200);
-  return response.body.token;
+  if (!tokenCache.has(email)) {
+    const response = await request(app).post('/auth/login').send({ email, password });
+    expect(response.status).toBe(200);
+    tokenCache.set(email, response.body.token);
+  }
+
+  return tokenCache.get(email);
 }
 
 beforeAll(async () => {
-  ({ closeDatabase, getDatabase } = await import('../src/database/connection.js'));
-  ({ initializeSchema } = await import('../src/database/schema.js'));
+  createTemplateDatabase();
+  ({ closeDatabase, getPrisma } = await import('../src/database/connection.js'));
   ({ default: app } = await import('../src/app.js'));
-});
+}, 60000);
 
 beforeEach(async () => {
-  await seedTestDatabase();
+  await resetTestDatabase();
 });
 
 afterAll(async () => {
   await closeDatabase();
-  deleteTestDatabase();
+  deleteDatabaseFiles(testDbFile);
+  deleteDatabaseFiles(templateDbFile);
+});
+
+describe('validacao das entradas', () => {
+  it('recusa cadastro com email invalido ou personagem incompleto', async () => {
+    const invalidEmail = await request(app).post('/auth/register').send({
+      name: 'Teste',
+      email: 'sem-arroba',
+      password: 'segredo1'
+    });
+
+    expect(invalidEmail.status).toBe(400);
+    expect(invalidEmail.body.message).toBe('Email invalido.');
+
+    const missingClass = await request(app)
+      .post('/auth/register')
+      .send({
+        name: 'Teste',
+        email: 'teste@lojarpg.local',
+        password: 'segredo1',
+        character: { name: 'Heroi', race: 'Humano' }
+      });
+
+    expect(missingClass.status).toBe(400);
+    expect(missingClass.body.message).toBe('Classe e obrigatorio.');
+  });
+
+  it('recusa carrinho vazio ou com quantidade invalida', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const emptyCart = await request(app)
+      .post('/purchases')
+      .set('Authorization', `Bearer ${playerToken}`)
+      .send({ items: [] });
+
+    expect(emptyCart.status).toBe(400);
+    expect(emptyCart.body.message).toBe('Carrinho vazio.');
+
+    const zeroQuantity = await request(app)
+      .post('/purchases')
+      .set('Authorization', `Bearer ${playerToken}`)
+      .send({ items: [{ itemId: 6, quantity: 0 }] });
+
+    expect(zeroQuantity.status).toBe(400);
+    expect(zeroQuantity.body.message).toBe('Itens do carrinho invalidos.');
+  });
+
+  it('responde 400 para id de personagem que nao e numero', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const response = await request(app)
+      .get('/purchases/me?characterId=abc')
+      .set('Authorization', `Bearer ${playerToken}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('Id do personagem');
+  });
+
+  it('edita so os campos enviados e valida o que chegou', async () => {
+    const masterToken = await login('mestre@lojarpg.local', 'mestre123');
+
+    const partialUpdate = await request(app)
+      .put('/items/1')
+      .set('Authorization', `Bearer ${masterToken}`)
+      .send({ description: 'Forjada por anoes.' });
+
+    expect(partialUpdate.status).toBe(200);
+    expect(partialUpdate.body.item).toMatchObject({
+      name: 'Espada Longa',
+      price: 75,
+      stock: 5,
+      description: 'Forjada por anoes.'
+    });
+
+    const invalidPrice = await request(app)
+      .put('/items/1')
+      .set('Authorization', `Bearer ${masterToken}`)
+      .send({ price: -10 });
+
+    expect(invalidPrice.status).toBe(400);
+    expect(invalidPrice.body.message).toBe('Preco deve ser um numero inteiro entre 0 e 1000000.');
+  });
+});
+
+describe('integridade do banco', () => {
+  it('recusa ouro, estoque e nivel invalidos mesmo fora da API', async () => {
+    const prisma = getPrisma();
+
+    await expect(prisma.character.update({ where: { id: 1 }, data: { gold: -1 } })).rejects.toThrow(
+      /CHECK constraint failed/
+    );
+    await expect(prisma.character.update({ where: { id: 1 }, data: { level: 21 } })).rejects.toThrow(
+      /CHECK constraint failed/
+    );
+    await expect(prisma.item.update({ where: { id: 1 }, data: { stock: -1 } })).rejects.toThrow(
+      /CHECK constraint failed/
+    );
+  });
 });
 
 describe('autenticacao e autorizacao', () => {
@@ -312,5 +428,97 @@ describe('compras e inventario', () => {
 
     expect(historyResponse.status).toBe(200);
     expect(historyResponse.body.purchases).toHaveLength(1);
+  });
+
+  it('nao vende alem do estoque com compras simultaneas', async () => {
+    const tokens = await Promise.all(
+      ['aria@lojarpg.local', 'borin@lojarpg.local', 'lia@lojarpg.local'].map((email) => login(email))
+    );
+
+    const responses = await Promise.all(
+      tokens.map((token) =>
+        request(app)
+          .post('/purchases')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ items: [{ itemId: 8, quantity: 1 }] })
+      )
+    );
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 201, 400]);
+    expect(responses.find((response) => response.status === 400).body.message).toContain('Estoque insuficiente');
+
+    const scroll = await getPrisma().item.findUnique({ where: { id: 8 } });
+    expect(scroll.stock).toBe(0);
+  });
+
+  it('nao gasta o mesmo ouro duas vezes com compras simultaneas', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const responses = await Promise.all(
+      [1, 2].map(() =>
+        request(app)
+          .post('/purchases')
+          .set('Authorization', `Bearer ${playerToken}`)
+          .send({ items: [{ itemId: 7, quantity: 1 }] })
+      )
+    );
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 400]);
+    expect(responses.find((response) => response.status === 400).body.message).toContain('Ouro insuficiente');
+
+    const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
+    expect(aria.gold).toBe(30);
+  });
+
+  it('nao perde a compra quando o Mestre ajusta o ouro ao mesmo tempo', async () => {
+    const [playerToken, masterToken] = [
+      await login('aria@lojarpg.local'),
+      await login('mestre@lojarpg.local', 'mestre123')
+    ];
+
+    const [purchaseResponse, goldResponse] = await Promise.all([
+      request(app)
+        .post('/purchases')
+        .set('Authorization', `Bearer ${playerToken}`)
+        .send({ items: [{ itemId: 7, quantity: 1 }] }),
+      request(app)
+        .patch('/characters/1/gold')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' })
+    ]);
+
+    expect(purchaseResponse.status).toBe(201);
+    expect(goldResponse.status).toBe(200);
+    expect(goldResponse.body.auditLog.delta).toBe(25);
+
+    const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
+    expect(aria.gold).toBe(250 - 220 + 25);
+  });
+
+  it('nao desfaz a compra quando o Mestre edita o item ao mesmo tempo', async () => {
+    const [playerToken, masterToken] = [
+      await login('borin@lojarpg.local'),
+      await login('mestre@lojarpg.local', 'mestre123')
+    ];
+
+    const [purchaseResponse, editResponse] = await Promise.all([
+      request(app)
+        .post('/purchases')
+        .set('Authorization', `Bearer ${playerToken}`)
+        .send({ items: [{ itemId: 8, quantity: 1 }] }),
+      request(app)
+        .put('/items/8')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .send({ price: 200 })
+    ]);
+
+    expect(purchaseResponse.status).toBe(201);
+    expect([200, 409]).toContain(editResponse.status);
+
+    const scroll = await getPrisma().item.findUnique({ where: { id: 8 } });
+    const movements = await getPrisma().stockMovement.findMany({ where: { itemId: 8 } });
+
+    expect(scroll.stock).toBe(1);
+    expect(movements.reduce((total, movement) => total + movement.delta, 0)).toBe(scroll.stock - 2);
   });
 });

@@ -8,7 +8,7 @@ personagem. Inventario e historico de compras ficam separados por personagem.
 ## Stack
 
 - Front-end: React, Vite e React Router.
-- Back-end: Node.js, Express, JWT access token + refresh token.
+- Back-end: Node.js, Express, validacao com Zod, JWT access token + refresh token.
 - Banco: SQLite com Prisma Client e migrations versionadas.
 - Testes: Vitest, Supertest e Testing Library.
 - Deploy: Dockerfile para API, Dockerfile para front-end e docker compose.
@@ -38,9 +38,6 @@ lojaRPG/
       js/
       pages/
       test/
-  database/
-    schema.sql
-    seed.sql
   DEPLOY.md
   docker-compose.yml
 ```
@@ -99,9 +96,13 @@ npm run test:coverage
 ```
 
 A suite do back-end cobre login, autorizacao de Mestre/Jogador, CRUD de itens,
-compra sem ouro, compra sem estoque, inventario apos compra, auditoria de ouro
-e rotas protegidas. A suite do front-end cobre comportamento basico de carrinho
-e selecao/criacao de personagem.
+compra sem ouro, compra sem estoque, inventario apos compra, auditoria de ouro,
+rotas protegidas, validacao das entradas, compras simultaneas (inclusive com
+ajuste de ouro e edicao de item pelo Mestre ao mesmo tempo) e as regras CHECK
+do banco. Ela cria o banco de teste pelas
+mesmas migrations e seed do Prisma usados no desenvolvimento. A suite do
+front-end cobre comportamento basico de carrinho e selecao/criacao de
+personagem.
 
 ## Prisma
 
@@ -114,21 +115,15 @@ npx prisma studio
 npx prisma db seed
 ```
 
-O projeto ainda mantem `database/schema.sql` e `database/seed.sql` para
-bootstrap local e compatibilidade com os scripts antigos, mas a evolucao do
-schema deve acontecer por `backend/prisma/migrations`.
+As migrations em `backend/prisma/migrations` sao a unica definicao do banco.
+Regras que o Prisma nao descreve no `schema.prisma`, como os `CHECK` de ouro,
+estoque e nivel, ficam escritas no SQL das migrations.
 
-Se voce ja possui um SQLite antigo com dados que nao quer perder, faca backup
-do arquivo e rode:
+Scripts do diretorio `backend`:
 
-```bash
-cd C:\lojaRPG\backend
-npm run db:migrate:legacy
-```
-
-Esse script preserva usuarios, personagens, itens, inventario e compras,
-transforma categorias/raridades em tabelas proprias e mantem as tabelas antigas
-como `*_legacy_backup`.
+- `npm run db:init`: aplica as migrations pendentes.
+- `npm run db:seed`: insere os dados iniciais de `prisma/seed.js`.
+- `npm run db:reset`: apaga o banco local, reaplica as migrations e roda o seed.
 
 ## Usuarios iniciais
 

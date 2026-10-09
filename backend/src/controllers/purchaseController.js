@@ -1,8 +1,10 @@
 import { ROLES } from '../config/roles.js';
 import { findCharacterById, findCharacterByUserId } from '../models/characterModel.js';
 import { listPurchases } from '../models/purchaseModel.js';
+import { characterIdSchema } from '../schemas/characterSchemas.js';
 import { checkout } from '../services/purchaseService.js';
 import { ApiError } from '../utils/ApiError.js';
+import { parse } from '../utils/validation.js';
 
 export async function create(req, res) {
   const result = await checkout(req.user, req.body.items, req.body.characterId);
@@ -11,7 +13,7 @@ export async function create(req, res) {
 
 export async function me(req, res) {
   const character = req.query.characterId
-    ? await findCharacterById(Number(req.query.characterId))
+    ? await findCharacterById(parse(characterIdSchema, req.query.characterId))
     : await findCharacterByUserId(req.user.id);
 
   if (!character) {
