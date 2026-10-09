@@ -42,10 +42,11 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
       characters.push({ ...character, gold: newGold });
     }
 
+    const leftover = remainder > 0 ? ` Sobrou ${remainder}.` : '';
     const message =
-      mode === 'split'
-        ? `${share} de ouro para cada um dos ${ids.length} personagens.${remainder > 0 ? ` Sobrou ${remainder}.` : ''}`
-        : `${share} de ouro para cada um dos ${ids.length} personagens.`;
+      characters.length === 1
+        ? `${share} de ouro para ${characters[0].name}.${leftover}`
+        : `${share} de ouro para cada um dos ${characters.length} personagens.${leftover}`;
 
     return { message, share, remainder, characters };
   });

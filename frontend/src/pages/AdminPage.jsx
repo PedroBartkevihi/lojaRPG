@@ -399,6 +399,91 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         />
         <div className="surface-panel">
           <div className="panel-title">
+            <Coins size={20} />
+            <h3>Ouro dos personagens</h3>
+          </div>
+          <div className="admin-list compact">
+            {characters.map((character) => (
+              <div className="admin-row" key={character.id}>
+                {editingCharacterId === character.id ? (
+                  <div className="character-edit">
+                    <div className="form-grid two">
+                      <input
+                        value={characterDraft.name}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, name: event.target.value }))}
+                        aria-label="Nome do personagem"
+                      />
+                      <input
+                        value={characterDraft.className}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, className: event.target.value }))}
+                        aria-label="Classe do personagem"
+                      />
+                      <input
+                        value={characterDraft.race}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, race: event.target.value }))}
+                        aria-label="Raça do personagem"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={characterDraft.level}
+                        onChange={(event) => setCharacterDraft((current) => ({ ...current, level: event.target.value }))}
+                        aria-label="Nível do personagem"
+                      />
+                    </div>
+                    <div className="row-actions">
+                      <button type="button" className="secondary-action" onClick={() => saveCharacter(character)}>
+                        <Save size={17} />
+                        Salvar
+                      </button>
+                      <button type="button" className="text-action" onClick={() => setEditingCharacterId(null)}>
+                        <X size={17} />
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <strong>{character.name}</strong>
+                      <span>
+                        {character.userName} - {character.className} nível {character.level} - {character.gold} ouro
+                      </span>
+                    </div>
+                    <div className="row-actions">
+                      <button type="button" className="icon-button" onClick={() => startCharacterEdit(character)} title="Editar personagem">
+                        <Pencil size={17} />
+                      </button>
+                    </div>
+                    <div className="gold-adjust">
+                      <input
+                        type="number"
+                        value={goldInputs[character.id] || ''}
+                        onChange={(event) =>
+                          setGoldInputs((current) => ({ ...current, [character.id]: event.target.value }))
+                        }
+                        placeholder="+/-"
+                      />
+                      <input
+                        value={goldReasons[character.id] || ''}
+                        onChange={(event) =>
+                          setGoldReasons((current) => ({ ...current, [character.id]: event.target.value }))
+                        }
+                        placeholder="Motivo"
+                      />
+                      <button className="secondary-action" onClick={() => applyGold(character)}>
+                        Aplicar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="surface-panel">
+          <div className="panel-title">
             <PackagePlus size={20} />
             <h3>Catálogo</h3>
           </div>
@@ -486,91 +571,6 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
                       </button>
                       <button type="button" className="icon-button danger" onClick={() => removeRarity(rarity)} title="Remover raridade">
                         <Trash2 size={17} />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="surface-panel">
-          <div className="panel-title">
-            <Coins size={20} />
-            <h3>Ouro dos personagens</h3>
-          </div>
-          <div className="admin-list compact">
-            {characters.map((character) => (
-              <div className="admin-row" key={character.id}>
-                {editingCharacterId === character.id ? (
-                  <div className="character-edit">
-                    <div className="form-grid two">
-                      <input
-                        value={characterDraft.name}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, name: event.target.value }))}
-                        aria-label="Nome do personagem"
-                      />
-                      <input
-                        value={characterDraft.className}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, className: event.target.value }))}
-                        aria-label="Classe do personagem"
-                      />
-                      <input
-                        value={characterDraft.race}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, race: event.target.value }))}
-                        aria-label="Raça do personagem"
-                      />
-                      <input
-                        type="number"
-                        min="1"
-                        max="20"
-                        value={characterDraft.level}
-                        onChange={(event) => setCharacterDraft((current) => ({ ...current, level: event.target.value }))}
-                        aria-label="Nível do personagem"
-                      />
-                    </div>
-                    <div className="row-actions">
-                      <button type="button" className="secondary-action" onClick={() => saveCharacter(character)}>
-                        <Save size={17} />
-                        Salvar
-                      </button>
-                      <button type="button" className="text-action" onClick={() => setEditingCharacterId(null)}>
-                        <X size={17} />
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <strong>{character.name}</strong>
-                      <span>
-                        {character.userName} - {character.className} nível {character.level} - {character.gold} ouro
-                      </span>
-                    </div>
-                    <div className="row-actions">
-                      <button type="button" className="icon-button" onClick={() => startCharacterEdit(character)} title="Editar personagem">
-                        <Pencil size={17} />
-                      </button>
-                    </div>
-                    <div className="gold-adjust">
-                      <input
-                        type="number"
-                        value={goldInputs[character.id] || ''}
-                        onChange={(event) =>
-                          setGoldInputs((current) => ({ ...current, [character.id]: event.target.value }))
-                        }
-                        placeholder="+/-"
-                      />
-                      <input
-                        value={goldReasons[character.id] || ''}
-                        onChange={(event) =>
-                          setGoldReasons((current) => ({ ...current, [character.id]: event.target.value }))
-                        }
-                        placeholder="Motivo"
-                      />
-                      <button className="secondary-action" onClick={() => applyGold(character)}>
-                        Aplicar
                       </button>
                     </div>
                   </>

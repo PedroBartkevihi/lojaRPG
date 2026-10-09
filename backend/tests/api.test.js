@@ -953,6 +953,14 @@ describe('inventário e recompensas', () => {
     });
     expect(each.body.characters.map((character) => character.gold)).toEqual([293, 363]);
 
+    const single = await master.post(`${DEMO}/rewards/gold`, {
+      characterIds: [3],
+      total: 7,
+      mode: 'split',
+      reason: 'Achado'
+    });
+    expect(single.body.message).toBe('7 de ouro para Lia Brasa.');
+
     const tooSmall = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [1, 2, 3],
       total: 2,

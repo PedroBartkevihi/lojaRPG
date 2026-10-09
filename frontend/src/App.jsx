@@ -346,7 +346,7 @@ function AppContent() {
             )}
           </nav>
         ) : (
-          <span />
+          <span className="tabs-placeholder" />
         )}
         <div className="session-pill">
           {showTabs && (

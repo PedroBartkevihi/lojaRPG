@@ -23,6 +23,9 @@ export default function ShopPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
+  const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+
   // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
   // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
   async function loadItems() {
@@ -162,7 +165,9 @@ export default function ShopPage({
               onRefreshSession={onRefreshSession}
               showNotice={showNotice}
             />
-            <CartPanel cart={cart} setCart={setCart} character={character} onCheckout={checkout} disabled={false} />
+            <div id="carrinho">
+              <CartPanel cart={cart} setCart={setCart} character={character} onCheckout={checkout} disabled={false} />
+            </div>
           </>
         ) : (
           <div className="surface-panel">
@@ -171,6 +176,22 @@ export default function ShopPage({
           </div>
         )}
       </aside>
+
+      {/* No celular o carrinho fica depois do catalogo; esta barra leva ate ele. */}
+      {!isMaster && cartCount > 0 && (
+        <div className="mobile-cart-bar">
+          <span>
+            {cartCount} {cartCount === 1 ? 'item' : 'itens'} - {cartTotal} ouro
+          </span>
+          <button
+            className="primary-action"
+            onClick={() => document.getElementById('carrinho')?.scrollIntoView({ behavior: 'smooth' })}
+          >
+            <ShoppingCart size={17} />
+            Ver carrinho
+          </button>
+        </div>
+      )}
     </section>
   );
 }

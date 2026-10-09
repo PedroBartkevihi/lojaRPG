@@ -38,6 +38,8 @@ acesso, a API leva cerca de 1 minuto para acordar.
   com um catálogo de exemplo que o Mestre edita.
 - Quem sai ou é removido da mesa mantém os personagens e os recupera ao
   entrar de novo.
+- As telas se atualizam sozinhas durante a sessão: o ouro que o Mestre dá ou
+  o item que outro jogador compra aparecem sem recarregar a página.
 
 Para jogar com o seu grupo: crie uma conta, crie a mesa e envie o link da aba
 **Mesa** aos jogadores. Cada um cria a conta pelo link, entra na mesa e cria o
@@ -46,8 +48,9 @@ personagem.
 **Jogador**
 
 - Personagens por mesa, com vários por conta.
-- Catálogo com busca e filtro por categoria.
-- Carrinho e compra com o ouro do personagem ativo.
+- Catálogo com busca (que ignora acentos) e filtro por categoria.
+- Carrinho e compra com o ouro do personagem ativo; no celular, uma barra no
+  rodapé leva ao carrinho.
 - Venda de itens à loja pela regra do D&D 5e (metade do preço) ou pelo valor
   que o Mestre definir; o item volta ao estoque.
 - Uso de itens consumíveis, como poções, que saem do inventário.
@@ -108,7 +111,13 @@ pede participa da mesa e qual é o papel dele nela.
 - **Validação de entrada com Zod**, com schemas por domínio em
   `backend/src/schemas`.
 - **Autenticação** com access token curto, refresh token com rotação e
-  revogação, rate limit nas rotas de autenticação e Helmet.
+  revogação, rate limit nas rotas de autenticação e Helmet. Atrás do proxy do
+  Render, o rate limit usa o IP de cada usuário (`TRUST_PROXY`), e não o do
+  proxy, que todos compartilhariam.
+- **Atualização por consulta periódica, não por WebSocket.** Com a aba
+  visível, o front recarrega os dados a cada 10 segundos; aba escondida não faz
+  requisições. Para quatro pessoas numa mesa isso basta, e funciona no plano
+  gratuito do Render, que dorme e derrubaria conexões abertas.
 - **Segredo verificado na inicialização:** em produção, a API não sobe com um
   `JWT_SECRET` curto ou igual aos exemplos do repositório.
 - **CI no GitHub Actions** a cada push: testes do back-end com PostgreSQL e
@@ -172,7 +181,7 @@ cd frontend
 npm test
 ```
 
-Os 44 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+Os 46 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
 mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
