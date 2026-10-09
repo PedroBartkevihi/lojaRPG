@@ -66,6 +66,32 @@ Antes de usar em producao fora da sua maquina, ajuste tambem:
 - `CORS_ORIGIN`
 - `VITE_API_URL`
 
+## Versao online (Render + Neon)
+
+A demonstracao publica usa os planos gratuitos do Render (API e front-end,
+descritos no `render.yaml`) e do Neon (PostgreSQL).
+
+1. No Neon, crie um projeto (de preferencia na regiao AWS US East, perto do
+   Render) e copie a connection string direta, sem pooling. Ela tem o formato
+   `postgresql://usuario:senha@host/banco?sslmode=require`.
+2. No Render, crie um Blueprint a partir deste repositorio (branch `main`).
+   Ele le o `render.yaml` e pede tres valores:
+   - `DATABASE_URL`: a connection string do Neon.
+   - `CORS_ORIGIN`: a URL do front-end, `https://lojarpg-web.onrender.com`.
+   - `VITE_API_URL`: a URL da API, `https://lojarpg-api.onrender.com`.
+   Se o Render acrescentar um sufixo aos nomes por ja estarem em uso, ajuste
+   esses dois valores depois e refaca o deploy do front-end.
+3. `JWT_SECRET` e `MASTER_REGISTRATION_KEY` sao gerados pelo proprio Render.
+
+Limites do plano gratuito:
+
+- A API dorme apos 15 minutos sem acesso e leva cerca de 1 minuto para
+  acordar; a primeira requisicao depois disso fica lenta.
+- Com `DEMO_RESET_ON_START=true` (padrao do `render.yaml`), o seed recria os
+  dados de demonstracao sempre que a API inicia. Cadastros e compras feitos na
+  demonstracao somem quando ela volta a dormir. Para manter os dados, mude
+  essa variavel para `false` no painel do Render.
+
 ## Producao real
 
 Opcoes comuns:
