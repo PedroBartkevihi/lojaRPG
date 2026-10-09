@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Backpack, Coins, HandCoins, History, Sparkles } from 'lucide-react';
+import { rarityTier } from '../js/itemVisuals.js';
 import InventoryLogList from './InventoryLogList.jsx';
+import ItemIcon from './ItemIcon.jsx';
+import { SkeletonCards } from './Skeleton.jsx';
 
 export default function InventoryPanel({ api, character: selectedCharacter, refreshKey, showNotice, onRefreshSession }) {
   const [inventory, setInventory] = useState([]);
@@ -88,7 +91,7 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
           <h3>Equipamentos</h3>
         </div>
         {loading && inventory.length === 0 ? (
-          <p className="empty-state">Carregando inventário...</p>
+          <SkeletonCards count={3} variant="inventory" />
         ) : (
           <div className="inventory-grid">
             {inventory.map((entry) => {
@@ -96,11 +99,16 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
               const busy = busyItemId === entry.itemId;
 
               return (
-                <article className="inventory-item" key={entry.id}>
-                  <span>{entry.item.category}</span>
-                  <strong>{entry.item.name}</strong>
+                <article className="inventory-item" key={entry.id} data-rarity-tier={rarityTier(entry.item.rarityRank)}>
+                  <div className="inventory-item-header">
+                    <ItemIcon category={entry.item.category} size={18} />
+                    <div>
+                      <span>{entry.item.category}</span>
+                      <strong>{entry.item.name}</strong>
+                    </div>
+                    <b>{entry.quantity}x</b>
+                  </div>
                   <p>{entry.item.description}</p>
-                  <b>{entry.quantity}x</b>
                   <small className="sell-hint">
                     {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja não compra este item'}
                   </small>

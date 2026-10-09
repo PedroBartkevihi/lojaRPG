@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { LogIn } from 'lucide-react';
+import { SLOW_API_MESSAGE, useSlowHint } from '../js/useSlowHint.js';
 
 export default function LoginPage({ api, onLogin, onSwitch }) {
-  const [email, setEmail] = useState('mestre@lojarpg.local');
-  const [password, setPassword] = useState('mestre123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const slow = useSlowHint(loading);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -33,6 +35,7 @@ export default function LoginPage({ api, onLogin, onSwitch }) {
         Senha
         <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
       </label>
+      {slow && <p className="form-hint slow-hint">{SLOW_API_MESSAGE}</p>}
       {error && <p className="form-error">{error}</p>}
       <button className="primary-action" disabled={loading}>
         <LogIn size={18} />

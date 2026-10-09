@@ -1,5 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeftRight, Crown, History, LogOut, Package, ScrollText, Shield, Store, Users } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Coins,
+  Crown,
+  History,
+  LogOut,
+  Package,
+  RefreshCcw,
+  ScrollText,
+  Shield,
+  Store,
+  Users
+} from 'lucide-react';
 import {
   BrowserRouter,
   Navigate,
@@ -11,6 +23,8 @@ import {
   useParams
 } from 'react-router-dom';
 import { createApi } from './js/api.js';
+import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
+import { SkeletonCards } from './components/Skeleton.jsx';
 import { useLiveTick } from './js/useLiveTick.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -257,37 +271,61 @@ function AppContent() {
 
     return (
       <main className="auth-screen">
-        <section className="auth-panel">
-          <div className="brand-lockup">
-            <Store size={34} />
-            <div>
-              <p className="eyebrow">Campanhas compartilhadas</p>
-              <h1>lojaRPG</h1>
+        <div className="auth-layout">
+          <section className="auth-intro">
+            <div className="brand-lockup">
+              <Store size={34} />
+              <div>
+                <p className="eyebrow">Campanhas compartilhadas</p>
+                <h1>lojaRPG</h1>
+              </div>
             </div>
-          </div>
-          {(inviteCode || localStorage.getItem(INVITE_KEY)) && (
-            <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
-          )}
-          {isRegisterRoute || authView === 'register' ? (
-            <RegisterPage
-              api={api}
-              onRegister={saveSession}
-              onSwitch={() => {
-                setAuthView('login');
-                navigate('/login');
-              }}
-            />
-          ) : (
-            <LoginPage
-              api={api}
-              onLogin={saveSession}
-              onSwitch={() => {
-                setAuthView('register');
-                navigate('/register');
-              }}
-            />
-          )}
-        </section>
+            <h2>A loja da sua campanha de RPG</h2>
+            <p>
+              O Mestre monta o catálogo e distribui o ouro; os jogadores compram, vendem e usam itens com os
+              personagens da mesa, cada um no próprio celular.
+            </p>
+            <ul className="feature-list">
+              <li>
+                <Users size={18} />
+                Mesas com convite por link
+              </li>
+              <li>
+                <Coins size={18} />
+                Compra, venda e recompensas em ouro
+              </li>
+              <li>
+                <RefreshCcw size={18} />
+                Telas que se atualizam durante a sessão
+              </li>
+            </ul>
+            {DEMO_LOGIN_ENABLED && <DemoLogin api={api} onLogin={saveSession} />}
+          </section>
+          <section className="auth-panel">
+            {(inviteCode || localStorage.getItem(INVITE_KEY)) && (
+              <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
+            )}
+            {isRegisterRoute || authView === 'register' ? (
+              <RegisterPage
+                api={api}
+                onRegister={saveSession}
+                onSwitch={() => {
+                  setAuthView('login');
+                  navigate('/login');
+                }}
+              />
+            ) : (
+              <LoginPage
+                api={api}
+                onLogin={saveSession}
+                onSwitch={() => {
+                  setAuthView('register');
+                  navigate('/register');
+                }}
+              />
+            )}
+          </section>
+        </div>
       </main>
     );
   }
@@ -302,7 +340,11 @@ function AppContent() {
   // pagina ao trocar de mesa, para ela buscar os dados da mesa nova.
   function inCampaign(element) {
     if (!campaignsLoaded || autoSelecting) {
-      return <p className="empty-state">Carregando mesas...</p>;
+      return (
+        <div className="wide-section">
+          <SkeletonCards count={6} />
+        </div>
+      );
     }
 
     return campaign ? <Fragment key={campaign.id}>{element}</Fragment> : <Navigate to="/mesas" replace />;
@@ -372,6 +414,7 @@ function AppContent() {
             <CampaignsPage
               api={api}
               campaigns={campaigns}
+              loadingCampaigns={!campaignsLoaded}
               activeCampaignId={campaign?.id}
               onSelect={selectCampaign}
               onCampaignsChanged={loadCampaigns}

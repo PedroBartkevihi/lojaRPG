@@ -50,16 +50,16 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
   }
 
   return (
-    <form className="surface-panel stack-form" onSubmit={handleSubmit}>
+    <form id="item-form" className="surface-panel stack-form" onSubmit={handleSubmit}>
       <div className="panel-title">
         <Save size={20} />
         <h3>{item ? 'Editar item' : 'Cadastrar item'}</h3>
       </div>
+      <label>
+        Nome
+        <input value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
+      </label>
       <div className="form-grid two">
-        <label>
-          Nome
-          <input value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
-        </label>
         <label>
           Categoria
           {categories.length > 0 ? (
@@ -72,6 +72,20 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
             </select>
           ) : (
             <input value={form.category} onChange={(event) => updateField('category', event.target.value)} required />
+          )}
+        </label>
+        <label>
+          Raridade
+          {rarities.length > 0 ? (
+            <select value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required>
+              {rarities.map((rarity) => (
+                <option key={rarity.id} value={rarity.name}>
+                  {rarity.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required />
           )}
         </label>
       </div>
@@ -87,7 +101,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
           placeholder="https://..."
         />
       </label>
-      <div className="form-grid three">
+      <div className="form-grid two">
         <label>
           Preço
           <input
@@ -97,20 +111,6 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
             min="0"
             required
           />
-        </label>
-        <label>
-          Raridade
-          {rarities.length > 0 ? (
-            <select value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required>
-              {rarities.map((rarity) => (
-                <option key={rarity.id} value={rarity.name}>
-                  {rarity.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input value={form.rarity} onChange={(event) => updateField('rarity', event.target.value)} required />
-          )}
         </label>
         <label>
           Estoque

@@ -1,12 +1,21 @@
 import { useState } from 'react';
 import { Crown, DoorOpen, Plus, ScrollText, Users } from 'lucide-react';
+import { SkeletonRows } from '../components/Skeleton.jsx';
 
 const ROLE_LABELS = {
   MESTRE: 'Mestre',
   JOGADOR: 'Jogador'
 };
 
-export default function CampaignsPage({ api, campaigns, activeCampaignId, onSelect, onCampaignsChanged, showNotice }) {
+export default function CampaignsPage({
+  api,
+  campaigns,
+  loadingCampaigns = false,
+  activeCampaignId,
+  onSelect,
+  onCampaignsChanged,
+  showNotice
+}) {
   const [name, setName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState('');
@@ -79,7 +88,8 @@ export default function CampaignsPage({ api, campaigns, activeCampaignId, onSele
                 </button>
               </div>
             ))}
-            {campaigns.length === 0 && (
+            {loadingCampaigns && <SkeletonRows count={2} />}
+            {!loadingCampaigns && campaigns.length === 0 && (
               <p className="empty-state">
                 Você ainda não participa de nenhuma mesa. Crie a sua ou entre com o código que o Mestre passou.
               </p>

@@ -14,6 +14,29 @@
   --burgundy: #7a2f3f;
   --danger: #b54d47;
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  --display-font: "Cinzel", Georgia, "Times New Roman", serif;
+}
+
+/* Cores de raridade, como nos livros de D&D: comum, incomum, raro, muito raro
+   e lendario. O card define o nivel e os detalhes herdam a cor. */
+[data-rarity-tier="1"] {
+  --rarity: #b8ad9b;
+}
+
+[data-rarity-tier="2"] {
+  --rarity: #5fd38a;
+}
+
+[data-rarity-tier="3"] {
+  --rarity: #6aa8ff;
+}
+
+[data-rarity-tier="4"] {
+  --rarity: #c58cff;
+}
+
+[data-rarity-tier="5"] {
+  --rarity: #ff9f43;
 }
 
 * {
@@ -84,6 +107,112 @@ button:disabled {
   border-radius: 8px;
 }
 
+/* Tela de entrada: apresentacao e demonstracao a esquerda, formulario a
+   direita; no celular, um embaixo do outro. */
+.auth-layout {
+  width: min(100%, 1040px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.auth-intro {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.auth-intro .brand-lockup {
+  margin-bottom: 0;
+}
+
+.auth-intro h2 {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 2.2rem;
+  line-height: 1.15;
+}
+
+.auth-intro > p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.feature-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.feature-list svg {
+  flex: none;
+  color: var(--gold);
+}
+
+.demo-login {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgba(217, 164, 65, 0.35);
+  border-radius: 8px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+}
+
+.demo-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.demo-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.15rem 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(217, 164, 65, 0.1);
+  text-align: left;
+}
+
+.demo-button svg {
+  grid-row: span 2;
+  color: var(--gold);
+}
+
+.demo-button strong {
+  font-weight: 800;
+}
+
+.demo-button span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.demo-button:hover:not(:disabled),
+.demo-button:focus-visible {
+  border-color: var(--gold);
+  background: rgba(217, 164, 65, 0.2);
+}
+
+.slow-hint {
+  color: #ffe3a0;
+}
+
 .brand-lockup {
   display: flex;
   align-items: center;
@@ -101,7 +230,8 @@ button:disabled {
 .panel-title h3,
 .item-card h3 {
   margin: 0;
-  letter-spacing: 0;
+  font-family: var(--display-font);
+  letter-spacing: 0.01em;
 }
 
 .brand-lockup h1 {
@@ -324,8 +454,7 @@ textarea:focus {
   box-shadow: var(--shadow);
 }
 
-.content-grid,
-.admin-grid {
+.content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
   gap: 1rem;
@@ -334,15 +463,59 @@ textarea:focus {
 }
 
 .shop-column,
-.admin-main,
 .wide-section {
   min-width: 0;
 }
 
-.side-column,
-.admin-side {
+.side-column {
   display: grid;
   gap: 1rem;
+}
+
+/* Abas do painel do Mestre. */
+.subtabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.subtabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  padding: 0.6rem 0.9rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.subtabs button.active {
+  border-bottom-color: var(--gold);
+  color: var(--ink);
+}
+
+.subtabs button:hover:not(.active) {
+  color: var(--ink);
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+.character-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .section-heading {
@@ -430,10 +603,78 @@ textarea:focus {
 }
 
 .item-card {
-  min-height: 280px;
+  min-height: 250px;
   padding: 1rem;
   display: grid;
+  grid-template-rows: auto auto 1fr auto;
   gap: 0.85rem;
+  border-top: 3px solid var(--rarity, var(--line));
+}
+
+.item-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid color-mix(in srgb, var(--rarity, var(--gold)) 45%, transparent);
+  border-radius: 50%;
+  color: var(--rarity, var(--gold));
+  background: color-mix(in srgb, var(--rarity, var(--gold)) 14%, transparent);
+}
+
+.item-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+[data-rarity-tier] .rarity {
+  color: var(--rarity);
+  border-color: color-mix(in srgb, var(--rarity) 45%, transparent);
+}
+
+.item-card-body {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.item-category {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.price {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1.05rem;
+}
+
+/* Botao de adicionar mais leve que o de finalizar compra: com dez cards na
+   tela, dez botoes dourados cheios brigavam com o resto. */
+.add-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(217, 164, 65, 0.55);
+  border-radius: 6px;
+  color: #ffe3a0;
+  background: rgba(217, 164, 65, 0.12);
+  font-weight: 800;
+}
+
+.add-action:hover:not(:disabled),
+.add-action:focus-visible {
+  color: #21160b;
+  background: linear-gradient(135deg, #f0c66d, var(--gold));
 }
 
 .item-card-header,
@@ -575,11 +816,30 @@ textarea:focus {
 .inventory-item {
   min-height: 170px;
   border: 1px solid var(--line);
+  border-top: 3px solid var(--rarity, var(--line));
   border-radius: 8px;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.18);
   display: grid;
   gap: 0.5rem;
+}
+
+.inventory-item-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.inventory-item-header > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.inventory-item .item-icon {
+  width: 38px;
+  height: 38px;
+  color: var(--rarity, var(--gold));
 }
 
 .inventory-item span {
@@ -705,6 +965,88 @@ textarea:focus {
   margin-top: 1rem;
 }
 
+/* Esqueletos de carregamento. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skeleton-wrap {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton.line {
+  width: 70%;
+  height: 0.9rem;
+}
+
+.skeleton.line.wide {
+  width: 90%;
+  height: 1.1rem;
+}
+
+.skeleton.line.short {
+  width: 40%;
+}
+
+.skeleton.circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.skeleton-card {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  min-height: 220px;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.skeleton-card.inventory {
+  min-height: 170px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.skeleton-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
 .form-hint {
   margin: 0;
   color: var(--muted);
@@ -720,10 +1062,17 @@ textarea:focus {
   color: var(--gold);
 }
 
-/* `.admin-row span` vira bloco; o selo de papel precisa continuar em linha
-   para o icone nao grudar no texto. */
-.campaign-row .category-pill {
+/* `.admin-row span` vira bloco e muda a cor do texto das linhas; os selos
+   dentro delas continuam em linha, para o icone nao grudar no texto. */
+.admin-row .category-pill,
+.admin-row .gold-badge,
+.admin-row .rarity {
   display: inline-flex;
+  font-size: 0.82rem;
+}
+
+.admin-row .gold-badge {
+  color: #ffe3a0;
 }
 
 .invite-code {
@@ -748,16 +1097,22 @@ textarea:focus {
   display: none;
 }
 
+@media (max-width: 860px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .auth-panel {
+    width: 100%;
+  }
+}
+
 @media (max-width: 1000px) {
   .topbar,
   .content-grid,
-  .admin-grid {
+  .panel-grid {
     grid-template-columns: 1fr;
-  }
-
-  /* Em uma coluna, recompensas e ouro do grupo vem antes do cadastro de itens. */
-  .admin-side {
-    order: -1;
   }
 
   .tabs {
@@ -846,6 +1201,14 @@ textarea:focus {
 
   .auth-panel {
     padding: 1.1rem;
+  }
+
+  .auth-intro h2 {
+    font-size: 1.7rem;
+  }
+
+  .demo-buttons {
+    grid-template-columns: 1fr;
   }
 
   .toolbar,

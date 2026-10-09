@@ -3,6 +3,7 @@ import { Coins, Search, ShoppingCart } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
 import ItemCard from '../components/ItemCard.jsx';
+import { SkeletonCards } from '../components/Skeleton.jsx';
 
 export default function ShopPage({
   api,
@@ -142,7 +143,7 @@ export default function ShopPage({
 
         {error && <p className="form-error">{error}</p>}
         {loading ? (
-          <p className="empty-state">Carregando itens...</p>
+          <SkeletonCards count={6} />
         ) : (
           <div className="items-grid">
             {items.map((item) => (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ReceiptText } from 'lucide-react';
+import { SkeletonRows } from './Skeleton.jsx';
 
 export default function PurchaseHistory({ api, isMaster, character, refreshKey, embedded = false }) {
   const [purchases, setPurchases] = useState([]);
@@ -31,7 +32,7 @@ export default function PurchaseHistory({ api, isMaster, character, refreshKey, 
       </div>
       {error && <p className="form-error">{error}</p>}
       {loading ? (
-        <p className="empty-state">Carregando compras...</p>
+        <SkeletonRows count={3} />
       ) : (
         <div className="history-list">
           {purchases.map((purchase) => (

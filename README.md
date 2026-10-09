@@ -10,6 +10,9 @@ deles. Catálogo, inventário e histórico de compras são separados por mesa.
 
 **Demonstração online:** <https://lojarpg-web.onrender.com>
 
+Na tela de entrada, os botões **Entrar como jogador** e **Entrar como Mestre**
+abrem a mesa de demonstração sem digitar senha. As contas são estas:
+
 | Perfil | Email | Senha |
 | --- | --- | --- |
 | Jogador | aria@lojarpg.local | jogador123 |
@@ -22,7 +25,10 @@ crie uma mesa e convide alguém. Mesas criadas por outras contas não são
 apagadas no reset.
 
 A demonstração roda no plano gratuito do Render: depois de 15 minutos sem
-acesso, a API leva cerca de 1 minuto para acordar.
+acesso, a API leva cerca de 1 minuto para acordar. Enquanto isso, a tela mostra
+blocos de carregamento e avisa que a API está acordando.
+
+![Tela de entrada com os botões da demonstração](docs/images/tela-entrada.jpg)
 
 ![Loja com o carrinho da personagem Aria](docs/images/loja-carrinho.jpg)
 
@@ -50,7 +56,9 @@ personagem.
 **Jogador**
 
 - Personagens por mesa, com vários por conta.
-- Catálogo com busca (que ignora acentos) e filtro por categoria.
+- Catálogo com busca (que ignora acentos) e filtro por categoria; cada item
+  tem a cor da raridade (comum, incomum, raro, muito raro, lendário) e um ícone
+  pela categoria.
 - Carrinho e compra com o ouro do personagem ativo; no celular, uma barra no
   rodapé leva ao carrinho.
 - Venda de itens à loja pela regra do D&D 5e (metade do preço) ou pelo valor
@@ -63,6 +71,7 @@ personagem.
 
 **Mestre**
 
+- Painel em abas: grupo e ouro, itens, catálogo e históricos.
 - Cadastro, edição, remoção e reativação de itens.
 - Categorias e raridades próprias; ao remover uma em uso, os itens são
   realocados.
@@ -120,6 +129,9 @@ pede participa da mesa e qual é o papel dele nela.
   visível, o front recarrega os dados a cada 10 segundos; aba escondida não faz
   requisições. Para quatro pessoas numa mesa isso basta, e funciona no plano
   gratuito do Render, que dorme e derrubaria conexões abertas.
+- **Primeira impressão no plano gratuito.** Enquanto a API acorda, a tela
+  mostra blocos no formato do conteúdo e, depois de 4 segundos, explica a
+  demora, em vez de parecer travada.
 - **Segredo verificado na inicialização:** em produção, a API não sobe com um
   `JWT_SECRET` curto ou igual aos exemplos do repositório.
 - **CI no GitHub Actions** a cada push: testes do back-end com PostgreSQL e
@@ -267,7 +279,10 @@ lojaRPG/
       middlewares/ autenticação, mesa e papel, erros e rate limit
     tests/
   frontend/
-    src/           páginas, componentes e chamadas à API
+    src/
+      pages/       telas (loja, mesas, painel do Mestre...)
+      components/  cards, painéis e as abas do painel do Mestre (admin/)
+      js/          cliente da API e hooks
   docker/          inicialização do PostgreSQL local
   docs/images/     capturas de tela
   .github/         workflow de CI

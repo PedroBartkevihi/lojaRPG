@@ -26,13 +26,15 @@ describe('RewardsPanel', () => {
     const api = { giveGold: vi.fn().mockResolvedValue({ message: '50 de ouro para cada um dos 2 personagens.' }) };
     const { showNotice, onDone } = renderPanel(api);
 
-    await user.type(screen.getByLabelText(/^ouro$/i), '100');
+    await user.click(screen.getByLabelText(/^ouro$/i));
+    await user.paste('100');
     expect(screen.getByText('Cada personagem recebe 33 de ouro; sobra 1.')).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Lia Brasa'));
     expect(screen.getByText('Cada personagem recebe 50 de ouro.')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/^motivo$/i), 'Tesouro do covil');
+    await user.click(screen.getByLabelText(/^motivo$/i));
+    await user.paste('Tesouro do covil');
     await user.click(screen.getByRole('button', { name: /dar ouro/i }));
 
     expect(api.giveGold).toHaveBeenCalledWith({
