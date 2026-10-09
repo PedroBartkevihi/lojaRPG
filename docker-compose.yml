@@ -8,13 +8,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      JWT_SECRET: "troque-este-segredo-em-producao"
+      JWT_SECRET: "${JWT_SECRET:?Defina JWT_SECRET no arquivo .env da raiz (veja .env.example)}"
       JWT_EXPIRES_IN: "15m"
       REFRESH_TOKEN_EXPIRES_IN_DAYS: 7
       CORS_ORIGIN: "http://localhost:8080"
       DB_FILE: "/app/data/loja-rpg.sqlite"
       DATABASE_URL: "file:/app/data/loja-rpg.sqlite"
-      MASTER_REGISTRATION_KEY: "troque-esta-chave"
+      MASTER_REGISTRATION_KEY: "${MASTER_REGISTRATION_KEY:?Defina MASTER_REGISTRATION_KEY no arquivo .env da raiz (veja .env.example)}"
     volumes:
       - loja_rpg_data:/app/data
 

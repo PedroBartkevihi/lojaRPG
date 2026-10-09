@@ -27,10 +27,24 @@ Para desenvolvimento, use `VITE_API_URL=http://localhost:3001` no
 
 ## Producao local com Docker
 
-Na raiz do projeto:
+Na raiz do projeto, crie o `.env` com os segredos (o Git ignora esse arquivo):
 
 ```bash
 cd C:\lojaRPG
+copy .env.example .env
+```
+
+Preencha `JWT_SECRET` (pelo menos 32 caracteres) e `MASTER_REGISTRATION_KEY`
+(pelo menos 16) com valores aleatorios, gerados por exemplo com:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+```
+
+Sem esse arquivo o `docker compose` nao sobe, e a API recusa iniciar em
+producao com valores curtos ou iguais aos exemplos do repositorio. Depois:
+
+```bash
 docker compose up --build
 ```
 
@@ -40,10 +54,8 @@ Servicos:
 - API: `http://localhost:3001`
 - Banco SQLite: volume Docker `loja_rpg_data`, montado em `/app/data`
 
-Antes de usar em producao, altere:
+Antes de usar em producao fora da sua maquina, ajuste tambem:
 
-- `JWT_SECRET`
-- `MASTER_REGISTRATION_KEY`
 - `CORS_ORIGIN`
 - `VITE_API_URL`
 
