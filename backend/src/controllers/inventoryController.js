@@ -1,8 +1,9 @@
 import { ROLES } from '../config/roles.js';
 import { findCharacterById, findCharacterByUserId } from '../models/characterModel.js';
 import { listInventoryByCharacterId } from '../models/inventoryModel.js';
+import { characterIdSchema } from '../schemas/characterSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
-import * as validate from '../utils/validation.js';
+import { parse } from '../utils/validation.js';
 
 function ensureInventoryAccess(user, character) {
   if (!character) {
@@ -16,7 +17,7 @@ function ensureInventoryAccess(user, character) {
 
 export async function me(req, res) {
   const character = req.query.characterId
-    ? await findCharacterById(validate.integer(req.query.characterId, 'Id do personagem', { min: 1 }))
+    ? await findCharacterById(parse(characterIdSchema, req.query.characterId))
     : await findCharacterByUserId(req.user.id);
   ensureInventoryAccess(req.user, character);
 
@@ -27,7 +28,7 @@ export async function me(req, res) {
 }
 
 export async function show(req, res) {
-  const character = await findCharacterById(validate.integer(req.params.characterId, 'Id do personagem', { min: 1 }));
+  const character = await findCharacterById(parse(characterIdSchema, req.params.characterId));
   ensureInventoryAccess(req.user, character);
 
   res.json({

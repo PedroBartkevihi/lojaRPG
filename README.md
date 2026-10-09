@@ -8,7 +8,7 @@ personagem. Inventario e historico de compras ficam separados por personagem.
 ## Stack
 
 - Front-end: React, Vite e React Router.
-- Back-end: Node.js, Express, JWT access token + refresh token.
+- Back-end: Node.js, Express, validacao com Zod, JWT access token + refresh token.
 - Banco: SQLite com Prisma Client e migrations versionadas.
 - Testes: Vitest, Supertest e Testing Library.
 - Deploy: Dockerfile para API, Dockerfile para front-end e docker compose.
@@ -97,7 +97,9 @@ npm run test:coverage
 
 A suite do back-end cobre login, autorizacao de Mestre/Jogador, CRUD de itens,
 compra sem ouro, compra sem estoque, inventario apos compra, auditoria de ouro,
-rotas protegidas e as regras CHECK do banco. Ela cria o banco de teste pelas
+rotas protegidas, validacao das entradas, compras simultaneas (inclusive com
+ajuste de ouro e edicao de item pelo Mestre ao mesmo tempo) e as regras CHECK
+do banco. Ela cria o banco de teste pelas
 mesmas migrations e seed do Prisma usados no desenvolvimento. A suite do
 front-end cobre comportamento basico de carrinho e selecao/criacao de
 personagem.

@@ -5,23 +5,15 @@ import { debitCharacterGold, findCharacterById, findCharacterByUserId } from '..
 import { addInventoryItem } from '../models/inventoryModel.js';
 import { decrementItemStock, findItemsByIds } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase, findPurchaseById } from '../models/purchaseModel.js';
+import { characterIdSchema } from '../schemas/characterSchemas.js';
+import { cartSchema } from '../schemas/purchaseSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
+import { parse } from '../utils/validation.js';
 
 function normalizeCart(cartItems) {
-  if (!Array.isArray(cartItems) || cartItems.length === 0) {
-    throw new ApiError(400, 'Carrinho vazio.');
-  }
-
   const grouped = new Map();
 
-  for (const cartItem of cartItems) {
-    const itemId = Number(cartItem.itemId ?? cartItem.item_id);
-    const quantity = Number(cartItem.quantity);
-
-    if (!Number.isInteger(itemId) || itemId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
-      throw new ApiError(400, 'Itens do carrinho invalidos.');
-    }
-
+  for (const { itemId, quantity } of parse(cartSchema, cartItems)) {
     grouped.set(itemId, (grouped.get(itemId) || 0) + quantity);
   }
 
@@ -30,7 +22,7 @@ function normalizeCart(cartItems) {
 
 async function resolveCheckoutCharacter(user, characterId, prisma) {
   if (characterId) {
-    const character = await findCharacterById(Number(characterId), prisma);
+    const character = await findCharacterById(parse(characterIdSchema, characterId), prisma);
 
     if (!character) {
       throw new ApiError(404, 'Personagem nao encontrado.');

@@ -1,40 +1,23 @@
 import { createItem, findItemById, listItems, reactivateItem } from '../models/itemModel.js';
+import { itemIdSchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
 import { ApiError } from '../utils/ApiError.js';
-import * as validate from '../utils/validation.js';
+import { parse, parseChanges } from '../utils/validation.js';
 
-function parseItem(body, existing = {}) {
-  const hasExisting = Boolean(existing.id);
+function parseItem(body, existing) {
+  if (!existing) {
+    return parse(itemSchema, body);
+  }
 
   return {
-    name:
-      body.name === undefined && hasExisting
-        ? existing.name
-        : validate.requiredString(body.name, 'Nome do item', 140),
-    category:
-      body.category === undefined && hasExisting
-        ? existing.category
-        : validate.requiredString(body.category, 'Categoria', 80),
-    description:
-      body.description === undefined && hasExisting
-        ? existing.description || ''
-        : validate.optionalString(body.description, 1200),
-    price:
-      body.price === undefined && hasExisting
-        ? existing.price
-        : validate.integer(body.price, 'Preco', { min: 0, max: 1000000 }),
-    rarity:
-      body.rarity === undefined && hasExisting
-        ? existing.rarity || 'Comum'
-        : validate.requiredString(body.rarity, 'Raridade', 80),
-    stock:
-      body.stock === undefined && hasExisting
-        ? existing.stock
-        : validate.integer(body.stock, 'Estoque', { min: 0, max: 100000 }),
-    imageUrl:
-      body.imageUrl === undefined && hasExisting
-        ? existing.imageUrl || ''
-        : validate.optionalString(body.imageUrl, 1000)
+    name: existing.name,
+    category: existing.category,
+    description: existing.description || '',
+    price: existing.price,
+    rarity: existing.rarity || 'Comum',
+    stock: existing.stock,
+    imageUrl: existing.imageUrl || '',
+    ...parseChanges(itemSchema, body)
   };
 }
 
@@ -54,7 +37,7 @@ export async function index(req, res) {
 }
 
 export async function show(req, res) {
-  const item = await findItemById(validate.integer(req.params.id, 'Id do item', { min: 1 }), {
+  const item = await findItemById(parse(itemIdSchema, req.params.id), {
     includeInactive: req.user.role === 'MESTRE'
   });
 
@@ -75,7 +58,7 @@ export async function create(req, res) {
 }
 
 export async function update(req, res) {
-  const id = validate.integer(req.params.id, 'Id do item', { min: 1 });
+  const id = parse(itemIdSchema, req.params.id);
   const existing = await findItemById(id, { includeInactive: true });
 
   if (!existing) {
@@ -88,7 +71,7 @@ export async function update(req, res) {
 }
 
 export async function remove(req, res) {
-  const id = validate.integer(req.params.id, 'Id do item', { min: 1 });
+  const id = parse(itemIdSchema, req.params.id);
   const existing = await findItemById(id, { includeInactive: true });
 
   if (!existing) {
@@ -100,7 +83,7 @@ export async function remove(req, res) {
 }
 
 export async function reactivate(req, res) {
-  const id = validate.integer(req.params.id, 'Id do item', { min: 1 });
+  const id = parse(itemIdSchema, req.params.id);
   const existing = await findItemById(id, { includeInactive: true });
 
   if (!existing) {

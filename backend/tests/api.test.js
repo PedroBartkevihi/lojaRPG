@@ -81,6 +81,87 @@ afterAll(async () => {
   deleteDatabaseFiles(templateDbFile);
 });
 
+describe('validacao das entradas', () => {
+  it('recusa cadastro com email invalido ou personagem incompleto', async () => {
+    const invalidEmail = await request(app).post('/auth/register').send({
+      name: 'Teste',
+      email: 'sem-arroba',
+      password: 'segredo1'
+    });
+
+    expect(invalidEmail.status).toBe(400);
+    expect(invalidEmail.body.message).toBe('Email invalido.');
+
+    const missingClass = await request(app)
+      .post('/auth/register')
+      .send({
+        name: 'Teste',
+        email: 'teste@lojarpg.local',
+        password: 'segredo1',
+        character: { name: 'Heroi', race: 'Humano' }
+      });
+
+    expect(missingClass.status).toBe(400);
+    expect(missingClass.body.message).toBe('Classe e obrigatorio.');
+  });
+
+  it('recusa carrinho vazio ou com quantidade invalida', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const emptyCart = await request(app)
+      .post('/purchases')
+      .set('Authorization', `Bearer ${playerToken}`)
+      .send({ items: [] });
+
+    expect(emptyCart.status).toBe(400);
+    expect(emptyCart.body.message).toBe('Carrinho vazio.');
+
+    const zeroQuantity = await request(app)
+      .post('/purchases')
+      .set('Authorization', `Bearer ${playerToken}`)
+      .send({ items: [{ itemId: 6, quantity: 0 }] });
+
+    expect(zeroQuantity.status).toBe(400);
+    expect(zeroQuantity.body.message).toBe('Itens do carrinho invalidos.');
+  });
+
+  it('responde 400 para id de personagem que nao e numero', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const response = await request(app)
+      .get('/purchases/me?characterId=abc')
+      .set('Authorization', `Bearer ${playerToken}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('Id do personagem');
+  });
+
+  it('edita so os campos enviados e valida o que chegou', async () => {
+    const masterToken = await login('mestre@lojarpg.local', 'mestre123');
+
+    const partialUpdate = await request(app)
+      .put('/items/1')
+      .set('Authorization', `Bearer ${masterToken}`)
+      .send({ description: 'Forjada por anoes.' });
+
+    expect(partialUpdate.status).toBe(200);
+    expect(partialUpdate.body.item).toMatchObject({
+      name: 'Espada Longa',
+      price: 75,
+      stock: 5,
+      description: 'Forjada por anoes.'
+    });
+
+    const invalidPrice = await request(app)
+      .put('/items/1')
+      .set('Authorization', `Bearer ${masterToken}`)
+      .send({ price: -10 });
+
+    expect(invalidPrice.status).toBe(400);
+    expect(invalidPrice.body.message).toBe('Preco deve ser um numero inteiro entre 0 e 1000000.');
+  });
+});
+
 describe('integridade do banco', () => {
   it('recusa ouro, estoque e nivel invalidos mesmo fora da API', async () => {
     const prisma = getPrisma();

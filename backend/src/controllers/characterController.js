@@ -9,30 +9,42 @@ import {
 } from '../models/characterModel.js';
 import { listGoldAuditLogs } from '../models/goldAuditModel.js';
 import { findUserById } from '../models/userModel.js';
+import {
+  characterIdSchema,
+  characterOwnerSchema,
+  characterSchema,
+  goldAdjustmentSchema,
+  goldReasonSchema,
+  goldSchema
+} from '../schemas/characterSchemas.js';
 import { changeCharacterGold } from '../services/goldService.js';
 import { ApiError } from '../utils/ApiError.js';
-import * as validate from '../utils/validation.js';
+import { parse, parseChanges } from '../utils/validation.js';
 
-function parseCharacter(body, existing = {}) {
-  const hasExisting = Boolean(existing.id);
+// Aceita os apelidos `class` e `raca`; um campo so conta como ausente quando
+// nenhum dos dois nomes foi enviado.
+function aliased(value, alias) {
+  return value === undefined && alias === undefined ? undefined : value || alias || '';
+}
+
+function parseCharacter(body, existing) {
+  const input = {
+    name: body.name,
+    className: aliased(body.className, body.class),
+    race: aliased(body.race, body.raca),
+    level: body.level
+  };
+
+  if (!existing) {
+    return parse(characterSchema, input);
+  }
 
   return {
-    name:
-      body.name === undefined && hasExisting
-        ? existing.name
-        : validate.requiredString(body.name, 'Nome do personagem', 120),
-    className:
-      body.className === undefined && body.class === undefined && hasExisting
-        ? existing.className
-        : validate.requiredString(body.className || body.class, 'Classe', 80),
-    race:
-      body.race === undefined && body.raca === undefined && hasExisting
-        ? existing.race
-        : validate.requiredString(body.race || body.raca, 'Raca', 80),
-    level:
-      body.level === undefined && hasExisting
-        ? existing.level || 1
-        : validate.integer(body.level, 'Nivel', { min: 1, max: 20 })
+    name: existing.name,
+    className: existing.className,
+    race: existing.race,
+    level: existing.level || 1,
+    ...parseChanges(characterSchema, input)
   };
 }
 
@@ -52,7 +64,7 @@ export async function me(req, res) {
 export async function create(req, res) {
   const userId =
     req.user.role === ROLES.GAME_MASTER && req.body.userId
-      ? validate.integer(req.body.userId, 'Usuario', { min: 1 })
+      ? parse(characterOwnerSchema, req.body.userId)
       : req.user.id;
 
   const user = await findUserById(userId);
@@ -62,10 +74,7 @@ export async function create(req, res) {
   }
 
   const data = parseCharacter(req.body);
-  const gold =
-    req.user.role === ROLES.GAME_MASTER
-      ? validate.integer(req.body.gold || 0, 'Ouro', { min: 0, max: 1000000 })
-      : 0;
+  const gold = req.user.role === ROLES.GAME_MASTER ? parse(goldSchema, req.body.gold || 0) : 0;
 
   const character = await createCharacter({
     ...data,
@@ -77,7 +86,7 @@ export async function create(req, res) {
 }
 
 export async function update(req, res) {
-  const id = validate.integer(req.params.id, 'Id do personagem', { min: 1 });
+  const id = parse(characterIdSchema, req.params.id);
   const existing = await findCharacterById(id);
 
   if (!existing) {
@@ -93,13 +102,13 @@ export async function update(req, res) {
 }
 
 export async function changeGold(req, res) {
-  const id = validate.integer(req.params.id, 'Id do personagem', { min: 1 });
+  const id = parse(characterIdSchema, req.params.id);
   const mode = req.body.mode === 'set' || req.body.gold !== undefined ? 'set' : 'adjust';
   const value =
     mode === 'set'
-      ? validate.integer(req.body.gold ?? req.body.amount, 'Ouro', { min: 0, max: 1000000 })
-      : validate.integer(req.body.amount, 'Ajuste de ouro', { min: -1000000, max: 1000000 });
-  const reason = validate.requiredString(req.body.reason, 'Motivo da alteracao de ouro', 240);
+      ? parse(goldSchema, req.body.gold ?? req.body.amount)
+      : parse(goldAdjustmentSchema, req.body.amount);
+  const reason = parse(goldReasonSchema, req.body.reason);
 
   res.json(
     await changeCharacterGold({
@@ -113,9 +122,7 @@ export async function changeGold(req, res) {
 }
 
 export async function goldAudit(req, res) {
-  const characterId = req.query.characterId
-    ? validate.integer(req.query.characterId, 'Id do personagem', { min: 1 })
-    : undefined;
+  const characterId = req.query.characterId ? parse(characterIdSchema, req.query.characterId) : undefined;
 
   res.json({ logs: await listGoldAuditLogs({ characterId }) });
 }
