@@ -2,10 +2,11 @@
 
 [![CI](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml)
 
-Loja virtual para campanhas de RPG de mesa. O Mestre administra itens,
-categorias, raridades, estoque e o ouro dos personagens; os jogadores escolhem
-um personagem, montam o carrinho e compram com o ouro dele. Inventário e
-histórico de compras ficam separados por personagem.
+Loja virtual para campanhas de RPG de mesa. Cada grupo tem sua mesa: quem
+cria a mesa é o Mestre e convida os jogadores por link ou código. O Mestre
+administra itens, categorias, raridades, estoque e o ouro dos personagens; os
+jogadores criam personagens na mesa, montam o carrinho e compram com o ouro
+deles. Catálogo, inventário e histórico de compras são separados por mesa.
 
 **Demonstração online:** <https://lojarpg-web.onrender.com>
 
@@ -14,17 +15,37 @@ histórico de compras ficam separados por personagem.
 | Jogador | aria@lojarpg.local | jogador123 |
 | Mestre | mestre@lojarpg.local | mestre123 |
 
+Essas contas participam da **Mesa de demonstração**, que volta ao estado
+inicial sempre que a API reinicia, então pode testar à vontade. Para testar o
+convite, crie sua própria conta e entre na mesa com o código `MESA-DEMO`, ou
+crie uma mesa e convide alguém. Mesas criadas por outras contas não são
+apagadas no reset.
+
 A demonstração roda no plano gratuito do Render: depois de 15 minutos sem
-acesso, a API leva cerca de 1 minuto para acordar. Os dados voltam ao estado
-inicial sempre que ela reinicia, então pode testar à vontade.
+acesso, a API leva cerca de 1 minuto para acordar.
 
 ![Loja com o carrinho da personagem Aria](docs/images/loja-carrinho.jpg)
 
 ## Funcionalidades
 
+**Mesas**
+
+- Qualquer conta cria uma mesa e é o Mestre dela; a mesma conta pode ser
+  jogador em outras mesas.
+- Convite por link ou código. O Mestre gera um código novo para invalidar o
+  anterior e remove jogadores.
+- Cada mesa tem catálogo, personagens, compras e históricos próprios, e começa
+  com um catálogo de exemplo que o Mestre edita.
+- Quem sai ou é removido da mesa mantém os personagens e os recupera ao
+  entrar de novo.
+
+Para jogar com o seu grupo: crie uma conta, crie a mesa e envie o link da aba
+**Mesa** aos jogadores. Cada um cria a conta pelo link, entra na mesa e cria o
+personagem.
+
 **Jogador**
 
-- Cadastro com personagem e vários personagens por conta.
+- Personagens por mesa, com vários por conta.
 - Catálogo com busca e filtro por categoria.
 - Carrinho e compra com o ouro do personagem ativo.
 - Inventário e histórico de compras por personagem.
@@ -51,10 +72,22 @@ flowchart LR
 ```
 
 Na API, cada requisição passa por `routes` → `controllers` (validação com Zod)
-→ `services` (regras e transações) → `models` (consultas pelo Prisma).
+→ `services` (regras e transações) → `models` (consultas pelo Prisma). As
+rotas da loja ficam abaixo de `/campaigns/:id`, e um middleware confere se quem
+pede participa da mesa e qual é o papel dele nela.
 
 ## Decisões técnicas
 
+- **Mesas isoladas.** Toda consulta de itens, catálogo, personagens, compras e
+  auditoria filtra pela mesa da URL. Quem não participa recebe 404, como se a
+  mesa não existisse, e um id de outra mesa (item, personagem, categoria) é
+  tratado como inexistente. Testes tentam ler e alterar dados entre mesas.
+- **O papel é da mesa, não da conta.** Não existe mais chave de cadastro de
+  Mestre: quem cria a mesa é o Mestre dela. Os códigos de convite usam um
+  alfabeto sem caracteres ambíguos (0/O, 1/I), e as tentativas de entrar têm
+  rate limit.
+- **Demonstração e mesas reais no mesmo banco.** O reset da demonstração apaga
+  só a mesa `MESA-DEMO`, as contas de exemplo e as mesas criadas por elas.
 - **Compras simultâneas sem perder dinheiro nem estoque.** O desconto de ouro
   e de estoque é um update condicional ("só desconta se ainda houver saldo"),
   e as edições do Mestre rodam em transação e só gravam se o valor lido não
@@ -67,9 +100,8 @@ Na API, cada requisição passa por `routes` → `controllers` (validação com 
   `backend/src/schemas`.
 - **Autenticação** com access token curto, refresh token com rotação e
   revogação, rate limit nas rotas de autenticação e Helmet.
-- **Segredos verificados na inicialização:** em produção, a API não sobe com
-  `JWT_SECRET` ou `MASTER_REGISTRATION_KEY` curtos ou iguais aos exemplos do
-  repositório.
+- **Segredo verificado na inicialização:** em produção, a API não sobe com um
+  `JWT_SECRET` curto ou igual aos exemplos do repositório.
 - **CI no GitHub Actions** a cada push: testes do back-end com PostgreSQL e
   testes e build do front-end.
 
@@ -131,12 +163,13 @@ cd frontend
 npm test
 ```
 
-Os 32 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+Os 36 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
-autenticação e permissões, CRUD de itens e catálogo, compras e inventário,
-compras e ajustes simultâneos, validação das entradas, regras `CHECK` do banco
-e a verificação dos segredos de produção.
+mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
+itens e catálogo, compras e inventário, compras e ajustes simultâneos,
+validação das entradas, regras `CHECK` do banco, o reset da demonstração e a
+verificação dos segredos de produção.
 
 ## Rotas da API
 
@@ -147,6 +180,20 @@ Autenticação:
 - `POST /auth/refresh`
 - `POST /auth/logout`
 - `GET /auth/me`
+
+Mesas:
+
+- `GET /campaigns`: mesas do usuário, com o papel em cada uma
+- `POST /campaigns`: cria a mesa (quem cria é o Mestre)
+- `POST /campaigns/join`: entra com `inviteCode`
+- `GET /campaigns/:id`: mesa e participantes
+- `POST /campaigns/:id/invite-code` (Mestre): gera um código novo
+- `DELETE /campaigns/:id/members/:userId`: o Mestre remove um jogador; o
+  jogador usa o próprio id para sair
+- `DELETE /campaigns/:id` (Mestre)
+
+As rotas abaixo ficam dentro da mesa, em `/campaigns/:id`, e "Mestre" é o
+Mestre daquela mesa.
 
 Catálogo e itens:
 
@@ -183,10 +230,11 @@ lojaRPG/
     src/
       routes/      rotas Express
       controllers/ entrada e saída HTTP
+      data/        catálogo inicial das mesas novas
       schemas/     validação com Zod
       services/    regras de negócio e transações
       models/      consultas pelo Prisma
-      middlewares/ autenticação, permissões, erros e rate limit
+      middlewares/ autenticação, mesa e papel, erros e rate limit
     tests/
   frontend/
     src/           páginas, componentes e chamadas à API

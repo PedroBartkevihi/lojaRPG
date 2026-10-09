@@ -28,16 +28,18 @@ descritos no `render.yaml`) e do Neon (PostgreSQL).
 
    Se o Render acrescentar um sufixo aos nomes por já estarem em uso, ajuste
    esses dois valores depois e refaça o deploy do front-end.
-3. `JWT_SECRET` e `MASTER_REGISTRATION_KEY` são gerados pelo próprio Render.
+3. O `JWT_SECRET` é gerado pelo próprio Render.
 
 Limites do plano gratuito:
 
 - A API dorme após 15 minutos sem acesso e leva cerca de 1 minuto para
   acordar; a primeira requisição depois disso fica lenta.
-- Com `DEMO_RESET_ON_START=true` (padrão do `render.yaml`), o seed recria os
-  dados de demonstração sempre que a API inicia. Cadastros e compras feitos na
-  demonstração somem quando ela volta a dormir. Para manter os dados, mude
-  essa variável para `false` no painel do Render.
+- Com `DEMO_RESET_ON_START=true` (padrão do `render.yaml`), o seed recria a
+  Mesa de demonstração e as contas de exemplo sempre que a API inicia. O que
+  for feito nela some quando a API volta a dormir. As outras mesas e contas
+  não são tocadas, então dá para usar o mesmo site com um grupo de verdade.
+  Para desligar a demonstração, mude essa variável para `false` no painel do
+  Render.
 
 ## Produção local com Docker
 
@@ -47,15 +49,15 @@ Na raiz do projeto, crie o `.env` com os segredos (o Git ignora esse arquivo):
 cp .env.example .env
 ```
 
-Preencha `JWT_SECRET` (pelo menos 32 caracteres) e `MASTER_REGISTRATION_KEY`
-(pelo menos 16) com valores aleatórios, gerados por exemplo com:
+Preencha `JWT_SECRET` (pelo menos 32 caracteres) com um valor aleatório,
+gerado por exemplo com:
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
 ```
 
-Sem esses valores a API recusa iniciar, assim como com valores curtos ou iguais
-aos exemplos do repositório. Depois:
+Sem esse valor a API recusa iniciar, assim como com um valor curto ou igual aos
+exemplos do repositório. Depois:
 
 ```bash
 docker compose up --build
@@ -86,7 +88,6 @@ Se hospedar front-end e API separadamente:
 2. Configure `CORS_ORIGIN` na API com a URL pública do front-end.
 3. Use HTTPS em ambos.
 4. Gere um `JWT_SECRET` longo e único.
-5. Proteja `MASTER_REGISTRATION_KEY`.
 
 ## Prisma em ambientes
 
@@ -107,8 +108,10 @@ npx prisma migrate deploy
 ```
 
 A migration inicial cria todas as tabelas com as regras `CHECK` de ouro,
-estoque, nível e quantidades. Dados de um banco SQLite das versões antigas não
-são migrados; o seed recria os dados de demonstração.
+estoque, nível e quantidades. A migration das mesas leva o que já existia no
+banco para uma "Mesa principal", com cada conta no papel que tinha antes; na
+demonstração, o reset seguinte troca essa mesa pela Mesa de demonstração.
+Dados de um banco SQLite das versões antigas não são migrados.
 
 ## Backup do PostgreSQL
 
