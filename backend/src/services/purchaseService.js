@@ -1,8 +1,9 @@
 import { ROLES } from '../config/roles.js';
 import { withTransaction } from '../database/transaction.js';
-import { findCharacterById, findCharacterByUserId, setCharacterGold } from '../models/characterModel.js';
+import { createStockMovement } from '../models/catalogModel.js';
+import { debitCharacterGold, findCharacterById, findCharacterByUserId } from '../models/characterModel.js';
 import { addInventoryItem } from '../models/inventoryModel.js';
-import { findItemsByIds } from '../models/itemModel.js';
+import { decrementItemStock, findItemsByIds } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase, findPurchaseById } from '../models/purchaseModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
@@ -81,11 +82,11 @@ export async function checkout(user, cartItems, characterId) {
       totalValue += item.price * cartItem.quantity;
     }
 
-    if (character.gold < totalValue) {
+    // Os valores lidos acima podem ter mudado por outra compra ou por um ajuste
+    // do Mestre; os descontos so acontecem se ainda houver saldo na escrita.
+    if (!(await debitCharacterGold(character.id, totalValue, prisma))) {
       throw new ApiError(400, 'Ouro insuficiente para concluir a compra.');
     }
-
-    const updatedCharacter = await setCharacterGold(character.id, character.gold - totalValue, prisma);
 
     const purchase = await createPurchase(
       {
@@ -97,23 +98,26 @@ export async function checkout(user, cartItems, characterId) {
 
     for (const cartItem of normalizedCart) {
       const item = itemMap.get(cartItem.itemId);
-      const newStock = item.stock - cartItem.quantity;
 
-      await prisma.item.update({
+      if (!(await decrementItemStock(item.id, cartItem.quantity, prisma))) {
+        throw new ApiError(400, `Estoque insuficiente para ${item.name}.`);
+      }
+
+      const { stock: newStock } = await prisma.item.findUnique({
         where: { id: item.id },
-        data: { stock: newStock }
+        select: { stock: true }
       });
 
-      await prisma.stockMovement.create({
-        data: {
+      await createStockMovement(
+        {
           itemId: item.id,
           actorUserId: user.id,
-          previousStock: item.stock,
+          previousStock: newStock + cartItem.quantity,
           newStock,
-          delta: -cartItem.quantity,
           reason: `Compra #${purchase.id}`
-        }
-      });
+        },
+        prisma
+      );
 
       await addInventoryItem(character.id, item.id, cartItem.quantity, prisma);
 
@@ -131,7 +135,7 @@ export async function checkout(user, cartItems, characterId) {
     return {
       message: 'Compra concluida com sucesso.',
       purchase: await findPurchaseById(purchase.id, prisma),
-      character: updatedCharacter
+      character: await findCharacterById(character.id, prisma)
     };
   });
 }

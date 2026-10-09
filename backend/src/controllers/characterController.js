@@ -5,11 +5,11 @@ import {
   findCharacterByUserId,
   findCharactersByUserId,
   listCharacters,
-  setCharacterGold,
   updateCharacter
 } from '../models/characterModel.js';
-import { createGoldAuditLog, listGoldAuditLogs } from '../models/goldAuditModel.js';
+import { listGoldAuditLogs } from '../models/goldAuditModel.js';
 import { findUserById } from '../models/userModel.js';
+import { changeCharacterGold } from '../services/goldService.js';
 import { ApiError } from '../utils/ApiError.js';
 import * as validate from '../utils/validation.js';
 
@@ -94,34 +94,22 @@ export async function update(req, res) {
 
 export async function changeGold(req, res) {
   const id = validate.integer(req.params.id, 'Id do personagem', { min: 1 });
-  const existing = await findCharacterById(id);
-
-  if (!existing) {
-    throw new ApiError(404, 'Personagem nao encontrado.');
-  }
-
   const mode = req.body.mode === 'set' || req.body.gold !== undefined ? 'set' : 'adjust';
-  const nextGold =
+  const value =
     mode === 'set'
       ? validate.integer(req.body.gold ?? req.body.amount, 'Ouro', { min: 0, max: 1000000 })
-      : existing.gold + validate.integer(req.body.amount, 'Ajuste de ouro', { min: -1000000, max: 1000000 });
-
-  if (nextGold < 0) {
-    throw new ApiError(400, 'Ouro nao pode ficar negativo.');
-  }
-
+      : validate.integer(req.body.amount, 'Ajuste de ouro', { min: -1000000, max: 1000000 });
   const reason = validate.requiredString(req.body.reason, 'Motivo da alteracao de ouro', 240);
-  const character = await setCharacterGold(id, nextGold);
-  const auditLog = await createGoldAuditLog({
-    actorUserId: req.user.id,
-    characterId: existing.id,
-    previousGold: existing.gold,
-    newGold: nextGold,
-    delta: nextGold - existing.gold,
-    reason
-  });
 
-  res.json({ character, auditLog });
+  res.json(
+    await changeCharacterGold({
+      actorUserId: req.user.id,
+      characterId: id,
+      mode,
+      value,
+      reason
+    })
+  );
 }
 
 export async function goldAudit(req, res) {

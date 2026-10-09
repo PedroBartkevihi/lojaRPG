@@ -51,10 +51,18 @@ async function resetTestDatabase() {
   fs.copyFileSync(templateDbFile, testDbFile);
 }
 
+const tokenCache = new Map();
+
+// O seed recria sempre os mesmos usuarios, entao o token continua valido entre
+// testes; reaproveita-lo evita esbarrar no rate limit das rotas de autenticacao.
 async function login(email, password = 'jogador123') {
-  const response = await request(app).post('/auth/login').send({ email, password });
-  expect(response.status).toBe(200);
-  return response.body.token;
+  if (!tokenCache.has(email)) {
+    const response = await request(app).post('/auth/login').send({ email, password });
+    expect(response.status).toBe(200);
+    tokenCache.set(email, response.body.token);
+  }
+
+  return tokenCache.get(email);
 }
 
 beforeAll(async () => {
@@ -339,5 +347,97 @@ describe('compras e inventario', () => {
 
     expect(historyResponse.status).toBe(200);
     expect(historyResponse.body.purchases).toHaveLength(1);
+  });
+
+  it('nao vende alem do estoque com compras simultaneas', async () => {
+    const tokens = await Promise.all(
+      ['aria@lojarpg.local', 'borin@lojarpg.local', 'lia@lojarpg.local'].map((email) => login(email))
+    );
+
+    const responses = await Promise.all(
+      tokens.map((token) =>
+        request(app)
+          .post('/purchases')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ items: [{ itemId: 8, quantity: 1 }] })
+      )
+    );
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 201, 400]);
+    expect(responses.find((response) => response.status === 400).body.message).toContain('Estoque insuficiente');
+
+    const scroll = await getPrisma().item.findUnique({ where: { id: 8 } });
+    expect(scroll.stock).toBe(0);
+  });
+
+  it('nao gasta o mesmo ouro duas vezes com compras simultaneas', async () => {
+    const playerToken = await login('aria@lojarpg.local');
+
+    const responses = await Promise.all(
+      [1, 2].map(() =>
+        request(app)
+          .post('/purchases')
+          .set('Authorization', `Bearer ${playerToken}`)
+          .send({ items: [{ itemId: 7, quantity: 1 }] })
+      )
+    );
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 400]);
+    expect(responses.find((response) => response.status === 400).body.message).toContain('Ouro insuficiente');
+
+    const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
+    expect(aria.gold).toBe(30);
+  });
+
+  it('nao perde a compra quando o Mestre ajusta o ouro ao mesmo tempo', async () => {
+    const [playerToken, masterToken] = [
+      await login('aria@lojarpg.local'),
+      await login('mestre@lojarpg.local', 'mestre123')
+    ];
+
+    const [purchaseResponse, goldResponse] = await Promise.all([
+      request(app)
+        .post('/purchases')
+        .set('Authorization', `Bearer ${playerToken}`)
+        .send({ items: [{ itemId: 7, quantity: 1 }] }),
+      request(app)
+        .patch('/characters/1/gold')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' })
+    ]);
+
+    expect(purchaseResponse.status).toBe(201);
+    expect(goldResponse.status).toBe(200);
+    expect(goldResponse.body.auditLog.delta).toBe(25);
+
+    const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
+    expect(aria.gold).toBe(250 - 220 + 25);
+  });
+
+  it('nao desfaz a compra quando o Mestre edita o item ao mesmo tempo', async () => {
+    const [playerToken, masterToken] = [
+      await login('borin@lojarpg.local'),
+      await login('mestre@lojarpg.local', 'mestre123')
+    ];
+
+    const [purchaseResponse, editResponse] = await Promise.all([
+      request(app)
+        .post('/purchases')
+        .set('Authorization', `Bearer ${playerToken}`)
+        .send({ items: [{ itemId: 8, quantity: 1 }] }),
+      request(app)
+        .put('/items/8')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .send({ price: 200 })
+    ]);
+
+    expect(purchaseResponse.status).toBe(201);
+    expect([200, 409]).toContain(editResponse.status);
+
+    const scroll = await getPrisma().item.findUnique({ where: { id: 8 } });
+    const movements = await getPrisma().stockMovement.findMany({ where: { itemId: 8 } });
+
+    expect(scroll.stock).toBe(1);
+    expect(movements.reduce((total, movement) => total + movement.delta, 0)).toBe(scroll.stock - 2);
   });
 });

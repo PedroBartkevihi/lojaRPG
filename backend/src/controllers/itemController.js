@@ -1,5 +1,5 @@
-import { createItem, deactivateItem, findItemById, listItems, reactivateItem, updateItem } from '../models/itemModel.js';
-import { createStockMovement } from '../models/catalogModel.js';
+import { createItem, findItemById, listItems, reactivateItem } from '../models/itemModel.js';
+import { removeItem, saveItemChanges } from '../services/itemService.js';
 import { ApiError } from '../utils/ApiError.js';
 import * as validate from '../utils/validation.js';
 
@@ -82,17 +82,7 @@ export async function update(req, res) {
     throw new ApiError(404, 'Item nao encontrado.');
   }
 
-  const item = await updateItem(id, parseItem(req.body, existing));
-
-  if (item.stock !== existing.stock) {
-    await createStockMovement({
-      itemId: item.id,
-      actorUserId: req.user.id,
-      previousStock: existing.stock,
-      newStock: item.stock,
-      reason: req.body.stockReason || 'Ajuste manual de estoque'
-    });
-  }
+  const item = await saveItemChanges(existing, parseItem(req.body, existing), req.user.id, req.body.stockReason);
 
   res.json({ item });
 }
@@ -105,16 +95,7 @@ export async function remove(req, res) {
     throw new ApiError(404, 'Item nao encontrado.');
   }
 
-  const item = await deactivateItem(id);
-  if (existing.stock !== item.stock) {
-    await createStockMovement({
-      itemId: item.id,
-      actorUserId: req.user.id,
-      previousStock: existing.stock,
-      newStock: item.stock,
-      reason: 'Item removido da loja'
-    });
-  }
+  const item = await removeItem(existing, req.user.id);
   res.json({ message: 'Item removido da loja.', item });
 }
 
