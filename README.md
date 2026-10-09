@@ -45,6 +45,8 @@ Para jogar com o seu grupo: crie uma conta, crie a mesa e envie o link da aba
 **Mesa** aos jogadores. Cada um cria a conta pelo link, entra na mesa e cria o
 personagem.
 
+![Aba Mesa do Mestre com o grupo e o código de convite](docs/images/mesa-convite.jpg)
+
 **Jogador**
 
 - Personagens por mesa, com vários por conta.
@@ -57,7 +59,7 @@ personagem.
 - Inventário, histórico de compras e de vendas, usos e recompensas por
   personagem.
 
-![Login, carrinho, compra e inventário da personagem Aria](docs/images/demo-compra.gif)
+![Aria compra, vende uma poção à loja e usa outra pelo inventário](docs/images/demo-compra.gif)
 
 **Mestre**
 
@@ -71,7 +73,7 @@ personagem.
 - Ajuste de ouro com motivo obrigatório e auditoria de cada alteração.
 - Histórico de movimentações de estoque.
 
-![Painel administrativo do Mestre](docs/images/painel-mestre.jpg)
+![Painel do Mestre com o cadastro de itens e a divisão de ouro entre o grupo](docs/images/painel-mestre.jpg)
 
 ## Arquitetura
 
