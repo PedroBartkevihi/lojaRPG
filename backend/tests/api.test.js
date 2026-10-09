@@ -26,6 +26,8 @@ process.env.DATABASE_URL = testDatabaseUrl;
 process.env.JWT_SECRET = 'test-secret';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.CORS_ORIGIN = 'http://localhost:5173,http://127.0.0.1:5173';
+// Como no Render: a API fica atras de proxy e le o IP do X-Forwarded-For.
+process.env.TRUST_PROXY = '1';
 
 // Mesa de demonstracao do seed: Mestre do Cofre e os jogadores Aria, Borin e Lia.
 const DEMO = '/campaigns/1';
@@ -219,6 +221,21 @@ describe('autenticacao e autorizacao', () => {
       .send({ refreshToken: refreshResponse.body.refreshToken });
 
     expect(revokedRefreshResponse.status).toBe(401);
+  });
+
+  it('separa o rate limit por usuario atras de proxy', async () => {
+    const attempt = (ip) =>
+      request(app)
+        .post('/auth/login')
+        .set('X-Forwarded-For', ip)
+        .send({ email: 'ninguem@lojarpg.local', password: 'errada1' });
+
+    for (let index = 0; index < 20; index += 1) {
+      expect((await attempt('203.0.113.10')).status).toBe(401);
+    }
+
+    expect((await attempt('203.0.113.10')).status).toBe(429);
+    expect((await attempt('203.0.113.20')).status).toBe(401);
   });
 
   it('bloqueia rotas protegidas sem token', async () => {

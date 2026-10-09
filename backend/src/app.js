@@ -8,6 +8,26 @@ import { campaignRoutes } from './routes/campaignRoutes.js';
 
 const app = express();
 
+app.set('trust proxy', env.trustProxy);
+
+// Nas primeiras requisicoes vindas de proxy, registra quantos enderecos chegam
+// no X-Forwarded-For (sem os IPs). Sem um cabecalho mandado pelo proprio
+// cliente, esse e o numero de proxies, que deve ser o valor de TRUST_PROXY.
+let forwardedForLogs = 0;
+
+app.use((req, _res, next) => {
+  const forwardedFor = req.get('x-forwarded-for');
+
+  if (forwardedFor && forwardedForLogs < 5 && env.nodeEnv !== 'test') {
+    forwardedForLogs += 1;
+    console.log(
+      `X-Forwarded-For com ${forwardedFor.split(',').length} endereco(s) em ${req.method} ${req.path}; TRUST_PROXY=${env.trustProxy}.`
+    );
+  }
+
+  next();
+});
+
 app.use(helmet());
 app.use(
   cors({

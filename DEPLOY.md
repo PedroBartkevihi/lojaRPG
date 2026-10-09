@@ -29,6 +29,11 @@ descritos no `render.yaml`) e do Neon (PostgreSQL).
    Se o Render acrescentar um sufixo aos nomes por já estarem em uso, ajuste
    esses dois valores depois e refaça o deploy do front-end.
 3. O `JWT_SECRET` é gerado pelo próprio Render.
+4. `TRUST_PROXY` diz quantos proxies do Render ficam na frente da API, para o
+   rate limit enxergar o IP de cada usuário. Depois do deploy, procure no log
+   da API a linha `X-Forwarded-For com N endereco(s)` e confira se `N` é o
+   valor do `render.yaml`. Um valor menor faz os usuários dividirem o mesmo
+   limite; um maior deixa o cliente forjar o próprio IP.
 
 Limites do plano gratuito:
 
