@@ -1,20 +1,28 @@
+import dotenv from 'dotenv';
 import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { seed } from '../prisma/seed.js';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(testDir, '..');
-const dataDir = path.join(backendRoot, 'data');
-const testDbFile = path.join(dataDir, 'test-loja-rpg.sqlite');
-const templateDbFile = path.join(dataDir, 'test-template.sqlite');
 const prismaCli = path.join(backendRoot, 'node_modules', 'prisma', 'build', 'index.js');
 
+dotenv.config({ path: path.join(backendRoot, '.env') });
+
+const testDatabaseUrl =
+  process.env.TEST_DATABASE_URL || 'postgresql://lojarpg:lojarpg@127.0.0.1:5432/lojarpg_test';
+
+// Os testes apagam os dados a cada caso; a trava evita apontar sem querer
+// para o banco de desenvolvimento ou de producao.
+if (!new URL(testDatabaseUrl).pathname.endsWith('_test')) {
+  throw new Error('TEST_DATABASE_URL precisa apontar para um banco cujo nome termina em _test.');
+}
+
 process.env.NODE_ENV = 'test';
-process.env.DB_FILE = testDbFile;
-process.env.DATABASE_URL = 'file:../data/test-loja-rpg.sqlite';
+process.env.DATABASE_URL = testDatabaseUrl;
 process.env.JWT_SECRET = 'test-secret';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.CORS_ORIGIN = 'http://localhost:5173,http://127.0.0.1:5173';
@@ -23,33 +31,6 @@ process.env.MASTER_REGISTRATION_KEY = 'test-master-key';
 let app;
 let closeDatabase;
 let getPrisma;
-
-function deleteDatabaseFiles(file) {
-  for (const suffix of ['', '-journal', '-wal', '-shm']) {
-    fs.rmSync(`${file}${suffix}`, { force: true });
-  }
-}
-
-// Cria o banco-modelo pelas mesmas migrations e seed usadas fora dos testes.
-function createTemplateDatabase() {
-  fs.mkdirSync(dataDir, { recursive: true });
-  deleteDatabaseFiles(templateDbFile);
-
-  const options = {
-    cwd: backendRoot,
-    env: { ...process.env, DATABASE_URL: 'file:../data/test-template.sqlite' },
-    stdio: 'pipe'
-  };
-
-  execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], options);
-  execFileSync(process.execPath, ['prisma/seed.js'], options);
-}
-
-async function resetTestDatabase() {
-  await closeDatabase();
-  deleteDatabaseFiles(testDbFile);
-  fs.copyFileSync(templateDbFile, testDbFile);
-}
 
 const tokenCache = new Map();
 
@@ -66,19 +47,17 @@ async function login(email, password = 'jogador123') {
 }
 
 beforeAll(async () => {
-  createTemplateDatabase();
+  execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], { cwd: backendRoot, stdio: 'pipe' });
   ({ closeDatabase, getPrisma } = await import('../src/database/connection.js'));
   ({ default: app } = await import('../src/app.js'));
 }, 60000);
 
 beforeEach(async () => {
-  await resetTestDatabase();
+  await seed(getPrisma());
 });
 
 afterAll(async () => {
   await closeDatabase();
-  deleteDatabaseFiles(testDbFile);
-  deleteDatabaseFiles(templateDbFile);
 });
 
 describe('validacao das entradas', () => {
@@ -167,13 +146,13 @@ describe('integridade do banco', () => {
     const prisma = getPrisma();
 
     await expect(prisma.character.update({ where: { id: 1 }, data: { gold: -1 } })).rejects.toThrow(
-      /CHECK constraint failed/
+      /violates check constraint/
     );
     await expect(prisma.character.update({ where: { id: 1 }, data: { level: 21 } })).rejects.toThrow(
-      /CHECK constraint failed/
+      /violates check constraint/
     );
     await expect(prisma.item.update({ where: { id: 1 }, data: { stock: -1 } })).rejects.toThrow(
-      /CHECK constraint failed/
+      /violates check constraint/
     );
   });
 });
@@ -487,12 +466,19 @@ describe('compras e inventario', () => {
         .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' })
     ]);
 
+    // O ajuste entra antes ou depois da compra, ou e recusado (409) porque o
+    // ouro mudou no meio; em nenhum caso a compra deixa de ser cobrada.
     expect(purchaseResponse.status).toBe(201);
-    expect(goldResponse.status).toBe(200);
-    expect(goldResponse.body.auditLog.delta).toBe(25);
+    expect([200, 409]).toContain(goldResponse.status);
 
     const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
-    expect(aria.gold).toBe(250 - 220 + 25);
+
+    if (goldResponse.status === 200) {
+      expect(goldResponse.body.auditLog.delta).toBe(25);
+      expect(aria.gold).toBe(250 - 220 + 25);
+    } else {
+      expect(aria.gold).toBe(250 - 220);
+    }
   });
 
   it('nao desfaz a compra quando o Mestre edita o item ao mesmo tempo', async () => {

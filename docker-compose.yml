@@ -1,4 +1,21 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lojarpg
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-lojarpg}"
+      POSTGRES_DB: lojarpg
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - loja_rpg_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lojarpg -d lojarpg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -8,15 +25,16 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      JWT_SECRET: "${JWT_SECRET:?Defina JWT_SECRET no arquivo .env da raiz (veja .env.example)}"
+      # Vem do .env da raiz (veja .env.example); a API recusa iniciar sem ele.
+      JWT_SECRET: "${JWT_SECRET:-}"
       JWT_EXPIRES_IN: "15m"
       REFRESH_TOKEN_EXPIRES_IN_DAYS: 7
       CORS_ORIGIN: "http://localhost:8080"
-      DB_FILE: "/app/data/loja-rpg.sqlite"
-      DATABASE_URL: "file:/app/data/loja-rpg.sqlite"
-      MASTER_REGISTRATION_KEY: "${MASTER_REGISTRATION_KEY:?Defina MASTER_REGISTRATION_KEY no arquivo .env da raiz (veja .env.example)}"
-    volumes:
-      - loja_rpg_data:/app/data
+      DATABASE_URL: "postgresql://lojarpg:${POSTGRES_PASSWORD:-lojarpg}@db:5432/lojarpg"
+      MASTER_REGISTRATION_KEY: "${MASTER_REGISTRATION_KEY:-}"
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build:
@@ -29,4 +47,4 @@ services:
       - backend
 
 volumes:
-  loja_rpg_data:
+  loja_rpg_pgdata:

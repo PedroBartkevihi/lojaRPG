@@ -7,14 +7,6 @@ export const backendRoot = path.resolve(currentDir, '../..');
 
 dotenv.config({ path: path.join(backendRoot, '.env') });
 
-const rawDbFile = process.env.DB_FILE || 'data/loja-rpg.sqlite';
-const resolvedDatabaseFile = path.isAbsolute(rawDbFile) ? rawDbFile : path.resolve(backendRoot, rawDbFile);
-const defaultDatabaseUrl = path.isAbsolute(rawDbFile)
-  ? `file:${resolvedDatabaseFile.replace(/\\/g, '/')}`
-  : `file:../${rawDbFile.replace(/\\/g, '/')}`;
-
-process.env.DATABASE_URL = process.env.DATABASE_URL || defaultDatabaseUrl;
-
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 3001),
@@ -25,7 +17,6 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-  databaseUrl: process.env.DATABASE_URL,
   masterRegistrationKey: process.env.MASTER_REGISTRATION_KEY || 'chave-dev-para-criar-mestre'
 };
 

@@ -74,7 +74,7 @@ export async function listItems(filters = {}, prisma = getPrisma()) {
   }
 
   if (filters.search) {
-    where.name = { contains: filters.search };
+    where.name = { contains: filters.search, mode: 'insensitive' };
   }
 
   if (filters.category) {
