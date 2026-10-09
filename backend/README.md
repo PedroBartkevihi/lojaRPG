@@ -1,9 +1,11 @@
 # Back-end lojaRPG
 
-API Express com Prisma, SQLite, JWT access token, refresh token revogavel,
-Helmet, rate limit e testes de integracao.
+API Express com Prisma, PostgreSQL, validacao com Zod, JWT access token,
+refresh token revogavel, Helmet, rate limit e testes de integracao.
 
 ## Comandos
+
+Suba o PostgreSQL antes (`docker compose up -d db` na raiz do projeto).
 
 ```bash
 npm install

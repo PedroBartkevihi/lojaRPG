@@ -1,0 +1,49 @@
+# Blueprint do Render: API (Node) e front-end (site estatico), ambos no plano
+# gratuito. O banco PostgreSQL fica no Neon; veja a secao "Versao online" do
+# DEPLOY.md para o passo a passo.
+services:
+  - type: web
+    name: lojarpg-api
+    runtime: node
+    plan: free
+    # O Render nao tem regiao na America do Sul; a API fica na Virginia, junto
+    # do banco no Neon (AWS us-east-1), porque cada requisicao faz varias
+    # consultas e a distancia entre os dois pesaria em todas elas.
+    region: virginia
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npx prisma generate
+    # Com DEMO_RESET_ON_START=true o seed recria os dados de demonstracao a
+    # cada inicio; no plano gratuito isso acontece quando a API acorda depois
+    # de 15 minutos parada.
+    startCommand: npx prisma migrate deploy && if [ "$DEMO_RESET_ON_START" = "true" ]; then node prisma/seed.js; fi && node src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MASTER_REGISTRATION_KEY
+        generateValue: true
+      - key: DEMO_RESET_ON_START
+        value: "true"
+
+  - type: web
+    name: lojarpg-web
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: VITE_API_URL
+        sync: false

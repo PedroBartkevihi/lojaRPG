@@ -1,5 +1,7 @@
 # lojaRPG
 
+[![CI](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml)
+
 Aplicacao web para uma loja de campanha de RPG. O Mestre administra itens,
 categorias, raridades, estoque, personagens e ouro. Jogadores escolhem o
 personagem ativo, montam carrinho e compram itens com o ouro daquele
@@ -9,7 +11,7 @@ personagem. Inventario e historico de compras ficam separados por personagem.
 
 - Front-end: React, Vite e React Router.
 - Back-end: Node.js, Express, validacao com Zod, JWT access token + refresh token.
-- Banco: SQLite com Prisma Client e migrations versionadas.
+- Banco: PostgreSQL com Prisma Client e migrations versionadas.
 - Testes: Vitest, Supertest e Testing Library.
 - Deploy: Dockerfile para API, Dockerfile para front-end e docker compose.
 
@@ -38,11 +40,22 @@ lojaRPG/
       js/
       pages/
       test/
+  docker/
+    postgres/
   DEPLOY.md
   docker-compose.yml
 ```
 
 ## Desenvolvimento
+
+Banco (PostgreSQL no Docker, na raiz do projeto):
+
+```bash
+docker compose up -d db
+```
+
+O container cria o banco `lojarpg` para desenvolvimento e o `lojarpg_test`
+para os testes.
 
 Back-end:
 
@@ -99,8 +112,10 @@ A suite do back-end cobre login, autorizacao de Mestre/Jogador, CRUD de itens,
 compra sem ouro, compra sem estoque, inventario apos compra, auditoria de ouro,
 rotas protegidas, validacao das entradas, compras simultaneas (inclusive com
 ajuste de ouro e edicao de item pelo Mestre ao mesmo tempo) e as regras CHECK
-do banco. Ela cria o banco de teste pelas
-mesmas migrations e seed do Prisma usados no desenvolvimento. A suite do
+do banco. Ela precisa do PostgreSQL do `docker compose` rodando, aplica as
+mesmas migrations do desenvolvimento no banco `lojarpg_test` e recria os dados
+do seed antes de cada teste (por seguranca, so roda em bancos cujo nome termina
+em `_test`). A suite do
 front-end cobre comportamento basico de carrinho e selecao/criacao de
 personagem.
 

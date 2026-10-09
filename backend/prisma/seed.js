@@ -1,13 +1,37 @@
 import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { pathToFileURL } from 'node:url';
 
 const mestreHash =
   'scrypt$Wbrr8428uiTv9A82oz_n7Q$q4GLTusqxv1L8sy0P_An9-0XFVEMDgjeAeKzIqG2csfRzZXJdCzS4JgTPkxmuajrGJE8sC8KixTHeYxSmXp4ZQ';
 const jogadorHash =
   'scrypt$Gdmi6YDLw8iKOumNo2qzXg$-Rhg5Lk41RnMYNVls-hSFvtP-4CPVvFb-xDIX-LYUdsPJBcwVrThUuI2gseZQKLQATSdlBODuHjeQXWi_6eyWA';
 
-async function main() {
+const TABLES_WITH_SERIAL_ID = [
+  'users',
+  'characters',
+  'categories',
+  'rarities',
+  'items',
+  'inventory',
+  'purchases',
+  'purchase_items',
+  'gold_audit_logs',
+  'refresh_tokens',
+  'stock_movements'
+];
+
+// Os dados iniciais usam ids fixos, que nao avancam as sequences do
+// PostgreSQL; sem este ajuste o proximo registro criado pela API repetiria
+// o id 1.
+async function resetSequences(prisma) {
+  for (const table of TABLES_WITH_SERIAL_ID) {
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), COALESCE((SELECT MAX(id) FROM "${table}"), 0) + 1, false)`
+    );
+  }
+}
+
+export async function seed(prisma) {
   await prisma.$transaction([
     prisma.purchaseItem.deleteMany(),
     prisma.purchase.deleteMany(),
@@ -71,14 +95,20 @@ async function main() {
       { id: 10, name: 'Kit de Aventureiro', categoryId: 5, rarityId: 1, description: 'Corda, pederneira, tocha e pequenas ferramentas.', price: 35, stock: 8, createdBy: 1 }
     ]
   });
+
+  await resetSequences(prisma);
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const prisma = new PrismaClient();
+
+  seed(prisma)
+    .then(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (error) => {
+      console.error(error);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}
