@@ -6,7 +6,7 @@ import ItemCard from '../components/ItemCard.jsx';
 
 export default function ShopPage({
   api,
-  user,
+  isMaster,
   character,
   characters = [],
   selectedCharacterId,
@@ -21,8 +21,6 @@ export default function ShopPage({
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  const isMaster = user.role === 'MESTRE';
 
   async function loadItems() {
     setLoading(true);
