@@ -71,12 +71,14 @@ Antes de usar em producao fora da sua maquina, ajuste tambem:
 A demonstracao publica usa os planos gratuitos do Render (API e front-end,
 descritos no `render.yaml`) e do Neon (PostgreSQL).
 
-1. No Neon, crie um projeto na regiao AWS US East 1 (N. Virginia) e copie a
+1. No Neon, crie um projeto na regiao AWS US East 2 (Ohio) e copie a
    connection string direta, sem pooling. Ela tem o formato
    `postgresql://usuario:senha@host/banco?sslmode=require`. A regiao e a mesma
-   da API no Render, que nao oferece servidores na America do Sul: uma compra
-   faz mais de dez consultas ao banco, entao o banco precisa ficar ao lado da
-   API, e nao do usuario.
+   da API no Render (`region: ohio` no `render.yaml`), que nao oferece
+   servidores na America do Sul: uma compra faz mais de dez consultas ao banco,
+   entao o banco precisa ficar ao lado da API, e nao do usuario. Se usar outra
+   regiao no Neon, ajuste o `region` da API para a regiao do Render mais
+   proxima.
 2. No Render, crie um Blueprint a partir deste repositorio (branch `main`).
    Ele le o `render.yaml` e pede tres valores:
    - `DATABASE_URL`: a connection string do Neon.
