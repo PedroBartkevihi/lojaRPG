@@ -29,6 +29,7 @@ function mapItem(item) {
     effectiveSellPrice: effectiveSellPrice(item),
     rarityId: item.rarityId,
     rarity: item.rarity?.name,
+    rarityRank: item.rarity?.rank,
     stock: item.stock,
     imageUrl: item.imageUrl,
     createdBy: item.createdBy,

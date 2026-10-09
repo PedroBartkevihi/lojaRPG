@@ -12,6 +12,7 @@ function mapInventoryItem(entry) {
       name: entry.item.name,
       category: entry.item.category?.name,
       rarity: entry.item.rarity?.name,
+      rarityRank: entry.item.rarity?.rank,
       description: entry.item.description,
       price: entry.item.price,
       effectiveSellPrice: effectiveSellPrice(entry.item),

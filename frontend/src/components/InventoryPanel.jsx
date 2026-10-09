@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Backpack, Coins, HandCoins, History, Sparkles } from 'lucide-react';
+import { rarityTier } from '../js/itemVisuals.js';
 import InventoryLogList from './InventoryLogList.jsx';
+import ItemIcon from './ItemIcon.jsx';
 
 export default function InventoryPanel({ api, character: selectedCharacter, refreshKey, showNotice, onRefreshSession }) {
   const [inventory, setInventory] = useState([]);
@@ -96,11 +98,16 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
               const busy = busyItemId === entry.itemId;
 
               return (
-                <article className="inventory-item" key={entry.id}>
-                  <span>{entry.item.category}</span>
-                  <strong>{entry.item.name}</strong>
+                <article className="inventory-item" key={entry.id} data-rarity-tier={rarityTier(entry.item.rarityRank)}>
+                  <div className="inventory-item-header">
+                    <ItemIcon category={entry.item.category} size={18} />
+                    <div>
+                      <span>{entry.item.category}</span>
+                      <strong>{entry.item.name}</strong>
+                    </div>
+                    <b>{entry.quantity}x</b>
+                  </div>
                   <p>{entry.item.description}</p>
-                  <b>{entry.quantity}x</b>
                   <small className="sell-hint">
                     {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja não compra este item'}
                   </small>

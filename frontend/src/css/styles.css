@@ -14,6 +14,29 @@
   --burgundy: #7a2f3f;
   --danger: #b54d47;
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  --display-font: "Cinzel", Georgia, "Times New Roman", serif;
+}
+
+/* Cores de raridade, como nos livros de D&D: comum, incomum, raro, muito raro
+   e lendario. O card define o nivel e os detalhes herdam a cor. */
+[data-rarity-tier="1"] {
+  --rarity: #b8ad9b;
+}
+
+[data-rarity-tier="2"] {
+  --rarity: #5fd38a;
+}
+
+[data-rarity-tier="3"] {
+  --rarity: #6aa8ff;
+}
+
+[data-rarity-tier="4"] {
+  --rarity: #c58cff;
+}
+
+[data-rarity-tier="5"] {
+  --rarity: #ff9f43;
 }
 
 * {
@@ -101,7 +124,8 @@ button:disabled {
 .panel-title h3,
 .item-card h3 {
   margin: 0;
-  letter-spacing: 0;
+  font-family: var(--display-font);
+  letter-spacing: 0.01em;
 }
 
 .brand-lockup h1 {
@@ -430,10 +454,78 @@ textarea:focus {
 }
 
 .item-card {
-  min-height: 280px;
+  min-height: 250px;
   padding: 1rem;
   display: grid;
+  grid-template-rows: auto auto 1fr auto;
   gap: 0.85rem;
+  border-top: 3px solid var(--rarity, var(--line));
+}
+
+.item-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid color-mix(in srgb, var(--rarity, var(--gold)) 45%, transparent);
+  border-radius: 50%;
+  color: var(--rarity, var(--gold));
+  background: color-mix(in srgb, var(--rarity, var(--gold)) 14%, transparent);
+}
+
+.item-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+[data-rarity-tier] .rarity {
+  color: var(--rarity);
+  border-color: color-mix(in srgb, var(--rarity) 45%, transparent);
+}
+
+.item-card-body {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.item-category {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.price {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1.05rem;
+}
+
+/* Botao de adicionar mais leve que o de finalizar compra: com dez cards na
+   tela, dez botoes dourados cheios brigavam com o resto. */
+.add-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(217, 164, 65, 0.55);
+  border-radius: 6px;
+  color: #ffe3a0;
+  background: rgba(217, 164, 65, 0.12);
+  font-weight: 800;
+}
+
+.add-action:hover:not(:disabled),
+.add-action:focus-visible {
+  color: #21160b;
+  background: linear-gradient(135deg, #f0c66d, var(--gold));
 }
 
 .item-card-header,
@@ -575,11 +667,30 @@ textarea:focus {
 .inventory-item {
   min-height: 170px;
   border: 1px solid var(--line);
+  border-top: 3px solid var(--rarity, var(--line));
   border-radius: 8px;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.18);
   display: grid;
   gap: 0.5rem;
+}
+
+.inventory-item-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.inventory-item-header > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.inventory-item .item-icon {
+  width: 38px;
+  height: 38px;
+  color: var(--rarity, var(--gold));
 }
 
 .inventory-item span {
