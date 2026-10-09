@@ -10,6 +10,7 @@ import { characterRoutes } from './characterRoutes.js';
 import { inventoryRoutes } from './inventoryRoutes.js';
 import { itemRoutes } from './itemRoutes.js';
 import { purchaseRoutes } from './purchaseRoutes.js';
+import { rewardRoutes } from './rewardRoutes.js';
 
 export const campaignRoutes = Router();
 
@@ -29,3 +30,4 @@ campaignRoutes.use('/:campaignId/characters', characterRoutes);
 campaignRoutes.use('/:campaignId/catalog', catalogRoutes);
 campaignRoutes.use('/:campaignId/inventory', inventoryRoutes);
 campaignRoutes.use('/:campaignId/purchases', purchaseRoutes);
+campaignRoutes.use('/:campaignId/rewards', rewardRoutes);
