@@ -20,9 +20,9 @@ function normalizeCart(cartItems) {
   return [...grouped.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
 }
 
-async function resolveCheckoutCharacter(user, characterId, prisma) {
+async function resolveCheckoutCharacter(user, campaignId, characterId, prisma) {
   if (characterId) {
-    const character = await findCharacterById(parse(characterIdSchema, characterId), prisma);
+    const character = await findCharacterById(parse(characterIdSchema, characterId), campaignId, prisma);
 
     if (!character) {
       throw new ApiError(404, 'Personagem nao encontrado.');
@@ -35,18 +35,22 @@ async function resolveCheckoutCharacter(user, characterId, prisma) {
     return character;
   }
 
-  return findCharacterByUserId(user.id, prisma);
+  return findCharacterByUserId(user.id, campaignId, prisma);
 }
 
-export async function checkout(user, cartItems, characterId) {
-  if (user.role !== ROLES.PLAYER) {
+// `membership` e o papel do usuario na mesa da compra; so os itens dessa mesa
+// podem entrar no carrinho.
+export async function checkout(user, membership, cartItems, characterId) {
+  const { campaignId } = membership;
+
+  if (membership.role !== ROLES.PLAYER) {
     throw new ApiError(403, 'Apenas jogadores com personagem podem comprar itens.');
   }
 
   const normalizedCart = normalizeCart(cartItems);
 
   return withTransaction(async (prisma) => {
-    const character = await resolveCheckoutCharacter(user, characterId, prisma);
+    const character = await resolveCheckoutCharacter(user, campaignId, characterId, prisma);
 
     if (!character) {
       throw new ApiError(400, 'Crie um personagem antes de comprar.');
@@ -54,6 +58,7 @@ export async function checkout(user, cartItems, characterId) {
 
     const items = await findItemsByIds(
       normalizedCart.map((item) => item.itemId),
+      campaignId,
       prisma
     );
     const itemMap = new Map(items.map((item) => [item.id, item]));
@@ -127,7 +132,7 @@ export async function checkout(user, cartItems, characterId) {
     return {
       message: 'Compra concluida com sucesso.',
       purchase: await findPurchaseById(purchase.id, prisma),
-      character: await findCharacterById(character.id, prisma)
+      character: await findCharacterById(character.id, campaignId, prisma)
     };
   });
 }

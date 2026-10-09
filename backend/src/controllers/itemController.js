@@ -1,3 +1,4 @@
+import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { createItem, findItemById, listItems, reactivateItem } from '../models/itemModel.js';
 import { itemIdSchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
@@ -22,8 +23,9 @@ function parseItem(body, existing) {
 }
 
 export async function index(req, res) {
-  const includeInactive = req.query.includeInactive === 'true' && req.user.role === 'MESTRE';
+  const includeInactive = req.query.includeInactive === 'true' && isGameMaster(req);
   const items = await listItems({
+    campaignId: req.campaign.id,
     search: req.query.search?.trim(),
     category: req.query.category?.trim(),
     rarity: req.query.rarity?.trim(),
@@ -38,7 +40,8 @@ export async function index(req, res) {
 
 export async function show(req, res) {
   const item = await findItemById(parse(itemIdSchema, req.params.id), {
-    includeInactive: req.user.role === 'MESTRE'
+    campaignId: req.campaign.id,
+    includeInactive: isGameMaster(req)
   });
 
   if (!item) {
@@ -51,6 +54,7 @@ export async function show(req, res) {
 export async function create(req, res) {
   const item = await createItem({
     ...parseItem(req.body),
+    campaignId: req.campaign.id,
     createdBy: req.user.id
   });
 
@@ -59,7 +63,7 @@ export async function create(req, res) {
 
 export async function update(req, res) {
   const id = parse(itemIdSchema, req.params.id);
-  const existing = await findItemById(id, { includeInactive: true });
+  const existing = await findItemById(id, { campaignId: req.campaign.id, includeInactive: true });
 
   if (!existing) {
     throw new ApiError(404, 'Item nao encontrado.');
@@ -72,7 +76,7 @@ export async function update(req, res) {
 
 export async function remove(req, res) {
   const id = parse(itemIdSchema, req.params.id);
-  const existing = await findItemById(id, { includeInactive: true });
+  const existing = await findItemById(id, { campaignId: req.campaign.id, includeInactive: true });
 
   if (!existing) {
     throw new ApiError(404, 'Item nao encontrado.');
@@ -84,7 +88,7 @@ export async function remove(req, res) {
 
 export async function reactivate(req, res) {
   const id = parse(itemIdSchema, req.params.id);
-  const existing = await findItemById(id, { includeInactive: true });
+  const existing = await findItemById(id, { campaignId: req.campaign.id, includeInactive: true });
 
   if (!existing) {
     throw new ApiError(404, 'Item nao encontrado.');

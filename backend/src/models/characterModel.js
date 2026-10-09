@@ -7,6 +7,7 @@ export function mapCharacter(character) {
 
   return {
     id: character.id,
+    campaignId: character.campaignId,
     userId: character.userId,
     userName: character.user?.name,
     userEmail: character.user?.email,
@@ -28,8 +29,14 @@ const includeUser = {
   }
 };
 
-export async function listCharacters(prisma = getPrisma()) {
+// So os personagens de quem ainda participa da mesa; os de um jogador
+// removido ficam guardados e voltam se ele entrar de novo.
+export async function listCharacters(campaignId, prisma = getPrisma()) {
   const characters = await prisma.character.findMany({
+    where: {
+      campaignId: Number(campaignId),
+      user: { memberships: { some: { campaignId: Number(campaignId) } } }
+    },
     include: includeUser,
     orderBy: [{ name: 'asc' }]
   });
@@ -37,18 +44,18 @@ export async function listCharacters(prisma = getPrisma()) {
   return characters.map(mapCharacter);
 }
 
-export async function findCharacterById(id, prisma = getPrisma()) {
+export async function findCharacterById(id, campaignId, prisma = getPrisma()) {
   return mapCharacter(
-    await prisma.character.findUnique({
-      where: { id: Number(id) },
+    await prisma.character.findFirst({
+      where: { id: Number(id), campaignId: Number(campaignId) },
       include: includeUser
     })
   );
 }
 
-export async function findCharactersByUserId(userId, prisma = getPrisma()) {
+export async function findCharactersByUserId(userId, campaignId, prisma = getPrisma()) {
   const characters = await prisma.character.findMany({
-    where: { userId: Number(userId) },
+    where: { userId: Number(userId), campaignId: Number(campaignId) },
     include: includeUser,
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
   });
@@ -56,9 +63,9 @@ export async function findCharactersByUserId(userId, prisma = getPrisma()) {
   return characters.map(mapCharacter);
 }
 
-export async function findCharacterByUserId(userId, prisma = getPrisma()) {
+export async function findCharacterByUserId(userId, campaignId, prisma = getPrisma()) {
   const character = await prisma.character.findFirst({
-    where: { userId: Number(userId) },
+    where: { userId: Number(userId), campaignId: Number(campaignId) },
     include: includeUser,
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
   });
@@ -69,6 +76,7 @@ export async function findCharacterByUserId(userId, prisma = getPrisma()) {
 export async function createCharacter(data, prisma = getPrisma()) {
   const character = await prisma.character.create({
     data: {
+      campaignId: Number(data.campaignId),
       userId: Number(data.userId),
       name: data.name,
       className: data.className,

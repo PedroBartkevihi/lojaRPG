@@ -39,7 +39,7 @@ export default function LoginPage({ api, onLogin, onSwitch }) {
         {loading ? 'Entrando...' : 'Entrar'}
       </button>
       <button type="button" className="text-action" onClick={onSwitch}>
-        Criar conta de jogador
+        Criar conta
       </button>
     </form>
   );

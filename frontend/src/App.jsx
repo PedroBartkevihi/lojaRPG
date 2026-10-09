@@ -1,9 +1,20 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Crown, History, LogOut, Package, ScrollText, Shield, Store } from 'lucide-react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeftRight, Crown, History, LogOut, Package, ScrollText, Shield, Store, Users } from 'lucide-react';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  matchPath,
+  useLocation,
+  useNavigate,
+  useParams
+} from 'react-router-dom';
 import { createApi } from './js/api.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import CampaignsPage from './pages/CampaignsPage.jsx';
+import CampaignPage from './pages/CampaignPage.jsx';
 import ShopPage from './pages/ShopPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import InventoryPanel from './components/InventoryPanel.jsx';
@@ -12,6 +23,8 @@ import PurchaseHistory from './components/PurchaseHistory.jsx';
 const TOKEN_KEY = 'lojaRpgToken';
 const REFRESH_TOKEN_KEY = 'lojaRpgRefreshToken';
 const USER_KEY = 'lojaRpgUser';
+const CAMPAIGN_KEY = 'lojaRpgCampaign';
+const INVITE_KEY = 'lojaRpgInvite';
 
 function readStoredUser() {
   try {
@@ -21,29 +34,61 @@ function readStoredUser() {
   }
 }
 
+function readStoredCampaignId() {
+  return Number(localStorage.getItem(CAMPAIGN_KEY)) || null;
+}
+
+// Entra na mesa do link de convite assim que existe uma sessao.
+function InviteRoute({ onJoin }) {
+  const { code } = useParams();
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!started.current) {
+      started.current = true;
+      onJoin(code);
+    }
+  }, [code, onJoin]);
+
+  return <p className="empty-state">Entrando na mesa...</p>;
+}
+
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(readStoredUser);
-  const [character, setCharacter] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignsLoaded, setCampaignsLoaded] = useState(false);
+  const [campaignId, setCampaignId] = useState(readStoredCampaignId);
   const [characters, setCharacters] = useState([]);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [authView, setAuthView] = useState('login');
-  const [activeTab, setActiveTab] = useState('shop');
   const [notice, setNotice] = useState('');
   const [refreshCount, setRefreshCount] = useState(0);
+
+  const inviteCode = matchPath('/convite/:code', location.pathname)?.params.code;
+  // A renovacao do token troca o valor dele; as cargas abaixo so dependem de
+  // haver sessao, para nao recarregar tudo a cada renovacao.
+  const loggedIn = Boolean(token);
+
+  const showNotice = useCallback((message) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 3500);
+  }, []);
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(CAMPAIGN_KEY);
     setToken(null);
     setUser(null);
-    setCharacter(null);
+    setCampaigns([]);
+    setCampaignsLoaded(false);
+    setCampaignId(null);
     setCharacters([]);
     setSelectedCharacterId(null);
-    setActiveTab('shop');
     navigate('/login', { replace: true });
   }, [navigate]);
 
@@ -63,22 +108,6 @@ function AppContent() {
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       setUser(data.user);
     }
-
-    if ('character' in data) {
-      setCharacter(data.character || null);
-    }
-
-    if ('characters' in data) {
-      const nextCharacters = data.characters || [];
-      setCharacters(nextCharacters);
-      setSelectedCharacterId((current) => {
-        if (current && nextCharacters.some((entry) => entry.id === current)) {
-          return current;
-        }
-
-        return data.character?.id || nextCharacters[0]?.id || null;
-      });
-    }
   }, []);
 
   const api = useMemo(
@@ -87,33 +116,116 @@ function AppContent() {
         () => localStorage.getItem(TOKEN_KEY),
         clearSession,
         () => localStorage.getItem(REFRESH_TOKEN_KEY),
-        storeTokens
+        storeTokens,
+        () => localStorage.getItem(CAMPAIGN_KEY)
       ),
     [clearSession, storeTokens]
   );
 
+  const loadCampaigns = useCallback(async () => {
+    const data = await api.listCampaigns();
+    setCampaigns(data.campaigns);
+    setCampaignsLoaded(true);
+    return data.campaigns;
+  }, [api]);
+
+  // Recarrega os personagens do usuario na mesa ativa (ouro, nivel etc.).
   const refreshSession = useCallback(async () => {
-    if (!localStorage.getItem(TOKEN_KEY)) {
+    if (!localStorage.getItem(CAMPAIGN_KEY)) {
       return;
     }
 
-    const data = await api.me();
-    setUser(data.user);
-    setCharacter(data.character);
-    setCharacters(data.characters || (data.character ? [data.character] : []));
-    setSelectedCharacterId((current) => current || data.character?.id || data.characters?.[0]?.id || null);
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    const data = await api.myCharacter();
+    const nextCharacters = data.characters || [];
+    setCharacters(nextCharacters);
+    setSelectedCharacterId((current) =>
+      current && nextCharacters.some((entry) => entry.id === current) ? current : nextCharacters[0]?.id || null
+    );
     setRefreshCount((value) => value + 1);
   }, [api]);
+
+  const selectCampaign = useCallback(
+    (nextCampaign, path = '/shop', options = {}) => {
+      localStorage.setItem(CAMPAIGN_KEY, String(nextCampaign.id));
+      setCampaignId(nextCampaign.id);
+      navigate(path, options);
+    },
+    [navigate]
+  );
+
+  // A lista e atualizada antes de soltar a mesa; com a lista antiga, a selecao
+  // automatica abriria de novo a mesa que acabou de sair.
+  const leaveCampaign = useCallback(async () => {
+    await loadCampaigns();
+    localStorage.removeItem(CAMPAIGN_KEY);
+    setCampaignId(null);
+    navigate('/mesas', { replace: true });
+  }, [loadCampaigns, navigate]);
+
+  const joinWithCode = useCallback(
+    async (code) => {
+      try {
+        const data = await api.joinCampaign({ inviteCode: code });
+        await loadCampaigns();
+        showNotice(data.message);
+        selectCampaign(data.campaign, '/shop', { replace: true });
+      } catch (error) {
+        showNotice(error.message);
+        navigate('/mesas', { replace: true });
+      }
+    },
+    [api, loadCampaigns, navigate, selectCampaign, showNotice]
+  );
+
+  useEffect(() => {
+    if (loggedIn) {
+      loadCampaigns().catch((error) => showNotice(error.message));
+    }
+  }, [loggedIn, loadCampaigns, showNotice]);
+
+  useEffect(() => {
+    setCharacters([]);
+    setSelectedCharacterId(null);
+
+    if (loggedIn && campaignId) {
+      refreshSession().catch((error) => showNotice(error.message));
+    }
+  }, [loggedIn, campaignId, refreshSession, showNotice]);
+
+  const campaign = campaigns.find((entry) => entry.id === campaignId) || null;
+
+  // Esquece a mesa guardada se a pessoa saiu ou foi removida dela, e abre
+  // direto a unica mesa de quem so participa de uma.
+  useEffect(() => {
+    if (!campaignsLoaded) {
+      return;
+    }
+
+    if (campaignId && !campaign) {
+      localStorage.removeItem(CAMPAIGN_KEY);
+      setCampaignId(null);
+    } else if (!campaignId && campaigns.length === 1) {
+      localStorage.setItem(CAMPAIGN_KEY, String(campaigns[0].id));
+      setCampaignId(campaigns[0].id);
+    }
+  }, [campaignsLoaded, campaignId, campaign, campaigns]);
+
+  // Quem abre um link de convite sem estar logado entra na mesa depois do login.
+  useEffect(() => {
+    if (!token && inviteCode) {
+      localStorage.setItem(INVITE_KEY, inviteCode);
+    }
+  }, [token, inviteCode]);
 
   const saveSession = useCallback(
     (data) => {
       storeTokens(data);
-      setNotice(`Bem-vindo, ${data.user.name}.`);
-      refreshSession();
-      navigate('/shop', { replace: true });
+      showNotice(`Bem-vindo, ${data.user.name}.`);
+      const pendingInvite = localStorage.getItem(INVITE_KEY);
+      localStorage.removeItem(INVITE_KEY);
+      navigate(pendingInvite ? `/convite/${pendingInvite}` : '/shop', { replace: true });
     },
-    [navigate, refreshSession, storeTokens]
+    [navigate, showNotice, storeTokens]
   );
 
   const handleLogout = useCallback(async () => {
@@ -128,11 +240,6 @@ function AppContent() {
     }
   }, [api, clearSession, token]);
 
-  const showNotice = useCallback((message) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(''), 3500);
-  }, []);
-
   if (!token || !user) {
     const isRegisterRoute = location.pathname === '/register';
 
@@ -146,6 +253,9 @@ function AppContent() {
               <h1>lojaRPG</h1>
             </div>
           </div>
+          {(inviteCode || localStorage.getItem(INVITE_KEY)) && (
+            <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
+          )}
           {isRegisterRoute || authView === 'register' ? (
             <RegisterPage
               api={api}
@@ -170,9 +280,21 @@ function AppContent() {
     );
   }
 
-  const isMaster = user.role === 'MESTRE';
-  const selectedCharacter = characters.find((entry) => entry.id === selectedCharacterId) || character;
-  const activeRoute = location.pathname.replace('/', '') || 'shop';
+  const isMaster = campaign?.role === 'MESTRE';
+  const selectedCharacter = characters.find((entry) => entry.id === selectedCharacterId) || characters[0] || null;
+  const activeRoute = location.pathname.split('/')[1] || 'shop';
+  const showTabs = Boolean(campaign) && activeRoute !== 'mesas' && activeRoute !== 'convite';
+  const autoSelecting = campaignsLoaded && !campaignId && campaigns.length === 1;
+
+  // As paginas da loja so existem dentro de uma mesa; a chave remonta a
+  // pagina ao trocar de mesa, para ela buscar os dados da mesa nova.
+  function inCampaign(element) {
+    if (!campaignsLoaded || autoSelecting) {
+      return <p className="empty-state">Carregando mesas...</p>;
+    }
+
+    return campaign ? <Fragment key={campaign.id}>{element}</Fragment> : <Navigate to="/mesas" replace />;
+  }
 
   return (
     <main className="app-shell">
@@ -180,34 +302,47 @@ function AppContent() {
         <div className="brand-lockup small">
           <Store size={28} />
           <div>
-            <p className="eyebrow">Mesa de aventura</p>
+            <p className="eyebrow">{showTabs ? campaign.name : 'Mesas de aventura'}</p>
             <h1>lojaRPG</h1>
           </div>
         </div>
-        <nav className="tabs" aria-label="Navegacao principal">
-          <button className={activeRoute === 'shop' ? 'active' : ''} onClick={() => navigate('/shop')}>
-            <Store size={18} />
-            Loja
-          </button>
-          {!isMaster && (
-            <button className={activeRoute === 'inventory' ? 'active' : ''} onClick={() => navigate('/inventory')}>
-              <Package size={18} />
-              Inventario
+        {showTabs ? (
+          <nav className="tabs" aria-label="Navegacao principal">
+            <button className={activeRoute === 'shop' ? 'active' : ''} onClick={() => navigate('/shop')}>
+              <Store size={18} />
+              Loja
             </button>
-          )}
-          <button className={activeRoute === 'history' ? 'active' : ''} onClick={() => navigate('/history')}>
-            <History size={18} />
-            Compras
-          </button>
-          {isMaster && (
-            <button className={activeRoute === 'admin' ? 'active' : ''} onClick={() => navigate('/admin')}>
-              <Crown size={18} />
-              Mestre
+            {!isMaster && (
+              <button className={activeRoute === 'inventory' ? 'active' : ''} onClick={() => navigate('/inventory')}>
+                <Package size={18} />
+                Inventario
+              </button>
+            )}
+            <button className={activeRoute === 'history' ? 'active' : ''} onClick={() => navigate('/history')}>
+              <History size={18} />
+              Compras
             </button>
-          )}
-        </nav>
+            <button className={activeRoute === 'mesa' ? 'active' : ''} onClick={() => navigate('/mesa')}>
+              <Users size={18} />
+              Mesa
+            </button>
+            {isMaster && (
+              <button className={activeRoute === 'admin' ? 'active' : ''} onClick={() => navigate('/admin')}>
+                <Crown size={18} />
+                Mestre
+              </button>
+            )}
+          </nav>
+        ) : (
+          <span />
+        )}
         <div className="session-pill">
-          {isMaster ? <Shield size={18} /> : <ScrollText size={18} />}
+          {showTabs && (
+            <button className="icon-button" onClick={() => navigate('/mesas')} title="Trocar de mesa">
+              <ArrowLeftRight size={18} />
+            </button>
+          )}
+          {showTabs && isMaster ? <Shield size={18} /> : <ScrollText size={18} />}
           <span>{user.name}</span>
           <button className="icon-button" onClick={handleLogout} title="Sair">
             <LogOut size={18} />
@@ -220,11 +355,25 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Navigate to="/shop" replace />} />
         <Route
-          path="/shop"
+          path="/mesas"
           element={
+            <CampaignsPage
+              api={api}
+              campaigns={campaigns}
+              activeCampaignId={campaign?.id}
+              onSelect={selectCampaign}
+              onCampaignsChanged={loadCampaigns}
+              showNotice={showNotice}
+            />
+          }
+        />
+        <Route path="/convite/:code" element={<InviteRoute onJoin={joinWithCode} />} />
+        <Route
+          path="/shop"
+          element={inCampaign(
             <ShopPage
               api={api}
-              user={user}
+              isMaster={isMaster}
               character={selectedCharacter}
               characters={characters}
               selectedCharacterId={selectedCharacterId}
@@ -232,25 +381,46 @@ function AppContent() {
               onRefreshSession={refreshSession}
               showNotice={showNotice}
             />
-          }
+          )}
         />
         <Route
           path="/inventory"
-          element={
+          element={inCampaign(
             isMaster ? (
               <Navigate to="/shop" replace />
             ) : (
               <InventoryPanel api={api} character={selectedCharacter} refreshKey={refreshCount} showNotice={showNotice} />
             )
-          }
+          )}
         />
         <Route
           path="/history"
-          element={<PurchaseHistory api={api} isMaster={isMaster} character={selectedCharacter} refreshKey={refreshCount} />}
+          element={inCampaign(
+            <PurchaseHistory api={api} isMaster={isMaster} character={selectedCharacter} refreshKey={refreshCount} />
+          )}
+        />
+        <Route
+          path="/mesa"
+          element={inCampaign(
+            <CampaignPage
+              api={api}
+              campaign={campaign}
+              user={user}
+              showNotice={showNotice}
+              onCampaignsChanged={loadCampaigns}
+              onLeave={leaveCampaign}
+            />
+          )}
         />
         <Route
           path="/admin"
-          element={isMaster ? <AdminPage api={api} showNotice={showNotice} onRefresh={refreshSession} /> : <Navigate to="/shop" replace />}
+          element={inCampaign(
+            isMaster ? (
+              <AdminPage api={api} showNotice={showNotice} onRefresh={refreshSession} />
+            ) : (
+              <Navigate to="/shop" replace />
+            )
+          )}
         />
         <Route path="*" element={<Navigate to="/shop" replace />} />
       </Routes>

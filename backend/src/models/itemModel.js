@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { ApiError } from '../utils/ApiError.js';
 
 function mapItem(item) {
   if (!item) {
@@ -7,6 +8,7 @@ function mapItem(item) {
 
   return {
     id: item.id,
+    campaignId: item.campaignId,
     name: item.name,
     categoryId: item.categoryId,
     category: item.category?.name,
@@ -34,36 +36,52 @@ const includeRelations = {
   }
 };
 
-async function resolveCategoryId(value, prisma) {
+// Categoria e raridade sao sempre as da mesma mesa do item: um id de outra
+// mesa e recusado e um nome novo vira uma categoria desta mesa.
+async function resolveCategoryId(campaignId, value, prisma) {
   if (Number.isInteger(Number(value))) {
-    return Number(value);
+    const category = await prisma.category.findFirst({ where: { id: Number(value), campaignId } });
+
+    if (!category) {
+      throw new ApiError(400, 'Categoria invalida.');
+    }
+
+    return category.id;
   }
 
+  const name = String(value).trim();
   const category = await prisma.category.upsert({
-    where: { name: String(value).trim() },
+    where: { campaignId_name: { campaignId, name } },
     update: {},
-    create: { name: String(value).trim() }
+    create: { campaignId, name }
   });
 
   return category.id;
 }
 
-async function resolveRarityId(value, prisma) {
+async function resolveRarityId(campaignId, value, prisma) {
   if (Number.isInteger(Number(value))) {
-    return Number(value);
+    const rarity = await prisma.rarity.findFirst({ where: { id: Number(value), campaignId } });
+
+    if (!rarity) {
+      throw new ApiError(400, 'Raridade invalida.');
+    }
+
+    return rarity.id;
   }
 
+  const name = String(value).trim();
   const rarity = await prisma.rarity.upsert({
-    where: { name: String(value).trim() },
+    where: { campaignId_name: { campaignId, name } },
     update: {},
-    create: { name: String(value).trim() }
+    create: { campaignId, name }
   });
 
   return rarity.id;
 }
 
-export async function listItems(filters = {}, prisma = getPrisma()) {
-  const where = {};
+export async function listItems(filters, prisma = getPrisma()) {
+  const where = { campaignId: Number(filters.campaignId) };
 
   if (!filters.includeInactive) {
     where.isActive = true;
@@ -100,8 +118,8 @@ export async function listItems(filters = {}, prisma = getPrisma()) {
   return items.map(mapItem);
 }
 
-export async function findItemById(id, options = {}, prisma = getPrisma()) {
-  const where = { id: Number(id) };
+export async function findItemById(id, options, prisma = getPrisma()) {
+  const where = { id: Number(id), campaignId: Number(options.campaignId) };
   const item = await prisma.item.findFirst({
     where: options.includeInactive ? where : { ...where, isActive: true },
     include: includeRelations
@@ -110,13 +128,13 @@ export async function findItemById(id, options = {}, prisma = getPrisma()) {
   return mapItem(item);
 }
 
-export async function findItemsByIds(ids, prisma = getPrisma()) {
+export async function findItemsByIds(ids, campaignId, prisma = getPrisma()) {
   if (!ids.length) {
     return [];
   }
 
   const items = await prisma.item.findMany({
-    where: { id: { in: ids.map(Number) } },
+    where: { id: { in: ids.map(Number) }, campaignId: Number(campaignId) },
     include: includeRelations
   });
 
@@ -124,10 +142,12 @@ export async function findItemsByIds(ids, prisma = getPrisma()) {
 }
 
 export async function createItem(data, prisma = getPrisma()) {
-  const categoryId = await resolveCategoryId(data.categoryId || data.category, prisma);
-  const rarityId = await resolveRarityId(data.rarityId || data.rarity, prisma);
+  const campaignId = Number(data.campaignId);
+  const categoryId = await resolveCategoryId(campaignId, data.categoryId || data.category, prisma);
+  const rarityId = await resolveRarityId(campaignId, data.rarityId || data.rarity, prisma);
   const item = await prisma.item.create({
     data: {
+      campaignId,
       name: data.name,
       categoryId,
       rarityId,
@@ -144,8 +164,9 @@ export async function createItem(data, prisma = getPrisma()) {
 }
 
 export async function updateItem(id, data, prisma = getPrisma()) {
-  const categoryId = await resolveCategoryId(data.categoryId || data.category, prisma);
-  const rarityId = await resolveRarityId(data.rarityId || data.rarity, prisma);
+  const campaignId = Number(data.campaignId);
+  const categoryId = await resolveCategoryId(campaignId, data.categoryId || data.category, prisma);
+  const rarityId = await resolveRarityId(campaignId, data.rarityId || data.rarity, prisma);
   const item = await prisma.item.update({
     where: { id: Number(id) },
     data: {

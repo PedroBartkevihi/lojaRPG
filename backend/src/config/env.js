@@ -16,8 +16,7 @@ export const env = {
   corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean),
-  masterRegistrationKey: process.env.MASTER_REGISTRATION_KEY || 'chave-dev-para-criar-mestre'
+    .filter(Boolean)
 };
 
 // Valores de exemplo que aparecem no repositorio (defaults, .env.*.example e
@@ -25,33 +24,22 @@ export const env = {
 const EXAMPLE_SECRETS = new Set([
   'dev-secret-change-me',
   'troque-este-segredo-em-producao',
-  'configure-um-segredo-longo-e-unico',
-  'chave-dev-para-criar-mestre',
-  'troque-esta-chave',
-  'configure-uma-chave-privada'
+  'configure-um-segredo-longo-e-unico'
 ]);
 
 function isWeakSecret(value, minLength) {
   return !value || EXAMPLE_SECRETS.has(value) || value.length < minLength;
 }
 
-export function assertProductionSecrets({ nodeEnv, jwtSecret, masterRegistrationKey }) {
+export function assertProductionSecrets({ nodeEnv, jwtSecret }) {
   if (nodeEnv !== 'production') {
     return;
   }
 
-  const problems = [];
-
   if (isWeakSecret(jwtSecret, 32)) {
-    problems.push('JWT_SECRET precisa ter pelo menos 32 caracteres e nao pode ser um valor de exemplo');
-  }
-
-  if (isWeakSecret(masterRegistrationKey, 16)) {
-    problems.push('MASTER_REGISTRATION_KEY precisa ter pelo menos 16 caracteres e nao pode ser um valor de exemplo');
-  }
-
-  if (problems.length > 0) {
-    throw new Error(`Configuracao invalida para producao: ${problems.join('; ')}.`);
+    throw new Error(
+      'Configuracao invalida para producao: JWT_SECRET precisa ter pelo menos 32 caracteres e nao pode ser um valor de exemplo.'
+    );
   }
 }
 

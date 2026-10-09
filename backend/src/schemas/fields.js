@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ROLES } from '../config/roles.js';
 
 export function requiredText(field, maxLength = 255) {
   const required = `${field} e obrigatorio.`;
@@ -33,8 +32,3 @@ export const email = requiredText('Email', 255).toLowerCase().pipe(z.email('Emai
 export const password = z
   .string({ error: 'Senha deve ter pelo menos 6 caracteres.' })
   .min(6, 'Senha deve ter pelo menos 6 caracteres.');
-
-export const role = z.preprocess(
-  (value) => (value ? String(value).trim().toUpperCase() : ROLES.PLAYER),
-  z.enum([ROLES.GAME_MASTER, ROLES.PLAYER], { error: 'Tipo de usuario invalido.' })
-);

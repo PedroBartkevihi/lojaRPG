@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import { email, password, requiredText, role } from './fields.js';
-
-export const roleSchema = role;
+import { email, password, requiredText } from './fields.js';
 
 export const registerSchema = z.object({
   name: requiredText('Nome', 120),

@@ -5,7 +5,22 @@ async function parseResponse(response) {
   return text ? JSON.parse(text) : {};
 }
 
-export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefresh) {
+function withQuery(path, params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, value);
+    }
+  });
+  const query = search.toString();
+  return `${path}${query ? `?${query}` : ''}`;
+}
+
+// `getCampaignId` devolve a mesa ativa; as rotas da loja ficam todas abaixo
+// de /campaigns/:id.
+export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefresh, getCampaignId) {
+  const campaignPath = (path = '') => `/campaigns/${getCampaignId?.()}${path}`;
+
   async function request(path, options = {}) {
     const retry = options.retry !== false;
     const headers = {
@@ -67,75 +82,37 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     refresh: (body) => request('/auth/refresh', { method: 'POST', body, retry: false }),
     logout: (body) => request('/auth/logout', { method: 'POST', body, retry: false }),
     me: () => request('/auth/me'),
-    listItems: (params = {}) => {
-      const search = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          search.set(key, value);
-        }
-      });
-      const query = search.toString();
-      return request(`/items${query ? `?${query}` : ''}`);
-    },
-    createItem: (body) => request('/items', { method: 'POST', body }),
-    updateItem: (id, body) => request(`/items/${id}`, { method: 'PUT', body }),
-    deleteItem: (id) => request(`/items/${id}`, { method: 'DELETE' }),
-    reactivateItem: (id) => request(`/items/${id}/reactivate`, { method: 'PATCH' }),
-    listCategories: () => request('/catalog/categories'),
-    createCategory: (body) => request('/catalog/categories', { method: 'POST', body }),
-    updateCategory: (id, body) => request(`/catalog/categories/${id}`, { method: 'PUT', body }),
-    deleteCategory: (id) => request(`/catalog/categories/${id}`, { method: 'DELETE' }),
-    listRarities: () => request('/catalog/rarities'),
-    createRarity: (body) => request('/catalog/rarities', { method: 'POST', body }),
-    updateRarity: (id, body) => request(`/catalog/rarities/${id}`, { method: 'PUT', body }),
-    deleteRarity: (id) => request(`/catalog/rarities/${id}`, { method: 'DELETE' }),
-    listStockMovements: (params = {}) => {
-      const search = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          search.set(key, value);
-        }
-      });
-      const query = search.toString();
-      return request(`/catalog/stock-movements${query ? `?${query}` : ''}`);
-    },
-    myCharacter: () => request('/characters/me'),
-    createCharacter: (body) => request('/characters', { method: 'POST', body }),
-    updateCharacter: (id, body) => request(`/characters/${id}`, { method: 'PUT', body }),
-    listCharacters: () => request('/characters'),
-    changeGold: (id, body) => request(`/characters/${id}/gold`, { method: 'PATCH', body }),
-    listGoldAudit: (params = {}) => {
-      const search = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          search.set(key, value);
-        }
-      });
-      const query = search.toString();
-      return request(`/characters/gold-audit${query ? `?${query}` : ''}`);
-    },
-    myInventory: (params = {}) => {
-      const search = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          search.set(key, value);
-        }
-      });
-      const query = search.toString();
-      return request(`/inventory/me${query ? `?${query}` : ''}`);
-    },
-    inventoryByCharacter: (id) => request(`/inventory/${id}`),
-    createPurchase: (body) => request('/purchases', { method: 'POST', body }),
-    myPurchases: (params = {}) => {
-      const search = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          search.set(key, value);
-        }
-      });
-      const query = search.toString();
-      return request(`/purchases/me${query ? `?${query}` : ''}`);
-    },
-    listPurchases: () => request('/purchases')
+    listCampaigns: () => request('/campaigns'),
+    createCampaign: (body) => request('/campaigns', { method: 'POST', body }),
+    joinCampaign: (body) => request('/campaigns/join', { method: 'POST', body }),
+    getCampaign: () => request(campaignPath()),
+    deleteCampaign: () => request(campaignPath(), { method: 'DELETE' }),
+    regenerateInviteCode: () => request(campaignPath('/invite-code'), { method: 'POST' }),
+    removeMember: (userId) => request(campaignPath(`/members/${userId}`), { method: 'DELETE' }),
+    listItems: (params = {}) => request(withQuery(campaignPath('/items'), params)),
+    createItem: (body) => request(campaignPath('/items'), { method: 'POST', body }),
+    updateItem: (id, body) => request(campaignPath(`/items/${id}`), { method: 'PUT', body }),
+    deleteItem: (id) => request(campaignPath(`/items/${id}`), { method: 'DELETE' }),
+    reactivateItem: (id) => request(campaignPath(`/items/${id}/reactivate`), { method: 'PATCH' }),
+    listCategories: () => request(campaignPath('/catalog/categories')),
+    createCategory: (body) => request(campaignPath('/catalog/categories'), { method: 'POST', body }),
+    updateCategory: (id, body) => request(campaignPath(`/catalog/categories/${id}`), { method: 'PUT', body }),
+    deleteCategory: (id) => request(campaignPath(`/catalog/categories/${id}`), { method: 'DELETE' }),
+    listRarities: () => request(campaignPath('/catalog/rarities')),
+    createRarity: (body) => request(campaignPath('/catalog/rarities'), { method: 'POST', body }),
+    updateRarity: (id, body) => request(campaignPath(`/catalog/rarities/${id}`), { method: 'PUT', body }),
+    deleteRarity: (id) => request(campaignPath(`/catalog/rarities/${id}`), { method: 'DELETE' }),
+    listStockMovements: (params = {}) => request(withQuery(campaignPath('/catalog/stock-movements'), params)),
+    myCharacter: () => request(campaignPath('/characters/me')),
+    createCharacter: (body) => request(campaignPath('/characters'), { method: 'POST', body }),
+    updateCharacter: (id, body) => request(campaignPath(`/characters/${id}`), { method: 'PUT', body }),
+    listCharacters: () => request(campaignPath('/characters')),
+    changeGold: (id, body) => request(campaignPath(`/characters/${id}/gold`), { method: 'PATCH', body }),
+    listGoldAudit: (params = {}) => request(withQuery(campaignPath('/characters/gold-audit'), params)),
+    myInventory: (params = {}) => request(withQuery(campaignPath('/inventory/me'), params)),
+    inventoryByCharacter: (id) => request(campaignPath(`/inventory/${id}`)),
+    createPurchase: (body) => request(campaignPath('/purchases'), { method: 'POST', body }),
+    myPurchases: (params = {}) => request(withQuery(campaignPath('/purchases/me'), params)),
+    listPurchases: () => request(campaignPath('/purchases'))
   };
 }

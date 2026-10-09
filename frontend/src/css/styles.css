@@ -642,6 +642,35 @@ textarea:focus {
   gap: 0.7rem;
 }
 
+.form-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.auth-hint {
+  margin-bottom: 1rem;
+  color: #ffe3a0;
+}
+
+.campaign-row > svg {
+  color: var(--gold);
+}
+
+.invite-code {
+  margin: 0.9rem 0;
+  color: #ffe3a0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.invite-link {
+  margin-bottom: 0.9rem;
+  font-size: 0.86rem;
+}
+
 @media (max-width: 1000px) {
   .topbar,
   .content-grid,

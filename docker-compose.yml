@@ -31,7 +31,6 @@ services:
       REFRESH_TOKEN_EXPIRES_IN_DAYS: 7
       CORS_ORIGIN: "http://localhost:8080"
       DATABASE_URL: "postgresql://lojarpg:${POSTGRES_PASSWORD:-lojarpg}@db:5432/lojarpg"
-      MASTER_REGISTRATION_KEY: "${MASTER_REGISTRATION_KEY:-}"
     depends_on:
       db:
         condition: service_healthy

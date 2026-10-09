@@ -9,7 +9,6 @@ export function mapUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
     createdAt: user.createdAt
   };
 }
@@ -19,8 +18,7 @@ export async function createUser(data, prisma = getPrisma()) {
     data: {
       name: data.name,
       email: data.email,
-      passwordHash: data.passwordHash,
-      role: data.role
+      passwordHash: data.passwordHash
     }
   });
 
@@ -46,12 +44,7 @@ export async function findUserByEmailWithPassword(email, prisma = getPrisma()) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
     passwordHash: user.passwordHash,
     createdAt: user.createdAt
   };
-}
-
-export async function countUsers(prisma = getPrisma()) {
-  return prisma.user.count();
 }

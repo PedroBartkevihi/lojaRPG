@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { seed } from '../prisma/seed.js';
+import { resetDemo, seed } from '../prisma/seed.js';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(testDir, '..');
@@ -26,7 +26,9 @@ process.env.DATABASE_URL = testDatabaseUrl;
 process.env.JWT_SECRET = 'test-secret';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.CORS_ORIGIN = 'http://localhost:5173,http://127.0.0.1:5173';
-process.env.MASTER_REGISTRATION_KEY = 'test-master-key';
+
+// Mesa de demonstracao do seed: Mestre do Cofre e os jogadores Aria, Borin e Lia.
+const DEMO = '/campaigns/1';
 
 let app;
 let closeDatabase;
@@ -46,6 +48,22 @@ async function login(email, password = 'jogador123') {
   return tokenCache.get(email);
 }
 
+function as(token) {
+  return {
+    get: (url) => request(app).get(url).set('Authorization', `Bearer ${token}`),
+    post: (url, body) => request(app).post(url).set('Authorization', `Bearer ${token}`).send(body),
+    put: (url, body) => request(app).put(url).set('Authorization', `Bearer ${token}`).send(body),
+    patch: (url, body) => request(app).patch(url).set('Authorization', `Bearer ${token}`).send(body),
+    delete: (url) => request(app).delete(url).set('Authorization', `Bearer ${token}`)
+  };
+}
+
+async function createCampaign(token, name = 'Mesa do Borin') {
+  const response = await as(token).post('/campaigns', { name });
+  expect(response.status).toBe(201);
+  return response.body.campaign;
+}
+
 beforeAll(async () => {
   execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], { cwd: backendRoot, stdio: 'pipe' });
   ({ closeDatabase, getPrisma } = await import('../src/database/connection.js'));
@@ -61,7 +79,7 @@ afterAll(async () => {
 });
 
 describe('validacao das entradas', () => {
-  it('recusa cadastro com email invalido ou personagem incompleto', async () => {
+  it('recusa cadastro com email invalido ou sem nome', async () => {
     const invalidEmail = await request(app).post('/auth/register').send({
       name: 'Teste',
       email: 'sem-arroba',
@@ -71,24 +89,30 @@ describe('validacao das entradas', () => {
     expect(invalidEmail.status).toBe(400);
     expect(invalidEmail.body.message).toBe('Email invalido.');
 
-    const missingClass = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Teste',
-        email: 'teste@lojarpg.local',
-        password: 'segredo1',
-        character: { name: 'Heroi', race: 'Humano' }
-      });
+    const missingName = await request(app).post('/auth/register').send({
+      name: '  ',
+      email: 'teste@lojarpg.local',
+      password: 'segredo1'
+    });
 
-    expect(missingClass.status).toBe(400);
-    expect(missingClass.body.message).toBe('Classe e obrigatorio.');
+    expect(missingName.status).toBe(400);
+    expect(missingName.body.message).toBe('Nome e obrigatorio.');
+  });
+
+  it('recusa personagem incompleto', async () => {
+    const playerToken = await login('lia@lojarpg.local');
+
+    const response = await as(playerToken).post(`${DEMO}/characters`, { name: 'Heroi', race: 'Humano', level: 1 });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('Classe e obrigatorio.');
   });
 
   it('recusa carrinho vazio ou com quantidade invalida', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const emptyCart = await request(app)
-      .post('/purchases')
+      .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({ items: [] });
 
@@ -96,7 +120,7 @@ describe('validacao das entradas', () => {
     expect(emptyCart.body.message).toBe('Carrinho vazio.');
 
     const zeroQuantity = await request(app)
-      .post('/purchases')
+      .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({ items: [{ itemId: 6, quantity: 0 }] });
 
@@ -108,7 +132,7 @@ describe('validacao das entradas', () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
-      .get('/purchases/me?characterId=abc')
+      .get(`${DEMO}/purchases/me?characterId=abc`)
       .set('Authorization', `Bearer ${playerToken}`);
 
     expect(response.status).toBe(400);
@@ -119,7 +143,7 @@ describe('validacao das entradas', () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
     const partialUpdate = await request(app)
-      .put('/items/1')
+      .put(`${DEMO}/items/1`)
       .set('Authorization', `Bearer ${masterToken}`)
       .send({ description: 'Forjada por anoes.' });
 
@@ -132,7 +156,7 @@ describe('validacao das entradas', () => {
     });
 
     const invalidPrice = await request(app)
-      .put('/items/1')
+      .put(`${DEMO}/items/1`)
       .set('Authorization', `Bearer ${masterToken}`)
       .send({ price: -10 });
 
@@ -167,10 +191,8 @@ describe('autenticacao e autorizacao', () => {
     expect(response.body.accessToken).toEqual(expect.any(String));
     expect(response.body.token).toEqual(expect.any(String));
     expect(response.body.refreshToken).toEqual(expect.any(String));
-    expect(response.body.user).toMatchObject({
-      email: 'mestre@lojarpg.local',
-      role: 'MESTRE'
-    });
+    expect(response.body.user).toMatchObject({ email: 'mestre@lojarpg.local' });
+    expect(response.body.user).not.toHaveProperty('role');
   });
 
   it('renova access token com refresh token e revoga no logout', async () => {
@@ -200,7 +222,7 @@ describe('autenticacao e autorizacao', () => {
   });
 
   it('bloqueia rotas protegidas sem token', async () => {
-    const response = await request(app).get('/items');
+    const response = await request(app).get(`${DEMO}/items`);
 
     expect(response.status).toBe(401);
     expect(response.body.message).toContain('Token');
@@ -210,7 +232,7 @@ describe('autenticacao e autorizacao', () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
-      .post('/items')
+      .post(`${DEMO}/items`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({
         name: 'Tocha Azul',
@@ -228,7 +250,7 @@ describe('autenticacao e autorizacao', () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
-      .patch('/characters/1/gold')
+      .patch(`${DEMO}/characters/1/gold`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({ amount: 100, mode: 'adjust', reason: 'Teste indevido' });
 
@@ -239,7 +261,7 @@ describe('autenticacao e autorizacao', () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
     const response = await request(app)
-      .patch('/characters/1/gold')
+      .patch(`${DEMO}/characters/1/gold`)
       .set('Authorization', `Bearer ${masterToken}`)
       .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' });
 
@@ -253,7 +275,7 @@ describe('autenticacao e autorizacao', () => {
     });
 
     const auditResponse = await request(app)
-      .get('/characters/gold-audit')
+      .get(`${DEMO}/characters/gold-audit`)
       .set('Authorization', `Bearer ${masterToken}`);
 
     expect(auditResponse.status).toBe(200);
@@ -266,7 +288,7 @@ describe('itens', () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
     const createResponse = await request(app)
-      .post('/items')
+      .post(`${DEMO}/items`)
       .set('Authorization', `Bearer ${masterToken}`)
       .send({
         name: 'Mapa do Tesouro',
@@ -281,7 +303,7 @@ describe('itens', () => {
     const itemId = createResponse.body.item.id;
 
     const updateResponse = await request(app)
-      .put(`/items/${itemId}`)
+      .put(`${DEMO}/items/${itemId}`)
       .set('Authorization', `Bearer ${masterToken}`)
       .send({ price: 55, stock: 3 });
 
@@ -289,7 +311,7 @@ describe('itens', () => {
     expect(updateResponse.body.item).toMatchObject({ price: 55, stock: 3 });
 
     const deleteResponse = await request(app)
-      .delete(`/items/${itemId}`)
+      .delete(`${DEMO}/items/${itemId}`)
       .set('Authorization', `Bearer ${masterToken}`);
 
     expect(deleteResponse.status).toBe(200);
@@ -302,14 +324,14 @@ describe('catalogo', () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
     const categoriesResponse = await request(app)
-      .get('/catalog/categories')
+      .get(`${DEMO}/catalog/categories`)
       .set('Authorization', `Bearer ${masterToken}`);
     const weaponsCategory = categoriesResponse.body.categories.find((category) => category.name === 'Armas');
 
     expect(weaponsCategory.itemCount).toBeGreaterThan(0);
 
     const deleteResponse = await request(app)
-      .delete(`/catalog/categories/${weaponsCategory.id}`)
+      .delete(`${DEMO}/catalog/categories/${weaponsCategory.id}`)
       .set('Authorization', `Bearer ${masterToken}`);
 
     expect(deleteResponse.status).toBe(200);
@@ -317,7 +339,7 @@ describe('catalogo', () => {
     expect(deleteResponse.body.movedItems).toBeGreaterThan(0);
 
     const itemsResponse = await request(app)
-      .get('/items?includeInactive=true')
+      .get(`${DEMO}/items?includeInactive=true`)
       .set('Authorization', `Bearer ${masterToken}`);
     const sword = itemsResponse.body.items.find((item) => item.name === 'Espada Longa');
 
@@ -328,14 +350,14 @@ describe('catalogo', () => {
     const masterToken = await login('mestre@lojarpg.local', 'mestre123');
 
     const raritiesResponse = await request(app)
-      .get('/catalog/rarities')
+      .get(`${DEMO}/catalog/rarities`)
       .set('Authorization', `Bearer ${masterToken}`);
     const rareRarity = raritiesResponse.body.rarities.find((rarity) => rarity.name === 'Raro');
 
     expect(rareRarity.itemCount).toBeGreaterThan(0);
 
     const deleteResponse = await request(app)
-      .delete(`/catalog/rarities/${rareRarity.id}`)
+      .delete(`${DEMO}/catalog/rarities/${rareRarity.id}`)
       .set('Authorization', `Bearer ${masterToken}`);
 
     expect(deleteResponse.status).toBe(200);
@@ -343,7 +365,7 @@ describe('catalogo', () => {
     expect(deleteResponse.body.movedItems).toBeGreaterThan(0);
 
     const itemsResponse = await request(app)
-      .get('/items?includeInactive=true')
+      .get(`${DEMO}/items?includeInactive=true`)
       .set('Authorization', `Bearer ${masterToken}`);
     const invisibilityPotion = itemsResponse.body.items.find((item) => item.name === 'Pocao de Invisibilidade');
 
@@ -356,7 +378,7 @@ describe('compras e inventario', () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
-      .post('/purchases')
+      .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({ items: [{ itemId: 7, quantity: 2 }] });
 
@@ -368,7 +390,7 @@ describe('compras e inventario', () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
-      .post('/purchases')
+      .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({ items: [{ itemId: 9, quantity: 2 }] });
 
@@ -380,7 +402,7 @@ describe('compras e inventario', () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const purchaseResponse = await request(app)
-      .post('/purchases')
+      .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
       .send({ items: [{ itemId: 6, quantity: 1 }] });
 
@@ -388,7 +410,7 @@ describe('compras e inventario', () => {
     expect(purchaseResponse.body.character.gold).toBe(200);
 
     const inventoryResponse = await request(app)
-      .get('/inventory/me')
+      .get(`${DEMO}/inventory/me`)
       .set('Authorization', `Bearer ${playerToken}`);
 
     expect(inventoryResponse.status).toBe(200);
@@ -402,7 +424,7 @@ describe('compras e inventario', () => {
     );
 
     const historyResponse = await request(app)
-      .get('/purchases/me')
+      .get(`${DEMO}/purchases/me`)
       .set('Authorization', `Bearer ${playerToken}`);
 
     expect(historyResponse.status).toBe(200);
@@ -417,7 +439,7 @@ describe('compras e inventario', () => {
     const responses = await Promise.all(
       tokens.map((token) =>
         request(app)
-          .post('/purchases')
+          .post(`${DEMO}/purchases`)
           .set('Authorization', `Bearer ${token}`)
           .send({ items: [{ itemId: 8, quantity: 1 }] })
       )
@@ -436,7 +458,7 @@ describe('compras e inventario', () => {
     const responses = await Promise.all(
       [1, 2].map(() =>
         request(app)
-          .post('/purchases')
+          .post(`${DEMO}/purchases`)
           .set('Authorization', `Bearer ${playerToken}`)
           .send({ items: [{ itemId: 7, quantity: 1 }] })
       )
@@ -457,11 +479,11 @@ describe('compras e inventario', () => {
 
     const [purchaseResponse, goldResponse] = await Promise.all([
       request(app)
-        .post('/purchases')
+        .post(`${DEMO}/purchases`)
         .set('Authorization', `Bearer ${playerToken}`)
         .send({ items: [{ itemId: 7, quantity: 1 }] }),
       request(app)
-        .patch('/characters/1/gold')
+        .patch(`${DEMO}/characters/1/gold`)
         .set('Authorization', `Bearer ${masterToken}`)
         .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessao' })
     ]);
@@ -489,11 +511,11 @@ describe('compras e inventario', () => {
 
     const [purchaseResponse, editResponse] = await Promise.all([
       request(app)
-        .post('/purchases')
+        .post(`${DEMO}/purchases`)
         .set('Authorization', `Bearer ${playerToken}`)
         .send({ items: [{ itemId: 8, quantity: 1 }] }),
       request(app)
-        .put('/items/8')
+        .put(`${DEMO}/items/8`)
         .set('Authorization', `Bearer ${masterToken}`)
         .send({ price: 200 })
     ]);
@@ -506,5 +528,270 @@ describe('compras e inventario', () => {
 
     expect(scroll.stock).toBe(1);
     expect(movements.reduce((total, movement) => total + movement.delta, 0)).toBe(scroll.stock - 2);
+  });
+});
+
+describe('mesas', () => {
+  it('cria conta sem papel e a mesa nova ja vem com o catalogo inicial', async () => {
+    const register = await request(app).post('/auth/register').send({
+      name: 'Pedro',
+      email: 'pedro@exemplo.com',
+      password: 'segredo1',
+      role: 'MESTRE'
+    });
+
+    expect(register.status).toBe(201);
+    expect(register.body.user).not.toHaveProperty('role');
+
+    const pedro = as(register.body.token);
+    expect((await pedro.get('/campaigns')).body.campaigns).toEqual([]);
+
+    const campaign = await createCampaign(register.body.token, 'Mesa do Pedro');
+
+    expect(campaign).toMatchObject({ name: 'Mesa do Pedro', role: 'MESTRE', memberCount: 1 });
+    expect(campaign.inviteCode).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+
+    const items = await pedro.get(`/campaigns/${campaign.id}/items`);
+    const categories = await pedro.get(`/campaigns/${campaign.id}/catalog/categories`);
+
+    expect(items.body.items).toHaveLength(10);
+    expect(items.body.items.every((item) => item.campaignId === campaign.id)).toBe(true);
+    expect(categories.body.categories.map((category) => category.name)).toContain('Armas');
+    expect((await pedro.get('/campaigns')).body.campaigns).toEqual([expect.objectContaining({ id: campaign.id })]);
+  });
+
+  it('a mesma conta e jogador numa mesa e Mestre em outra', async () => {
+    const borinToken = await login('borin@lojarpg.local');
+    const campaign = await createCampaign(borinToken);
+
+    const list = await as(borinToken).get('/campaigns');
+
+    expect(list.body.campaigns).toEqual([
+      expect.objectContaining({ id: 1, role: 'JOGADOR' }),
+      expect.objectContaining({ id: campaign.id, role: 'MESTRE' })
+    ]);
+    expect(list.body.campaigns[0]).not.toHaveProperty('inviteCode');
+
+    const createInDemo = await as(borinToken).post(`${DEMO}/items`, {
+      name: 'Tocha',
+      category: 'Equipamentos',
+      price: 1,
+      rarity: 'Comum',
+      stock: 1
+    });
+    expect(createInDemo.status).toBe(403);
+
+    const createInOwn = await as(borinToken).post(`/campaigns/${campaign.id}/items`, {
+      name: 'Tocha',
+      category: 'Equipamentos',
+      price: 1,
+      rarity: 'Comum',
+      stock: 1
+    });
+    expect(createInOwn.status).toBe(201);
+  });
+
+  it('jogador entra pelo codigo de convite e cria personagem na mesa', async () => {
+    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const campaign = await createCampaign(borinToken);
+    const typedCode = `${campaign.inviteCode.slice(0, 4)}-${campaign.inviteCode.slice(4)}`.toLowerCase();
+
+    const join = await as(liaToken).post('/campaigns/join', { inviteCode: typedCode });
+
+    expect(join.status).toBe(201);
+    expect(join.body.campaign).toMatchObject({ id: campaign.id, role: 'JOGADOR', memberCount: 2 });
+    expect(join.body.campaign).not.toHaveProperty('inviteCode');
+
+    const joinAgain = await as(liaToken).post('/campaigns/join', { inviteCode: campaign.inviteCode });
+    expect(joinAgain.status).toBe(200);
+    expect(joinAgain.body.message).toContain('ja participa');
+
+    const wrongCode = await as(liaToken).post('/campaigns/join', { inviteCode: 'ZZZZZZZZ' });
+    expect(wrongCode.status).toBe(404);
+    expect(wrongCode.body.message).toBe('Codigo de convite invalido.');
+
+    const malformedCode = await as(liaToken).post('/campaigns/join', { inviteCode: 'ABC' });
+    expect(malformedCode.status).toBe(400);
+
+    const lia = as(liaToken);
+    expect((await lia.get(`/campaigns/${campaign.id}/characters/me`)).body.characters).toEqual([]);
+
+    const character = await lia.post(`/campaigns/${campaign.id}/characters`, {
+      name: 'Lia Sombra',
+      className: 'Bruxa',
+      race: 'Tiefling',
+      level: 2
+    });
+    expect(character.status).toBe(201);
+    expect(character.body.character).toMatchObject({ campaignId: campaign.id, gold: 0 });
+
+    const masterView = await as(borinToken).get(`/campaigns/${campaign.id}/characters`);
+    expect(masterView.body.characters.map((entry) => entry.name)).toEqual(['Lia Sombra']);
+
+    const details = await lia.get(`/campaigns/${campaign.id}`);
+    expect(details.body.members).toEqual([
+      expect.objectContaining({ name: 'Borin', role: 'MESTRE', characters: [] }),
+      expect.objectContaining({
+        name: 'Lia',
+        role: 'JOGADOR',
+        characters: [expect.objectContaining({ name: 'Lia Sombra', className: 'Bruxa' })]
+      })
+    ]);
+  });
+
+  it('uma mesa nao ve nem altera itens, personagens e catalogo de outra', async () => {
+    const [borinToken, masterToken, ariaToken] = [
+      await login('borin@lojarpg.local'),
+      await login('mestre@lojarpg.local', 'mestre123'),
+      await login('aria@lojarpg.local')
+    ];
+    const campaign = await createCampaign(borinToken);
+    const borin = as(borinToken);
+    const ownItems = (await borin.get(`/campaigns/${campaign.id}/items`)).body.items;
+
+    const outsider = await as(masterToken).get(`/campaigns/${campaign.id}/items`);
+    expect(outsider.status).toBe(404);
+    expect(outsider.body.message).toBe('Mesa nao encontrada.');
+
+    const foreignGold = await borin.patch(`/campaigns/${campaign.id}/characters/1/gold`, {
+      amount: 1000,
+      mode: 'adjust',
+      reason: 'Tentativa entre mesas'
+    });
+    expect(foreignGold.status).toBe(404);
+
+    const foreignItem = await borin.put(`/campaigns/${campaign.id}/items/1`, { price: 1 });
+    expect(foreignItem.status).toBe(404);
+
+    const foreignCategory = await borin.delete(`/campaigns/${campaign.id}/catalog/categories/1`);
+    expect(foreignCategory.status).toBe(404);
+    expect(foreignCategory.body.message).toBe('Categoria nao encontrada.');
+
+    const crossPurchase = await as(ariaToken).post(`${DEMO}/purchases`, {
+      items: [{ itemId: ownItems[0].id, quantity: 1 }]
+    });
+    expect(crossPurchase.status).toBe(404);
+
+    const newItem = await borin.post(`/campaigns/${campaign.id}/items`, {
+      name: 'Machado Runico',
+      category: 'Armas',
+      price: 120,
+      rarity: 'Raro',
+      stock: 1
+    });
+    expect(newItem.status).toBe(201);
+    expect(newItem.body.item.categoryId).not.toBe(1);
+
+    const demoItems = await as(ariaToken).get(`${DEMO}/items?search=Machado`);
+    expect(demoItems.body.items).toEqual([]);
+
+    const prisma = getPrisma();
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 250 });
+    expect(await prisma.item.findUnique({ where: { id: 1 } })).toMatchObject({ price: 75 });
+  });
+
+  it('Mestre troca o codigo, remove jogador e ele volta com os personagens', async () => {
+    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const campaign = await createCampaign(borinToken);
+    const [borin, lia] = [as(borinToken), as(liaToken)];
+    const base = `/campaigns/${campaign.id}`;
+
+    await lia.post('/campaigns/join', { inviteCode: campaign.inviteCode });
+    await lia.post(`${base}/characters`, { name: 'Lia Sombra', className: 'Bruxa', race: 'Tiefling', level: 2 });
+
+    const playerRegenerate = await lia.post(`${base}/invite-code`);
+    expect(playerRegenerate.status).toBe(403);
+
+    const regenerated = await borin.post(`${base}/invite-code`);
+    expect(regenerated.status).toBe(200);
+    expect(regenerated.body.campaign.inviteCode).not.toBe(campaign.inviteCode);
+
+    const playerRemovesMaster = await lia.delete(`${base}/members/3`);
+    expect(playerRemovesMaster.status).toBe(403);
+
+    const masterLeaves = await borin.delete(`${base}/members/3`);
+    expect(masterLeaves.status).toBe(400);
+
+    const removed = await borin.delete(`${base}/members/4`);
+    expect(removed.status).toBe(200);
+    expect((await lia.get(`${base}/items`)).status).toBe(404);
+    expect((await borin.get(`${base}/characters`)).body.characters).toEqual([]);
+
+    const oldCode = await lia.post('/campaigns/join', { inviteCode: campaign.inviteCode });
+    expect(oldCode.status).toBe(404);
+
+    const rejoin = await lia.post('/campaigns/join', { inviteCode: regenerated.body.campaign.inviteCode });
+    expect(rejoin.status).toBe(201);
+    expect((await lia.get(`${base}/characters/me`)).body.characters).toEqual([
+      expect.objectContaining({ name: 'Lia Sombra' })
+    ]);
+
+    const leave = await lia.delete(`${base}/members/4`);
+    expect(leave.status).toBe(200);
+    expect(leave.body.message).toContain('Voce saiu');
+  });
+
+  it('Mestre exclui a mesa mesmo com compras e inventario', async () => {
+    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const campaign = await createCampaign(borinToken);
+    const [borin, lia] = [as(borinToken), as(liaToken)];
+    const base = `/campaigns/${campaign.id}`;
+
+    await lia.post('/campaigns/join', { inviteCode: campaign.inviteCode });
+    const character = (
+      await lia.post(`${base}/characters`, { name: 'Lia Sombra', className: 'Bruxa', race: 'Tiefling', level: 2 })
+    ).body.character;
+    await borin.patch(`${base}/characters/${character.id}/gold`, { amount: 100, mode: 'adjust', reason: 'Inicio' });
+    const potion = (await lia.get(`${base}/items?search=Cura`)).body.items[0];
+
+    const purchase = await lia.post(`${base}/purchases`, {
+      characterId: character.id,
+      items: [{ itemId: potion.id, quantity: 1 }]
+    });
+    expect(purchase.status).toBe(201);
+
+    expect((await lia.delete(base)).status).toBe(403);
+
+    const removed = await borin.delete(base);
+    expect(removed.status).toBe(200);
+    expect((await lia.get('/campaigns')).body.campaigns.map((entry) => entry.id)).toEqual([1]);
+
+    const prisma = getPrisma();
+    expect(await prisma.item.count({ where: { campaignId: campaign.id } })).toBe(0);
+    expect(await prisma.character.count({ where: { campaignId: campaign.id } })).toBe(0);
+    expect(await prisma.item.count({ where: { campaignId: 1 } })).toBe(10);
+  });
+
+  it('o reset da demonstracao preserva as mesas reais', async () => {
+    const register = await request(app).post('/auth/register').send({
+      name: 'Pedro',
+      email: 'pedro@exemplo.com',
+      password: 'segredo1'
+    });
+    const realCampaign = await createCampaign(register.body.token, 'Mesa do Pedro');
+    const ariaToken = await login('aria@lojarpg.local');
+    const ariaCampaign = await createCampaign(ariaToken, 'Mesa criada na demo');
+
+    await as(ariaToken).post('/campaigns/join', { inviteCode: realCampaign.inviteCode });
+    await as(ariaToken).post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] });
+
+    await resetDemo(getPrisma());
+
+    const prisma = getPrisma();
+    const campaigns = await prisma.campaign.findMany({ orderBy: { id: 'asc' } });
+
+    expect(campaigns.map((campaign) => campaign.name)).toEqual(['Mesa de demonstracao', 'Mesa do Pedro']);
+    expect(campaigns.some((campaign) => campaign.id === ariaCampaign.id)).toBe(false);
+    expect(await prisma.campaignMember.findMany({ where: { campaignId: realCampaign.id } })).toEqual([
+      expect.objectContaining({ userId: register.body.user.id, role: 'MESTRE' })
+    ]);
+    expect(await prisma.item.count({ where: { campaignId: realCampaign.id } })).toBe(10);
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 250 });
+    expect(await prisma.purchase.count()).toBe(0);
+
+    const newUser = await prisma.user.create({
+      data: { name: 'Depois do reset', email: 'depois@exemplo.com', passwordHash: 'x' }
+    });
+    expect(newUser.id).toBeGreaterThan(register.body.user.id);
   });
 });
