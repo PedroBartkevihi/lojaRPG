@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Coins, PackagePlus, Pencil, RefreshCcw, Save, Trash2, X } from 'lucide-react';
+import { Coins, Gift, PackagePlus, Pencil, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import AdminItemForm from '../components/AdminItemForm.jsx';
+import InventoryLogList from '../components/InventoryLogList.jsx';
 import PurchaseHistory from '../components/PurchaseHistory.jsx';
+import RewardsPanel from '../components/RewardsPanel.jsx';
 
 export default function AdminPage({ api, showNotice, onRefresh }) {
   const [items, setItems] = useState([]);
@@ -10,6 +12,7 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
   const [categories, setCategories] = useState([]);
   const [rarities, setRarities] = useState([]);
   const [stockMovements, setStockMovements] = useState([]);
+  const [inventoryLogs, setInventoryLogs] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [goldInputs, setGoldInputs] = useState({});
   const [goldReasons, setGoldReasons] = useState({});
@@ -28,20 +31,23 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
     setLoading(true);
 
     try {
-      const [itemsData, charactersData, auditData, categoriesData, raritiesData, stockData] = await Promise.all([
-        api.listItems({ includeInactive: true }),
-        api.listCharacters(),
-        api.listGoldAudit(),
-        api.listCategories(),
-        api.listRarities(),
-        api.listStockMovements()
-      ]);
+      const [itemsData, charactersData, auditData, categoriesData, raritiesData, stockData, logsData] =
+        await Promise.all([
+          api.listItems({ includeInactive: true }),
+          api.listCharacters(),
+          api.listGoldAudit(),
+          api.listCategories(),
+          api.listRarities(),
+          api.listStockMovements(),
+          api.listInventoryLogs()
+        ]);
       setItems(itemsData.items);
       setCharacters(charactersData.characters);
       setGoldAuditLogs(auditData.logs);
       setCategories(categoriesData.categories);
       setRarities(raritiesData.rarities);
       setStockMovements(stockData.movements);
+      setInventoryLogs(logsData.logs);
     } finally {
       setLoading(false);
     }
@@ -332,7 +338,8 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
                   <div>
                     <strong>{item.name}</strong>
                     <span>
-                      {item.category} - {item.rarity} - {item.price} ouro - estoque {item.stock} -{' '}
+                      {item.category} - {item.rarity} - {item.price} ouro -{' '}
+                      {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja nao compra'} - estoque {item.stock} -{' '}
                       {item.isActive ? 'ativo' : 'inativo'}
                     </span>
                   </div>
@@ -362,6 +369,16 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
       </div>
 
       <aside className="admin-side">
+        <RewardsPanel
+          api={api}
+          characters={characters}
+          items={items}
+          showNotice={showNotice}
+          onDone={async () => {
+            await loadAdminData();
+            await onRefresh();
+          }}
+        />
         <div className="surface-panel">
           <div className="panel-title">
             <PackagePlus size={20} />
@@ -566,6 +583,13 @@ export default function AdminPage({ api, showNotice, onRefresh }) {
             ))}
             {stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentacao registrada.</p>}
           </div>
+        </div>
+        <div className="surface-panel">
+          <div className="panel-title">
+            <Gift size={20} />
+            <h3>Vendas, usos e recompensas</h3>
+          </div>
+          <InventoryLogList logs={inventoryLogs} showCharacter limit={10} />
         </div>
         <div className="surface-panel">
           <div className="panel-title">
