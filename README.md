@@ -1,5 +1,7 @@
 # lojaRPG
 
+[![CI](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroBartkevihi/lojaRPG/actions/workflows/ci.yml)
+
 Aplicacao web para uma loja de campanha de RPG. O Mestre administra itens,
 categorias, raridades, estoque, personagens e ouro. Jogadores escolhem o
 personagem ativo, montam carrinho e compram itens com o ouro daquele
