@@ -33,7 +33,7 @@ body::before {
   z-index: -2;
   background:
     linear-gradient(90deg, rgba(18, 12, 10, 0.88), rgba(18, 12, 10, 0.6)),
-    url("../assets/shop-background.png") center / cover no-repeat;
+    url("../assets/shop-background.webp") center / cover no-repeat;
 }
 
 body::after {
@@ -606,6 +606,11 @@ textarea:focus {
   margin-bottom: 0.8rem;
 }
 
+/* Sem lista ou texto abaixo, o cabecalho nao deixa espaco vazio no cartao. */
+.history-entry header:last-child {
+  margin-bottom: 0;
+}
+
 .history-entry ul {
   margin: 0;
   padding-left: 1.2rem;
@@ -661,6 +666,12 @@ textarea:focus {
   accent-color: var(--gold);
 }
 
+/* Ao lado de um campo, a caixa fica na altura do campo e nao do rotulo. */
+.form-grid > .checkbox-field {
+  align-self: end;
+  min-height: 42px;
+}
+
 .rewards-panel {
   display: grid;
   gap: 1.2rem;
@@ -707,6 +718,12 @@ textarea:focus {
 
 .campaign-row > svg {
   color: var(--gold);
+}
+
+/* `.admin-row span` vira bloco; o selo de papel precisa continuar em linha
+   para o icone nao grudar no texto. */
+.campaign-row .category-pill {
+  display: inline-flex;
 }
 
 .invite-code {
