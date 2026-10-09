@@ -32,19 +32,51 @@ function mapRarity(rarity) {
     : null;
 }
 
-export async function listCategories(prisma = getPrisma()) {
+// Um id de outra mesa responde como inexistente.
+async function findCategoryInCampaign(campaignId, id, prisma) {
+  const category = await prisma.category.findFirst({
+    where: { id: Number(id), campaignId: Number(campaignId) },
+    include: withItemCount
+  });
+
+  if (!category) {
+    throw new ApiError(404, 'Categoria nao encontrada.');
+  }
+
+  return category;
+}
+
+async function findRarityInCampaign(campaignId, id, prisma) {
+  const rarity = await prisma.rarity.findFirst({
+    where: { id: Number(id), campaignId: Number(campaignId) },
+    include: withItemCount
+  });
+
+  if (!rarity) {
+    throw new ApiError(404, 'Raridade nao encontrada.');
+  }
+
+  return rarity;
+}
+
+export async function listCategories(campaignId, prisma = getPrisma()) {
   const categories = await prisma.category.findMany({
+    where: { campaignId: Number(campaignId) },
     include: withItemCount,
     orderBy: { name: 'asc' }
   });
   return categories.map(mapCategory);
 }
 
-export async function createCategory(data, prisma = getPrisma()) {
-  return mapCategory(await prisma.category.create({ data, include: withItemCount }));
+export async function createCategory(campaignId, data, prisma = getPrisma()) {
+  return mapCategory(
+    await prisma.category.create({ data: { ...data, campaignId: Number(campaignId) }, include: withItemCount })
+  );
 }
 
-export async function updateCategory(id, data, prisma = getPrisma()) {
+export async function updateCategory(campaignId, id, data, prisma = getPrisma()) {
+  await findCategoryInCampaign(campaignId, id, prisma);
+
   return mapCategory(
     await prisma.category.update({
       where: { id: Number(id) },
@@ -57,18 +89,11 @@ export async function updateCategory(id, data, prisma = getPrisma()) {
   );
 }
 
-export async function deleteCategory(id, prisma = getPrisma()) {
+export async function deleteCategory(campaignId, id, prisma = getPrisma()) {
   const categoryId = Number(id);
 
   return prisma.$transaction(async (tx) => {
-    const category = await tx.category.findUnique({
-      where: { id: categoryId },
-      include: withItemCount
-    });
-
-    if (!category) {
-      await tx.category.delete({ where: { id: categoryId } });
-    }
+    const category = await findCategoryInCampaign(campaignId, categoryId, tx);
 
     let movedItems = 0;
     let fallbackCategory = null;
@@ -79,9 +104,9 @@ export async function deleteCategory(id, prisma = getPrisma()) {
       }
 
       fallbackCategory = await tx.category.upsert({
-        where: { name: FALLBACK_CATEGORY_NAME },
+        where: { campaignId_name: { campaignId: category.campaignId, name: FALLBACK_CATEGORY_NAME } },
         update: { updatedAt: new Date().toISOString() },
-        create: { name: FALLBACK_CATEGORY_NAME }
+        create: { campaignId: category.campaignId, name: FALLBACK_CATEGORY_NAME }
       });
 
       const result = await tx.item.updateMany({
@@ -103,19 +128,24 @@ export async function deleteCategory(id, prisma = getPrisma()) {
   });
 }
 
-export async function listRarities(prisma = getPrisma()) {
+export async function listRarities(campaignId, prisma = getPrisma()) {
   const rarities = await prisma.rarity.findMany({
+    where: { campaignId: Number(campaignId) },
     include: withItemCount,
     orderBy: [{ rank: 'asc' }, { name: 'asc' }]
   });
   return rarities.map(mapRarity);
 }
 
-export async function createRarity(data, prisma = getPrisma()) {
-  return mapRarity(await prisma.rarity.create({ data, include: withItemCount }));
+export async function createRarity(campaignId, data, prisma = getPrisma()) {
+  return mapRarity(
+    await prisma.rarity.create({ data: { ...data, campaignId: Number(campaignId) }, include: withItemCount })
+  );
 }
 
-export async function updateRarity(id, data, prisma = getPrisma()) {
+export async function updateRarity(campaignId, id, data, prisma = getPrisma()) {
+  await findRarityInCampaign(campaignId, id, prisma);
+
   return mapRarity(
     await prisma.rarity.update({
       where: { id: Number(id) },
@@ -128,18 +158,11 @@ export async function updateRarity(id, data, prisma = getPrisma()) {
   );
 }
 
-export async function deleteRarity(id, prisma = getPrisma()) {
+export async function deleteRarity(campaignId, id, prisma = getPrisma()) {
   const rarityId = Number(id);
 
   return prisma.$transaction(async (tx) => {
-    const rarity = await tx.rarity.findUnique({
-      where: { id: rarityId },
-      include: withItemCount
-    });
-
-    if (!rarity) {
-      await tx.rarity.delete({ where: { id: rarityId } });
-    }
+    const rarity = await findRarityInCampaign(campaignId, rarityId, tx);
 
     let movedItems = 0;
     let fallbackRarity = null;
@@ -150,9 +173,9 @@ export async function deleteRarity(id, prisma = getPrisma()) {
       }
 
       fallbackRarity = await tx.rarity.upsert({
-        where: { name: FALLBACK_RARITY_NAME },
+        where: { campaignId_name: { campaignId: rarity.campaignId, name: FALLBACK_RARITY_NAME } },
         update: { updatedAt: new Date().toISOString() },
-        create: { name: FALLBACK_RARITY_NAME, rank: 1 }
+        create: { campaignId: rarity.campaignId, name: FALLBACK_RARITY_NAME, rank: 1 }
       });
 
       const result = await tx.item.updateMany({
@@ -174,9 +197,12 @@ export async function deleteRarity(id, prisma = getPrisma()) {
   });
 }
 
-export async function listStockMovements(filters = {}, prisma = getPrisma()) {
+export async function listStockMovements(filters, prisma = getPrisma()) {
   const movements = await prisma.stockMovement.findMany({
-    where: filters.itemId ? { itemId: Number(filters.itemId) } : {},
+    where: {
+      item: { campaignId: Number(filters.campaignId) },
+      ...(filters.itemId ? { itemId: Number(filters.itemId) } : {})
+    },
     include: {
       item: { select: { name: true } },
       actor: { select: { name: true } }

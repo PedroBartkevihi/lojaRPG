@@ -8,23 +8,54 @@ datasource db {
 }
 
 model User {
-  id             Int             @id @default(autoincrement())
+  id             Int              @id @default(autoincrement())
   name           String
-  email          String          @unique
-  passwordHash   String          @map("password_hash")
-  role           String
-  createdAt      DateTime        @default(now()) @map("created_at")
+  email          String           @unique
+  passwordHash   String           @map("password_hash")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  memberships    CampaignMember[]
   characters     Character[]
-  createdItems   Item[]          @relation("ItemCreator")
+  createdItems   Item[]           @relation("ItemCreator")
   refreshTokens  RefreshToken[]
-  goldAuditLogs  GoldAuditLog[]  @relation("GoldAuditActor")
-  stockMovements StockMovement[] @relation("StockMovementActor")
+  goldAuditLogs  GoldAuditLog[]   @relation("GoldAuditActor")
+  stockMovements StockMovement[]  @relation("StockMovementActor")
 
   @@map("users")
 }
 
+// Uma mesa e uma campanha: tem um Mestre, os jogadores convidados e um
+// catalogo proprio. Personagens, itens e o historico ficam presos a ela.
+model Campaign {
+  id         Int              @id @default(autoincrement())
+  name       String
+  inviteCode String           @unique @map("invite_code")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  members    CampaignMember[]
+  characters Character[]
+  categories Category[]
+  rarities   Rarity[]
+  items      Item[]
+
+  @@map("campaigns")
+}
+
+model CampaignMember {
+  id         Int      @id @default(autoincrement())
+  campaignId Int      @map("campaign_id")
+  userId     Int      @map("user_id")
+  role       String
+  joinedAt   DateTime @default(now()) @map("joined_at")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([userId])
+  @@map("campaign_members")
+}
+
 model Character {
   id            Int            @id @default(autoincrement())
+  campaignId    Int            @map("campaign_id")
   userId        Int            @map("user_id")
   name          String
   className     String         @map("class")
@@ -32,40 +63,49 @@ model Character {
   level         Int            @default(1)
   gold          Int            @default(0)
   createdAt     DateTime       @default(now()) @map("created_at")
+  campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   inventory     Inventory[]
   purchases     Purchase[]
   goldAuditLogs GoldAuditLog[]
 
+  @@index([campaignId])
   @@index([userId])
   @@map("characters")
 }
 
 model Category {
   id          Int      @id @default(autoincrement())
-  name        String   @unique
+  campaignId  Int      @map("campaign_id")
+  name        String
   description String   @default("")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   items       Item[]
 
+  @@unique([campaignId, name])
   @@map("categories")
 }
 
 model Rarity {
   id          Int      @id @default(autoincrement())
-  name        String   @unique
+  campaignId  Int      @map("campaign_id")
+  name        String
   rank        Int      @default(1)
   description String   @default("")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   items       Item[]
 
+  @@unique([campaignId, name])
   @@map("rarities")
 }
 
 model Item {
   id             Int             @id @default(autoincrement())
+  campaignId     Int             @map("campaign_id")
   name           String
   categoryId     Int             @map("category_id")
   rarityId       Int             @map("rarity_id")
@@ -77,6 +117,7 @@ model Item {
   isActive       Boolean         @default(true) @map("is_active")
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at")
+  campaign       Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   rarity         Rarity          @relation(fields: [rarityId], references: [id], onDelete: Restrict)
   creator        User?           @relation("ItemCreator", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -84,6 +125,7 @@ model Item {
   purchaseItems  PurchaseItem[]
   stockMovements StockMovement[]
 
+  @@index([campaignId])
   @@index([categoryId])
   @@index([rarityId])
   @@index([name])

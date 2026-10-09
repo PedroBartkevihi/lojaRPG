@@ -4,11 +4,7 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { errorHandler, notFound } from './middlewares/errorMiddleware.js';
 import { authRoutes } from './routes/authRoutes.js';
-import { characterRoutes } from './routes/characterRoutes.js';
-import { catalogRoutes } from './routes/catalogRoutes.js';
-import { inventoryRoutes } from './routes/inventoryRoutes.js';
-import { itemRoutes } from './routes/itemRoutes.js';
-import { purchaseRoutes } from './routes/purchaseRoutes.js';
+import { campaignRoutes } from './routes/campaignRoutes.js';
 
 const app = express();
 
@@ -31,11 +27,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
-app.use('/items', itemRoutes);
-app.use('/characters', characterRoutes);
-app.use('/catalog', catalogRoutes);
-app.use('/inventory', inventoryRoutes);
-app.use('/purchases', purchaseRoutes);
+app.use('/campaigns', campaignRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

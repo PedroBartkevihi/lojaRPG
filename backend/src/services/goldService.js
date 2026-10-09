@@ -3,9 +3,9 @@ import { findCharacterById, replaceCharacterGold } from '../models/characterMode
 import { createGoldAuditLog } from '../models/goldAuditModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
-export async function changeCharacterGold({ actorUserId, characterId, mode, value, reason }) {
+export async function changeCharacterGold({ campaignId, actorUserId, characterId, mode, value, reason }) {
   return withTransaction(async (prisma) => {
-    const character = await findCharacterById(characterId, prisma);
+    const character = await findCharacterById(characterId, campaignId, prisma);
 
     if (!character) {
       throw new ApiError(404, 'Personagem nao encontrado.');
@@ -36,7 +36,7 @@ export async function changeCharacterGold({ actorUserId, characterId, mode, valu
     );
 
     return {
-      character: await findCharacterById(character.id, prisma),
+      character: await findCharacterById(character.id, campaignId, prisma),
       auditLog
     };
   });

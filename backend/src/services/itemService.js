@@ -14,7 +14,7 @@ export async function saveItemChanges(existing, data, actorUserId, stockReason) 
       throw new ApiError(409, STOCK_CHANGED_MESSAGE);
     }
 
-    const item = await updateItem(existing.id, data, prisma);
+    const item = await updateItem(existing.id, { ...data, campaignId: existing.campaignId }, prisma);
 
     if (item.stock !== existing.stock) {
       await createStockMovement(

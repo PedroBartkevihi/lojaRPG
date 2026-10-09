@@ -12,9 +12,9 @@ services:
     region: ohio
     rootDir: backend
     buildCommand: npm ci --include=dev && npx prisma generate
-    # Com DEMO_RESET_ON_START=true o seed recria os dados de demonstracao a
-    # cada inicio; no plano gratuito isso acontece quando a API acorda depois
-    # de 15 minutos parada.
+    # Com DEMO_RESET_ON_START=true o seed recria a mesa de demonstracao e as
+    # contas de exemplo a cada inicio (no plano gratuito, quando a API acorda
+    # depois de 15 minutos parada). As outras mesas nao sao tocadas.
     startCommand: npx prisma migrate deploy && if [ "$DEMO_RESET_ON_START" = "true" ]; then node prisma/seed.js; fi && node src/server.js
     healthCheckPath: /health
     envVars:
@@ -27,8 +27,6 @@ services:
       - key: CORS_ORIGIN
         sync: false
       - key: JWT_SECRET
-        generateValue: true
-      - key: MASTER_REGISTRATION_KEY
         generateValue: true
       - key: DEMO_RESET_ON_START
         value: "true"

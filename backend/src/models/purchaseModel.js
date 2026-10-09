@@ -80,9 +80,12 @@ export async function findPurchaseById(id, prisma = getPrisma()) {
   );
 }
 
-export async function listPurchases(filters = {}, prisma = getPrisma()) {
+export async function listPurchases(filters, prisma = getPrisma()) {
   const purchases = await prisma.purchase.findMany({
-    where: filters.characterId ? { characterId: Number(filters.characterId) } : {},
+    where: {
+      character: { campaignId: Number(filters.campaignId) },
+      ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
+    },
     include: includePurchase,
     orderBy: [{ purchasedAt: 'desc' }, { id: 'desc' }]
   });

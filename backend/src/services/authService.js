@@ -1,15 +1,12 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
-import { ROLES } from '../config/roles.js';
 import { withTransaction } from '../database/transaction.js';
-import { createCharacter } from '../models/characterModel.js';
 import {
   createRefreshToken,
   findRefreshTokenByHash,
   revokeRefreshToken
 } from '../models/refreshTokenModel.js';
 import {
-  countUsers,
   createUser,
   findUserByEmail,
   findUserByEmailWithPassword,
@@ -22,8 +19,7 @@ import { createOpaqueToken, daysFromNow, hashToken } from '../utils/tokens.js';
 function createAccessToken(user) {
   return jwt.sign(
     {
-      sub: user.id,
-      role: user.role
+      sub: user.id
     },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn }
@@ -62,36 +58,18 @@ export async function registerUser(data) {
       throw new ApiError(409, 'Email ja cadastrado.');
     }
 
-    if (data.role === ROLES.GAME_MASTER && (await countUsers(prisma)) > 0 && data.masterKey !== env.masterRegistrationKey) {
-      throw new ApiError(403, 'Chave de cadastro de Mestre invalida.');
-    }
-
+    // A conta nao tem papel: quem cria uma mesa e o Mestre dela, e quem entra
+    // por convite e jogador naquela mesa.
     const user = await createUser(
       {
         name: data.name,
         email: data.email,
-        passwordHash,
-        role: data.role
+        passwordHash
       },
       prisma
     );
 
-    const character =
-      data.role === ROLES.PLAYER && data.character
-        ? await createCharacter(
-            {
-              ...data.character,
-              userId: user.id,
-              gold: 0
-            },
-            prisma
-          )
-        : null;
-
-    return {
-      ...authPayload(user, await issueRefreshToken(user.id, prisma)),
-      character
-    };
+    return authPayload(user, await issueRefreshToken(user.id, prisma));
   });
 }
 
@@ -112,7 +90,6 @@ export async function loginUser(email, password) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
     createdAt: user.createdAt
   };
 

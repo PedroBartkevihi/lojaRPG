@@ -1,12 +1,10 @@
 import { Router } from 'express';
 import * as controller from '../controllers/catalogController.js';
-import { authenticate } from '../middlewares/authMiddleware.js';
 import { requireGameMaster } from '../middlewares/roleMiddleware.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const catalogRoutes = Router();
 
-catalogRoutes.use(authenticate);
 
 catalogRoutes.get('/categories', asyncHandler(controller.categoriesIndex));
 catalogRoutes.post('/categories', requireGameMaster, asyncHandler(controller.categoriesCreate));

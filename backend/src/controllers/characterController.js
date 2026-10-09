@@ -1,14 +1,13 @@
-import { ROLES } from '../config/roles.js';
+import { isGameMaster } from '../middlewares/roleMiddleware.js';
+import { findMembership } from '../models/campaignModel.js';
 import {
   createCharacter,
   findCharacterById,
-  findCharacterByUserId,
   findCharactersByUserId,
   listCharacters,
   updateCharacter
 } from '../models/characterModel.js';
 import { listGoldAuditLogs } from '../models/goldAuditModel.js';
-import { findUserById } from '../models/userModel.js';
 import {
   characterIdSchema,
   characterOwnerSchema,
@@ -48,36 +47,33 @@ function parseCharacter(body, existing) {
   };
 }
 
-function canAccessCharacter(user, character) {
-  return user.role === ROLES.GAME_MASTER || character.userId === user.id;
+function canAccessCharacter(req, character) {
+  return isGameMaster(req) || character.userId === req.user.id;
 }
 
-export async function index(_req, res) {
-  res.json({ characters: await listCharacters() });
+export async function index(req, res) {
+  res.json({ characters: await listCharacters(req.campaign.id) });
 }
 
 export async function me(req, res) {
-  const characters = await findCharactersByUserId(req.user.id);
+  const characters = await findCharactersByUserId(req.user.id, req.campaign.id);
   res.json({ character: characters[0] || null, characters });
 }
 
 export async function create(req, res) {
   const userId =
-    req.user.role === ROLES.GAME_MASTER && req.body.userId
-      ? parse(characterOwnerSchema, req.body.userId)
-      : req.user.id;
+    isGameMaster(req) && req.body.userId ? parse(characterOwnerSchema, req.body.userId) : req.user.id;
 
-  const user = await findUserById(userId);
-
-  if (!user) {
-    throw new ApiError(404, 'Usuario nao encontrado.');
+  if (!(await findMembership(req.campaign.id, userId))) {
+    throw new ApiError(404, 'Participante nao encontrado.');
   }
 
   const data = parseCharacter(req.body);
-  const gold = req.user.role === ROLES.GAME_MASTER ? parse(goldSchema, req.body.gold || 0) : 0;
+  const gold = isGameMaster(req) ? parse(goldSchema, req.body.gold || 0) : 0;
 
   const character = await createCharacter({
     ...data,
+    campaignId: req.campaign.id,
     userId,
     gold
   });
@@ -87,13 +83,13 @@ export async function create(req, res) {
 
 export async function update(req, res) {
   const id = parse(characterIdSchema, req.params.id);
-  const existing = await findCharacterById(id);
+  const existing = await findCharacterById(id, req.campaign.id);
 
   if (!existing) {
     throw new ApiError(404, 'Personagem nao encontrado.');
   }
 
-  if (!canAccessCharacter(req.user, existing)) {
+  if (!canAccessCharacter(req, existing)) {
     throw new ApiError(403, 'Voce nao pode editar este personagem.');
   }
 
@@ -112,6 +108,7 @@ export async function changeGold(req, res) {
 
   res.json(
     await changeCharacterGold({
+      campaignId: req.campaign.id,
       actorUserId: req.user.id,
       characterId: id,
       mode,
@@ -124,5 +121,5 @@ export async function changeGold(req, res) {
 export async function goldAudit(req, res) {
   const characterId = req.query.characterId ? parse(characterIdSchema, req.query.characterId) : undefined;
 
-  res.json({ logs: await listGoldAuditLogs({ characterId }) });
+  res.json({ logs: await listGoldAuditLogs({ campaignId: req.campaign.id, characterId }) });
 }

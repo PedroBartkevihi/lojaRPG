@@ -48,9 +48,12 @@ export async function createGoldAuditLog(data, prisma = getPrisma()) {
   return mapGoldAuditLog(log);
 }
 
-export async function listGoldAuditLogs(filters = {}, prisma = getPrisma()) {
+export async function listGoldAuditLogs(filters, prisma = getPrisma()) {
   const logs = await prisma.goldAuditLog.findMany({
-    where: filters.characterId ? { characterId: Number(filters.characterId) } : {},
+    where: {
+      character: { campaignId: Number(filters.campaignId) },
+      ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
+    },
     include: includeAudit,
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
   });
