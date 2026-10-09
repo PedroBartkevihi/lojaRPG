@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 export const backendRoot = path.resolve(currentDir, '../..');
-export const projectRoot = path.resolve(backendRoot, '..');
 
 dotenv.config({ path: path.join(backendRoot, '.env') });
 
@@ -26,7 +25,6 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-  databaseFile: resolvedDatabaseFile,
   databaseUrl: process.env.DATABASE_URL,
   masterRegistrationKey: process.env.MASTER_REGISTRATION_KEY || 'chave-dev-para-criar-mestre'
 };

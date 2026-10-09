@@ -7,10 +7,9 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "db:init": "node src/database/initDb.js",
-    "db:seed": "node src/database/seedDb.js",
-    "db:reset": "node src/database/resetDb.js",
-    "db:migrate:legacy": "node src/database/migrateLegacyDb.js",
+    "db:init": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset --force",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

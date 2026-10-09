@@ -81,14 +81,17 @@ Em producao, rode migrations de forma controlada antes de subir a nova versao:
 npx prisma migrate deploy
 ```
 
-Se o ambiente ainda usa o SQLite antigo do projeto, faca backup antes e rode:
+A migration `202610090001_check_constraints` recria as tabelas para adicionar
+as regras `CHECK`, dentro de uma transacao. Se um banco existente tiver dados
+invalidos (ouro ou estoque negativo, por exemplo), ela falha sem alterar as
+tabelas. Para seguir, corrija esses registros e rode:
 
 ```bash
-npm run db:migrate:legacy
+npx prisma migrate resolve --rolled-back 202610090001_check_constraints
+npx prisma migrate deploy
 ```
 
-O script cria as tabelas novas, migra os dados existentes e preserva as tabelas
-antigas como `*_legacy_backup` para conferencia.
+Faca backup antes, como em qualquer migration.
 
 ## Backup do SQLite
 

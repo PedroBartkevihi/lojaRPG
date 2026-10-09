@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,8 +7,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(testDir, '..');
-const projectRoot = path.resolve(backendRoot, '..');
-const testDbFile = path.join(backendRoot, 'data', 'test-loja-rpg.sqlite');
+const dataDir = path.join(backendRoot, 'data');
+const testDbFile = path.join(dataDir, 'test-loja-rpg.sqlite');
+const templateDbFile = path.join(dataDir, 'test-template.sqlite');
+const prismaCli = path.join(backendRoot, 'node_modules', 'prisma', 'build', 'index.js');
 
 process.env.NODE_ENV = 'test';
 process.env.DB_FILE = testDbFile;
@@ -19,26 +22,33 @@ process.env.MASTER_REGISTRATION_KEY = 'test-master-key';
 
 let app;
 let closeDatabase;
-let getDatabase;
-let initializeSchema;
+let getPrisma;
 
-function deleteTestDatabase() {
-  for (const suffix of ['', '-wal', '-shm']) {
-    const file = `${testDbFile}${suffix}`;
-
-    if (fs.existsSync(file)) {
-      fs.rmSync(file, { force: true });
-    }
+function deleteDatabaseFiles(file) {
+  for (const suffix of ['', '-journal', '-wal', '-shm']) {
+    fs.rmSync(`${file}${suffix}`, { force: true });
   }
 }
 
-async function seedTestDatabase() {
+// Cria o banco-modelo pelas mesmas migrations e seed usadas fora dos testes.
+function createTemplateDatabase() {
+  fs.mkdirSync(dataDir, { recursive: true });
+  deleteDatabaseFiles(templateDbFile);
+
+  const options = {
+    cwd: backendRoot,
+    env: { ...process.env, DATABASE_URL: 'file:../data/test-template.sqlite' },
+    stdio: 'pipe'
+  };
+
+  execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], options);
+  execFileSync(process.execPath, ['prisma/seed.js'], options);
+}
+
+async function resetTestDatabase() {
   await closeDatabase();
-  deleteTestDatabase();
-  initializeSchema();
-  const seedSql = fs.readFileSync(path.join(projectRoot, 'database', 'seed.sql'), 'utf8');
-  getDatabase().exec(seedSql);
-  await closeDatabase();
+  deleteDatabaseFiles(testDbFile);
+  fs.copyFileSync(templateDbFile, testDbFile);
 }
 
 async function login(email, password = 'jogador123') {
@@ -48,18 +58,35 @@ async function login(email, password = 'jogador123') {
 }
 
 beforeAll(async () => {
-  ({ closeDatabase, getDatabase } = await import('../src/database/connection.js'));
-  ({ initializeSchema } = await import('../src/database/schema.js'));
+  createTemplateDatabase();
+  ({ closeDatabase, getPrisma } = await import('../src/database/connection.js'));
   ({ default: app } = await import('../src/app.js'));
-});
+}, 60000);
 
 beforeEach(async () => {
-  await seedTestDatabase();
+  await resetTestDatabase();
 });
 
 afterAll(async () => {
   await closeDatabase();
-  deleteTestDatabase();
+  deleteDatabaseFiles(testDbFile);
+  deleteDatabaseFiles(templateDbFile);
+});
+
+describe('integridade do banco', () => {
+  it('recusa ouro, estoque e nivel invalidos mesmo fora da API', async () => {
+    const prisma = getPrisma();
+
+    await expect(prisma.character.update({ where: { id: 1 }, data: { gold: -1 } })).rejects.toThrow(
+      /CHECK constraint failed/
+    );
+    await expect(prisma.character.update({ where: { id: 1 }, data: { level: 21 } })).rejects.toThrow(
+      /CHECK constraint failed/
+    );
+    await expect(prisma.item.update({ where: { id: 1 }, data: { stock: -1 } })).rejects.toThrow(
+      /CHECK constraint failed/
+    );
+  });
 });
 
 describe('autenticacao e autorizacao', () => {
