@@ -1123,45 +1123,26 @@ a.primary-action {
 }
 
 @media (max-width: 1000px) {
-  .topbar,
   .content-grid,
   .panel-grid {
     grid-template-columns: 1fr;
   }
 
-  .tabs {
-    justify-content: flex-start;
-    overflow-x: auto;
-  }
-
-  .session-pill {
-    justify-content: space-between;
-  }
-}
-
-@media (max-width: 680px) {
-  .app-shell,
-  .auth-screen {
-    padding: 0.75rem;
-  }
-
-  .app-shell {
-    padding-bottom: 5.5rem;
-  }
-
-  /* Barra compacta e fora do fluxo fixo: no celular ela tomaria um quarto da tela. */
+  /* Marca e sessao na primeira linha, abas embaixo. */
   .topbar {
-    position: static;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "brand session"
       "tabs tabs";
-    gap: 0.6rem;
   }
 
   .topbar .brand-lockup {
     grid-area: brand;
     min-width: 0;
+  }
+
+  .topbar .brand-lockup svg {
+    flex: none;
   }
 
   .topbar .eyebrow {
@@ -1182,10 +1163,14 @@ a.primary-action {
     grid-area: session;
   }
 
-  .session-pill > span {
-    max-width: 7rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .tabs {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  /* O carrinho fica depois do catalogo; a barra fixa leva ate ele. */
+  .app-shell {
+    padding-bottom: 5.5rem;
   }
 
   .mobile-cart-bar {
@@ -1194,6 +1179,8 @@ a.primary-action {
     bottom: 0.75rem;
     left: 0.75rem;
     z-index: 4;
+    max-width: 640px;
+    margin-inline: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1207,8 +1194,37 @@ a.primary-action {
   }
 
   .toast {
-    right: 0.75rem;
     bottom: 5rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .app-shell,
+  .auth-screen {
+    padding: 0.75rem;
+  }
+
+  .app-shell {
+    padding-bottom: 5.5rem;
+  }
+
+  /* Barra compacta e fora do fluxo fixo: no celular ela tomaria um quarto da tela. */
+  .topbar {
+    position: static;
+    gap: 0.6rem;
+  }
+
+  /* Sem espaco para o nome ao lado da marca: ele fica so para leitores de tela. */
+  .session-pill > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .toast {
+    right: 0.75rem;
     left: 0.75rem;
     max-width: none;
   }
@@ -1226,6 +1242,7 @@ a.primary-action {
   }
 
   .toolbar,
+  .toolbar.admin-filters,
   .form-grid,
   .form-grid.two,
   .form-grid.three {
