@@ -26,6 +26,7 @@ import { createApi } from './js/api.js';
 import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
 import { SkeletonCards } from './components/Skeleton.jsx';
 import { useLiveTick } from './js/useLiveTick.js';
+import { useNotice } from './js/useNotice.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import CampaignsPage from './pages/CampaignsPage.jsx';
@@ -87,7 +88,7 @@ function AppContent() {
   const [characters, setCharacters] = useState([]);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [authView, setAuthView] = useState('login');
-  const [notice, setNotice] = useState('');
+  const [notice, showNotice] = useNotice();
   const [refreshCount, setRefreshCount] = useState(0);
 
   const inviteCode = matchPath('/convite/:code', location.pathname)?.params.code;
@@ -95,11 +96,6 @@ function AppContent() {
   // haver sessao, para nao recarregar tudo a cada renovacao.
   const loggedIn = Boolean(token);
   const liveTick = useLiveTick(loggedIn);
-
-  const showNotice = useCallback((message) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(''), 3500);
-  }, []);
 
   // O navigate do React Router muda a cada troca de pagina. Guardado num ref,
   // ele nao recria a API a cada navegacao; com uma API so, as requisicoes
