@@ -1224,6 +1224,27 @@ a.primary-action {
     gap: 0.6rem;
   }
 
+  /* Abas em colunas iguais, com o icone sobre o nome: todas cabem sem rolar. */
+  .topbar .tabs,
+  .subtabs {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+    overflow-x: visible;
+  }
+
+  .topbar .tabs button,
+  .subtabs button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.45rem 0.2rem;
+    font-size: 0.74rem;
+    line-height: 1.15;
+    text-align: center;
+  }
+
   /* Sem espaco para o nome ao lado da marca: ele fica so para leitores de tela. */
   .session-pill > span {
     position: absolute;
@@ -1282,8 +1303,30 @@ a.primary-action {
     flex-direction: column;
   }
 
-  .catalog-row,
+  /* Catalogo: so a linha em edicao (com campos) empilha; nome e botoes cabem lado a lado. */
+  .catalog-row:has(input),
   .catalog-row:has(input:nth-child(2)) {
     grid-template-columns: 1fr;
+  }
+
+  .rarity-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .rarity-form > input {
+    grid-column: 1 / -1;
+  }
+
+  /* Mesas e membros: nome e selo na mesma linha, botao embaixo. */
+  .campaign-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .campaign-row > button {
+    grid-column: 1 / -1;
+  }
+
+  .campaign-row > span:empty {
+    display: none;
   }
 }
