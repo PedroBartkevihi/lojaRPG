@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { Save, ScrollText } from 'lucide-react';
+import { Save, ScrollText, UserPlus, X } from 'lucide-react';
+
+const emptyForm = {
+  name: '',
+  className: '',
+  race: '',
+  level: 1
+};
 
 export default function CharacterPanel({
   api,
@@ -10,13 +17,10 @@ export default function CharacterPanel({
   onRefreshSession,
   showNotice
 }) {
-  const [form, setForm] = useState({
-    name: '',
-    className: '',
-    race: '',
-    level: 1
-  });
+  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
+  // Quem ja tem personagem pode criar outro na mesma mesa (ex.: um aliado).
+  const [creating, setCreating] = useState(false);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -27,11 +31,17 @@ export default function CharacterPanel({
     setLoading(true);
 
     try {
-      await api.createCharacter({
+      const data = await api.createCharacter({
         ...form,
         level: Number(form.level)
       });
       await onRefreshSession();
+      // O personagem novo vira o ativo, para as compras irem para ele.
+      if (data?.character?.id) {
+        onSelectCharacter?.(data.character.id);
+      }
+      setForm(emptyForm);
+      setCreating(false);
       showNotice('Personagem criado.');
     } catch (error) {
       showNotice(error.message);
@@ -40,7 +50,7 @@ export default function CharacterPanel({
     }
   }
 
-  if (character) {
+  if (character && !creating) {
     return (
       <div className="surface-panel character-panel">
         <div className="panel-title">
@@ -80,6 +90,10 @@ export default function CharacterPanel({
             <dd>{character.gold}</dd>
           </div>
         </dl>
+        <button type="button" className="text-action new-character" onClick={() => setCreating(true)}>
+          <UserPlus size={16} />
+          Novo personagem
+        </button>
       </div>
     );
   }
@@ -115,10 +129,18 @@ export default function CharacterPanel({
           />
         </label>
       </div>
-      <button className="primary-action" disabled={loading}>
-        <Save size={17} />
-        Salvar personagem
-      </button>
+      <div className="form-actions">
+        <button className="primary-action" disabled={loading}>
+          <Save size={17} />
+          Salvar personagem
+        </button>
+        {character && (
+          <button type="button" className="secondary-action" onClick={() => setCreating(false)}>
+            <X size={17} />
+            Cancelar
+          </button>
+        )}
+      </div>
     </form>
   );
 }

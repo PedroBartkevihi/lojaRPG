@@ -363,6 +363,11 @@ textarea:focus {
   background: transparent;
 }
 
+.new-character {
+  margin-top: 0.6rem;
+  padding-inline: 0;
+}
+
 .icon-button {
   width: 42px;
   padding: 0;
