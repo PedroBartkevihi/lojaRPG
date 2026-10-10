@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Coins, History, PackagePlus, RefreshCcw, Tags } from 'lucide-react';
 import CatalogTab from '../components/admin/CatalogTab.jsx';
@@ -29,7 +29,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
 
   // `silent` e a recarga automatica e a que vem depois de uma acao: a tela
   // atual fica ate os dados novos chegarem, sem "Carregando".
-  async function loadAdminData({ silent = false } = {}) {
+  const loadAdminData = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setLoading(true);
     }
@@ -55,19 +55,19 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api]);
 
-  const reload = () => loadAdminData({ silent: true });
+  const reload = useCallback(() => loadAdminData({ silent: true }), [loadAdminData]);
 
   useEffect(() => {
     loadAdminData().catch((error) => showNotice(error.message));
-  }, []);
+  }, [loadAdminData, showNotice]);
 
   useEffect(() => {
     if (liveKey) {
       reload().catch(() => {});
     }
-  }, [liveKey]);
+  }, [liveKey, reload]);
 
   return (
     <section className="wide-section">
