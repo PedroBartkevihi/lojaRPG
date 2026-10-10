@@ -43,6 +43,8 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: "http://localhost:3001"
+        # "false" esconde os botoes da demonstracao (junto com DEMO_RESET_ON_START).
+        VITE_DEMO_LOGIN: "true"
     ports:
       - "8080:80"
     depends_on:
