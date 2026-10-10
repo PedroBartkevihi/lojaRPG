@@ -97,9 +97,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
   return {
     register: (body) => request('/auth/register', { method: 'POST', body }),
     login: (body) => request('/auth/login', { method: 'POST', body }),
-    refresh: (body) => request('/auth/refresh', { method: 'POST', body, retry: false }),
     logout: (body) => request('/auth/logout', { method: 'POST', body, retry: false }),
-    me: () => request('/auth/me'),
     listCampaigns: () => request('/campaigns'),
     createCampaign: (body) => request('/campaigns', { method: 'POST', body }),
     joinCampaign: (body) => request('/campaigns/join', { method: 'POST', body }),
@@ -128,7 +126,6 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     changeGold: (id, body) => request(campaignPath(`/characters/${id}/gold`), { method: 'PATCH', body }),
     listGoldAudit: (params = {}) => request(withQuery(campaignPath('/characters/gold-audit'), params)),
     myInventory: (params = {}) => request(withQuery(campaignPath('/inventory/me'), params)),
-    inventoryByCharacter: (id) => request(campaignPath(`/inventory/${id}`)),
     sellItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/sell`), { method: 'POST', body }),
     useItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/use`), { method: 'POST', body }),
     listInventoryLogs: () => request(campaignPath('/inventory/logs')),
