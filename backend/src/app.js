@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { errorHandler, notFound } from './middlewares/errorMiddleware.js';
 import { authRoutes } from './routes/authRoutes.js';
 import { campaignRoutes } from './routes/campaignRoutes.js';
+import { ApiError } from './utils/ApiError.js';
 
 const app = express();
 
@@ -36,7 +37,8 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error('Origem não permitida pelo CORS.'));
+      // 403 e nao 500: a origem e recusada de proposito, nao e erro da API.
+      return callback(new ApiError(403, 'Origem não permitida pelo CORS.'));
     }
   })
 );

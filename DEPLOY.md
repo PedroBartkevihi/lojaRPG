@@ -77,6 +77,12 @@ Serviços:
 - API: `http://localhost:3001`
 - Banco PostgreSQL: volume Docker `loja_rpg_pgdata`
 
+Como no Render, o `docker-compose.yml` liga `DEMO_RESET_ON_START`: a cada
+início a API recria a mesa de demonstração e as contas de exemplo, e os botões
+"Entrar como..." funcionam. As outras mesas não são tocadas. Para uma
+instalação sem demonstração, troque o valor para `"false"` e passe
+`VITE_DEMO_LOGIN=false` no build do front-end.
+
 Antes de usar em produção fora da sua máquina, ajuste também:
 
 - `CORS_ORIGIN`

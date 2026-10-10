@@ -1,7 +1,7 @@
 **/node_modules
 **/dist
 **/.env
-**/data
+backend/data
 **/*.sqlite
 **/*.sqlite-shm
 **/*.sqlite-wal

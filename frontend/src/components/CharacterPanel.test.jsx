@@ -52,4 +52,44 @@ describe('CharacterPanel', () => {
     expect(onRefreshSession).toHaveBeenCalledTimes(1);
     expect(showNotice).toHaveBeenCalledWith('Personagem criado.');
   });
+
+  it('cria um segundo personagem e passa a usar o novo', async () => {
+    const user = userEvent.setup();
+    const aria = { id: 1, name: 'Aria', className: 'Ladino', race: 'Elfo', level: 4, gold: 250 };
+    const api = { createCharacter: vi.fn().mockResolvedValue({ character: { id: 7 } }) };
+    const onRefreshSession = vi.fn().mockResolvedValue();
+    const onSelectCharacter = vi.fn();
+
+    render(
+      <CharacterPanel
+        api={api}
+        character={aria}
+        characters={[aria]}
+        onRefreshSession={onRefreshSession}
+        onSelectCharacter={onSelectCharacter}
+        showNotice={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /novo personagem/i }));
+    await user.type(screen.getByLabelText(/^nome$/i), 'Nym');
+    await user.type(screen.getByLabelText(/^classe$/i), 'Bardo');
+    await user.type(screen.getByLabelText(/^raça$/i), 'Humano');
+    await user.click(screen.getByRole('button', { name: /salvar personagem/i }));
+
+    expect(api.createCharacter).toHaveBeenCalledWith({ name: 'Nym', className: 'Bardo', race: 'Humano', level: 1 });
+    expect(onSelectCharacter).toHaveBeenCalledWith(7);
+  });
+
+  it('cancela o novo personagem e volta ao atual', async () => {
+    const user = userEvent.setup();
+    const aria = { id: 1, name: 'Aria', className: 'Ladino', race: 'Elfo', level: 4, gold: 250 };
+
+    render(<CharacterPanel character={aria} characters={[aria]} />);
+
+    await user.click(screen.getByRole('button', { name: /novo personagem/i }));
+    await user.click(screen.getByRole('button', { name: /cancelar/i }));
+
+    expect(screen.getByRole('heading', { name: 'Aria' })).toBeInTheDocument();
+  });
 });

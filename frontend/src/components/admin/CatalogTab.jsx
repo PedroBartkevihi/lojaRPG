@@ -3,9 +3,21 @@ import { Gem, Pencil, Save, Tags, Trash2, X } from 'lucide-react';
 import { rarityTier } from '../../js/itemVisuals.js';
 import { SkeletonRows } from '../Skeleton.jsx';
 
+// O rank da raridade define a cor dos itens, como nos livros de D&D.
+const RARITY_COLORS = [
+  { rank: 1, label: 'Comum' },
+  { rank: 2, label: 'Incomum' },
+  { rank: 3, label: 'Raro' },
+  { rank: 4, label: 'Muito raro' },
+  { rank: 5, label: 'Lendário' }
+];
+
 export default function CatalogTab({ api, categories, rarities, loading, reload, showNotice }) {
   const [newCategory, setNewCategory] = useState('');
   const [newRarity, setNewRarity] = useState('');
+  // Sem valor inicial: a cor vinha da ordem de criacao e um "Lendario" criado
+  // em quarto lugar ficava com a cor de muito raro.
+  const [newRarityRank, setNewRarityRank] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingRarityId, setEditingRarityId] = useState(null);
   const [categoryDraft, setCategoryDraft] = useState({ name: '', description: '' });
@@ -34,10 +46,11 @@ export default function CatalogTab({ api, categories, rarities, loading, reload,
 
   async function addRarity(event) {
     event.preventDefault();
-    if (!newRarity.trim()) return;
+    if (!newRarity.trim() || !newRarityRank) return;
 
-    if (await run(() => api.createRarity({ name: newRarity.trim(), rank: rarities.length + 1 }), 'Raridade criada.')) {
+    if (await run(() => api.createRarity({ name: newRarity.trim(), rank: Number(newRarityRank) }), 'Raridade criada.')) {
       setNewRarity('');
+      setNewRarityRank('');
     }
   }
 
@@ -163,13 +176,28 @@ export default function CatalogTab({ api, categories, rarities, loading, reload,
           <Gem size={20} />
           <h3>Raridades</h3>
         </div>
-        <form className="inline-form" onSubmit={addRarity}>
+        <form className="inline-form rarity-form" onSubmit={addRarity}>
           <input
             value={newRarity}
             onChange={(event) => setNewRarity(event.target.value)}
             placeholder="Nova raridade"
             aria-label="Nova raridade"
           />
+          <select
+            value={newRarityRank}
+            onChange={(event) => setNewRarityRank(event.target.value)}
+            aria-label="Cor da nova raridade"
+            required
+          >
+            <option value="" disabled>
+              Cor
+            </option>
+            {RARITY_COLORS.map((color) => (
+              <option key={color.rank} value={color.rank}>
+                {color.label}
+              </option>
+            ))}
+          </select>
           <button className="secondary-action">Adicionar</button>
         </form>
         <p className="form-hint">O rank define a cor: 1 comum, 2 incomum, 3 raro, 4 muito raro, 5 lendário.</p>

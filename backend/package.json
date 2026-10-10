@@ -15,12 +15,10 @@
     "prisma:studio": "prisma studio",
     "pretest": "prisma generate",
     "pretest:coverage": "prisma generate",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
-  },
-  "prisma": {
-    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -36,7 +34,10 @@
     "node": ">=24"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
     "prisma": "^6.19.3",
     "supertest": "^7.2.2",
     "vitest": "^4.1.11"

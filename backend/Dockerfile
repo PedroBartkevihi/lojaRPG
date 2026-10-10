@@ -5,6 +5,7 @@ WORKDIR /app
 COPY backend/package*.json ./
 RUN npm ci
 
+COPY backend/prisma.config.js ./
 COPY backend/prisma ./prisma
 RUN npx prisma generate
 
@@ -15,4 +16,6 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]
+# Como no Render: com DEMO_RESET_ON_START=true o seed recria a mesa de
+# demonstracao a cada inicio, e os botoes "Entrar como..." funcionam.
+CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$DEMO_RESET_ON_START\" = \"true\" ]; then node prisma/seed.js; fi && node src/server.js"]

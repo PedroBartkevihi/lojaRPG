@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Copy, Crown, DoorOpen, Link2, RefreshCcw, ScrollText, Trash2, UserMinus, Users } from 'lucide-react';
 import { SkeletonRows } from '../components/Skeleton.jsx';
 
@@ -23,7 +23,7 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
   const inviteLink = inviteCode ? `${window.location.origin}/convite/${inviteCode}` : '';
 
   // `silent` e a recarga automatica: sem "Carregando" e sem aviso de erro.
-  async function loadCampaign({ silent = false } = {}) {
+  const loadCampaign = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setLoading(true);
     }
@@ -39,17 +39,17 @@ export default function CampaignPage({ api, liveKey, campaign, user, showNotice,
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, showNotice]);
 
   useEffect(() => {
     loadCampaign();
-  }, []);
+  }, [loadCampaign]);
 
   useEffect(() => {
     if (liveKey) {
       loadCampaign({ silent: true });
     }
-  }, [liveKey]);
+  }, [liveKey, loadCampaign]);
 
   async function copy(text, message) {
     try {

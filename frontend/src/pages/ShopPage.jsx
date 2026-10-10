@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Coins, Search, ShoppingCart } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
@@ -29,7 +29,7 @@ export default function ShopPage({
 
   // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
   // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
-  async function loadItems() {
+  const loadItems = useCallback(async () => {
     setError('');
 
     try {
@@ -44,11 +44,11 @@ export default function ShopPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, search, category]);
 
   useEffect(() => {
     loadItems();
-  }, [search, category, liveKey]);
+  }, [loadItems, liveKey]);
 
   useEffect(() => {
     api

@@ -102,4 +102,19 @@ describe('convite por link', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/mesas'));
     expect(api.calls.map((call) => call.route)).not.toContain('POST /campaigns/join');
   });
+
+  it('esquece o convite aberto há mais de um dia', async () => {
+    const user = userEvent.setup();
+    const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    localStorage.setItem('lojaRpgInvite', JSON.stringify({ code: 'ABCD1234', savedAt: twoDaysAgo }));
+    window.history.pushState({}, '', '/login');
+    render(<App />);
+
+    expect(screen.queryByText(/participar da mesa do convite/i)).not.toBeInTheDocument();
+    await fillAndSubmit(user, { Email: 'antigo@exemplo.com', Senha: 'segredo1' }, 'Entrar');
+
+    await waitFor(() => expect(window.location.pathname).toBe('/mesas'));
+    expect(api.calls.map((call) => call.route)).not.toContain('POST /campaigns/join');
+    expect(localStorage.getItem('lojaRpgInvite')).toBeNull();
+  });
 });

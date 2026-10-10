@@ -55,7 +55,8 @@ personagem.
 
 **Jogador**
 
-- Personagens por mesa, com vários por conta.
+- Um ou mais personagens por mesa (botão "Novo personagem"), com a escolha
+  do personagem ativo.
 - Catálogo com busca (que ignora acentos) e filtro por categoria; cada item
   tem a cor da raridade (comum, incomum, raro, muito raro, lendário) e um ícone
   pela categoria.
@@ -73,8 +74,8 @@ personagem.
 
 - Painel em abas: grupo e ouro, itens, catálogo e históricos.
 - Cadastro, edição, remoção e reativação de itens.
-- Categorias e raridades próprias; ao remover uma em uso, os itens são
-  realocados.
+- Categorias e raridades próprias, com a cor de cada raridade escolhida pelo
+  Mestre; ao remover uma em uso, os itens são realocados.
 - Recompensas: ouro dividido entre o grupo (avisando o que sobra da divisão)
   ou o mesmo valor para cada um, e itens entregues direto no inventário,
   inclusive itens que não estão à venda.
@@ -134,15 +135,15 @@ pede participa da mesa e qual é o papel dele nela.
   demora, em vez de parecer travada.
 - **Segredo verificado na inicialização:** em produção, a API não sobe com um
   `JWT_SECRET` curto ou igual aos exemplos do repositório.
-- **CI no GitHub Actions** a cada push: testes do back-end com PostgreSQL e
-  testes e build do front-end.
+- **CI no GitHub Actions** a cada push: lint (ESLint) e testes do back-end
+  com PostgreSQL; lint, testes e build do front-end.
 
 ## Stack
 
 - Front-end: React, Vite e React Router.
 - Back-end: Node.js, Express, Zod, JWT (access + refresh token).
 - Banco: PostgreSQL com Prisma e migrations versionadas.
-- Testes: Vitest, Supertest e Testing Library.
+- Testes e qualidade: Vitest, Supertest, Testing Library e ESLint.
 - Infra: Docker Compose, GitHub Actions, Render e Neon.
 
 ## Como rodar localmente
@@ -181,7 +182,8 @@ O container do banco cria o `lojarpg` (desenvolvimento) e o `lojarpg_test`
 Scripts do diretório `backend`:
 
 - `npm run db:init`: aplica as migrations pendentes.
-- `npm run db:seed`: recria os dados de exemplo de `prisma/seed.js`.
+- `npm run db:seed`: recria a mesa de demonstração e as contas de exemplo de
+  `prisma/seed.js`, sem tocar nas outras mesas.
 - `npm run db:reset`: apaga o banco local, reaplica as migrations e roda o
   seed.
 
@@ -189,13 +191,15 @@ Scripts do diretório `backend`:
 
 ```bash
 cd backend
+npm run lint
 npm test
 
 cd frontend
+npm run lint
 npm test
 ```
 
-Os 46 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+Os 49 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
 mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
@@ -294,3 +298,7 @@ lojaRPG/
 
 O [DEPLOY.md](./DEPLOY.md) explica o deploy no Render com Neon, a produção
 local com Docker, as variáveis de ambiente e o backup do banco.
+
+## Licença
+
+[MIT](./LICENSE).
