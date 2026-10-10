@@ -39,7 +39,9 @@ services:
   - type: web
     name: lojarpg-web
     runtime: static
-    buildCommand: cd frontend && npm ci && npm run build
+    # O Vite fica em devDependencies; --include=dev garante que ele seja
+    # instalado mesmo se o ambiente de build tiver NODE_ENV=production.
+    buildCommand: cd frontend && npm ci --include=dev && npm run build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
