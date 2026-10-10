@@ -19,9 +19,6 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "cors": "^2.8.5",
