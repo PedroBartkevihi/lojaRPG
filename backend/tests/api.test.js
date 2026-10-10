@@ -223,6 +223,33 @@ describe('autenticação e autorização', () => {
     expect(revokedRefreshResponse.status).toBe(401);
   });
 
+  it('aceita uma renovação só quando o mesmo refresh token chega várias vezes junto', async () => {
+    const loginResponse = await request(app)
+      .post('/auth/login')
+      .set('X-Forwarded-For', '203.0.113.40')
+      .send({ email: 'aria@lojarpg.local', password: 'jogador123' });
+    const { refreshToken, user } = loginResponse.body;
+
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () => request(app).post('/auth/refresh').send({ refreshToken }))
+    );
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401, 401, 401, 401]);
+    expect(await getPrisma().refreshToken.count({ where: { userId: user.id, revokedAt: null } })).toBe(1);
+  });
+
+  it('conta as renovações num limite próprio, separado do login', async () => {
+    const ip = '203.0.113.30';
+    const attempt = (url, body) => request(app).post(url).set('X-Forwarded-For', ip).send(body);
+
+    for (let index = 0; index < 20; index += 1) {
+      await attempt('/auth/login', { email: 'ninguem@lojarpg.local', password: 'errada1' });
+    }
+
+    expect((await attempt('/auth/login', { email: 'ninguem@lojarpg.local', password: 'errada1' })).status).toBe(429);
+    expect((await attempt('/auth/refresh', { refreshToken: 'token-desconhecido' })).status).toBe(401);
+  });
+
   it('separa o rate limit por usuário atras de proxy', async () => {
     const attempt = (ip) =>
       request(app)

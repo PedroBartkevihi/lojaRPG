@@ -109,7 +109,13 @@ export async function refreshSession(refreshToken) {
       throw new ApiError(401, 'Refresh token inválido ou expirado.');
     }
 
-    await revokeRefreshToken(tokenHash, prisma);
+    // Com renovacoes simultaneas do mesmo token, todas passam pela checagem
+    // acima, mas so uma consegue revoga-lo; as outras recebem 401 em vez de
+    // ganhar um par de tokens novo cada.
+    if ((await revokeRefreshToken(tokenHash, prisma)) !== 1) {
+      throw new ApiError(401, 'Refresh token inválido ou expirado.');
+    }
+
     const safeUser = await findUserById(storedToken.userId, prisma);
 
     if (!safeUser) {

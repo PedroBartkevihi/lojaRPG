@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import InventoryPanel from './InventoryPanel.jsx';
 
@@ -72,5 +73,21 @@ describe('InventoryPanel', () => {
 
     expect(window.confirm).toHaveBeenCalledWith('Usar 1x Chave do Templo? O item sai do inventário.');
     expect(api.useItem).not.toHaveBeenCalled();
+  });
+
+  it('manda criar o personagem em vez de mostrar erro para quem ainda não tem um', () => {
+    const api = { myInventory: vi.fn() };
+    const showNotice = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <InventoryPanel api={api} character={null} needsCharacter showNotice={showNotice} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/ainda não tem personagem nesta mesa/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /criar personagem/i })).toHaveAttribute('href', '/shop');
+    expect(api.myInventory).not.toHaveBeenCalled();
+    expect(showNotice).not.toHaveBeenCalled();
   });
 });

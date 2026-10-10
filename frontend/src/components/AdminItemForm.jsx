@@ -3,16 +3,23 @@ import { Save, X } from 'lucide-react';
 
 const emptyForm = {
   name: '',
-  category: 'Armas',
+  category: '',
   description: '',
   price: 0,
   sellPrice: '',
   isSellable: true,
-  rarity: 'Comum',
+  rarity: '',
   stock: 0,
   imageUrl: '',
   stockReason: ''
 };
+
+// Um valor fora da lista aparece no select como a primeira opcao, mas seria
+// enviado assim mesmo (e a API recriaria uma categoria que o Mestre removeu).
+// Por isso o formulario passa a usar a primeira opcao da mesa.
+function withinOptions(value, options) {
+  return options.length === 0 || options.some((option) => option.name === value) ? value : options[0].name;
+}
 
 export default function AdminItemForm({ item, categories = [], rarities = [], onSave, onCancel }) {
   const [form, setForm] = useState(emptyForm);
@@ -24,6 +31,16 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
     setForm(item ? { ...item, sellPrice: item.sellPrice ?? '' } : emptyForm);
     setError('');
   }, [item]);
+
+  // As listas chegam depois de abrir o formulario e sao recarregadas pela
+  // batida do painel; so troca o valor que nao existe mais nelas.
+  useEffect(() => {
+    setForm((current) => {
+      const category = withinOptions(current.category, categories);
+      const rarity = withinOptions(current.rarity, rarities);
+      return category === current.category && rarity === current.rarity ? current : { ...current, category, rarity };
+    });
+  }, [form.category, form.rarity, categories, rarities]);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));

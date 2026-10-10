@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import { ReceiptText } from 'lucide-react';
+import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonRows } from './Skeleton.jsx';
 
-export default function PurchaseHistory({ api, isMaster, character, refreshKey, embedded = false }) {
+export default function PurchaseHistory({ api, isMaster, character, needsCharacter = false, refreshKey, embedded = false }) {
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (needsCharacter) {
+      return;
+    }
+
     async function loadPurchases() {
       setError('');
 
@@ -22,9 +27,11 @@ export default function PurchaseHistory({ api, isMaster, character, refreshKey, 
     }
 
     loadPurchases();
-  }, [api, isMaster, character?.id, refreshKey]);
+  }, [api, isMaster, character?.id, needsCharacter, refreshKey]);
 
-  const content = (
+  const content = needsCharacter ? (
+    <NoCharacterNotice />
+  ) : (
     <div className="surface-panel">
       <div className="panel-title">
         <ReceiptText size={20} />

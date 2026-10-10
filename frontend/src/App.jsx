@@ -26,6 +26,7 @@ import { createApi } from './js/api.js';
 import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
 import { SkeletonCards } from './components/Skeleton.jsx';
 import { useLiveTick } from './js/useLiveTick.js';
+import { useNotice } from './js/useNotice.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import CampaignsPage from './pages/CampaignsPage.jsx';
@@ -53,6 +54,14 @@ function readStoredCampaignId() {
   return Number(localStorage.getItem(CAMPAIGN_KEY)) || null;
 }
 
+// Destino logo depois de entrar: o convite guardado, se houver, ou a loja.
+// O convite so e apagado quando a entrada na mesa acontece, porque a tela
+// ainda passa por /login ou /register antes de chegar a /convite.
+function landingPath() {
+  const pendingInvite = localStorage.getItem(INVITE_KEY);
+  return pendingInvite ? `/convite/${pendingInvite}` : '/shop';
+}
+
 // Entra na mesa do link de convite assim que existe uma sessao.
 function InviteRoute({ onJoin }) {
   const { code } = useParams();
@@ -77,9 +86,10 @@ function AppContent() {
   const [campaignsLoaded, setCampaignsLoaded] = useState(false);
   const [campaignId, setCampaignId] = useState(readStoredCampaignId);
   const [characters, setCharacters] = useState([]);
+  const [charactersLoaded, setCharactersLoaded] = useState(false);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [authView, setAuthView] = useState('login');
-  const [notice, setNotice] = useState('');
+  const [notice, showNotice] = useNotice();
   const [refreshCount, setRefreshCount] = useState(0);
 
   const inviteCode = matchPath('/convite/:code', location.pathname)?.params.code;
@@ -88,10 +98,14 @@ function AppContent() {
   const loggedIn = Boolean(token);
   const liveTick = useLiveTick(loggedIn);
 
-  const showNotice = useCallback((message) => {
-    setNotice(message);
-    window.setTimeout(() => setNotice(''), 3500);
-  }, []);
+  // O navigate do React Router muda a cada troca de pagina. Guardado num ref,
+  // ele nao recria a API a cada navegacao; com uma API so, as requisicoes
+  // dividem a mesma renovacao de sessao e as cargas abaixo nao se repetem.
+  const navigateRef = useRef(navigate);
+
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
@@ -104,9 +118,10 @@ function AppContent() {
     setCampaignsLoaded(false);
     setCampaignId(null);
     setCharacters([]);
+    setCharactersLoaded(false);
     setSelectedCharacterId(null);
-    navigate('/login', { replace: true });
-  }, [navigate]);
+    navigateRef.current('/login', { replace: true });
+  }, []);
 
   const storeTokens = useCallback((data) => {
     const accessToken = data.accessToken || data.token;
@@ -154,6 +169,7 @@ function AppContent() {
     const data = await api.myCharacter();
     const nextCharacters = data.characters || [];
     setCharacters(nextCharacters);
+    setCharactersLoaded(true);
     setSelectedCharacterId((current) =>
       current && nextCharacters.some((entry) => entry.id === current) ? current : nextCharacters[0]?.id || null
     );
@@ -180,6 +196,8 @@ function AppContent() {
 
   const joinWithCode = useCallback(
     async (code) => {
+      localStorage.removeItem(INVITE_KEY);
+
       try {
         const data = await api.joinCampaign({ inviteCode: code });
         await loadCampaigns();
@@ -201,6 +219,7 @@ function AppContent() {
 
   useEffect(() => {
     setCharacters([]);
+    setCharactersLoaded(false);
     setSelectedCharacterId(null);
 
     if (loggedIn && campaignId) {
@@ -247,9 +266,7 @@ function AppContent() {
     (data) => {
       storeTokens(data);
       showNotice(`Bem-vindo, ${data.user.name}.`);
-      const pendingInvite = localStorage.getItem(INVITE_KEY);
-      localStorage.removeItem(INVITE_KEY);
-      navigate(pendingInvite ? `/convite/${pendingInvite}` : '/shop', { replace: true });
+      navigate(landingPath(), { replace: true });
     },
     [navigate, showNotice, storeTokens]
   );
@@ -332,6 +349,8 @@ function AppContent() {
 
   const isMaster = campaign?.role === 'MESTRE';
   const selectedCharacter = characters.find((entry) => entry.id === selectedCharacterId) || characters[0] || null;
+  // So depois de a lista chegar: antes disso, "sem personagem" e so carregamento.
+  const needsCharacter = charactersLoaded && !isMaster && characters.length === 0;
   const activeRoute = location.pathname.split('/')[1] || 'shop';
   const showTabs = Boolean(campaign) && activeRoute !== 'mesas' && activeRoute !== 'convite';
   const autoSelecting = campaignsLoaded && !campaignId && campaigns.length === 1;
@@ -408,6 +427,8 @@ function AppContent() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/shop" replace />} />
+        <Route path="/login" element={<Navigate to={landingPath()} replace />} />
+        <Route path="/register" element={<Navigate to={landingPath()} replace />} />
         <Route
           path="/mesas"
           element={
@@ -448,6 +469,7 @@ function AppContent() {
               <InventoryPanel
                 api={api}
                 character={selectedCharacter}
+                needsCharacter={needsCharacter}
                 refreshKey={refreshCount}
                 showNotice={showNotice}
                 onRefreshSession={refreshSession}
@@ -458,7 +480,13 @@ function AppContent() {
         <Route
           path="/history"
           element={inCampaign(
-            <PurchaseHistory api={api} isMaster={isMaster} character={selectedCharacter} refreshKey={refreshCount} />
+            <PurchaseHistory
+              api={api}
+              isMaster={isMaster}
+              character={selectedCharacter}
+              needsCharacter={needsCharacter}
+              refreshKey={refreshCount}
+            />
           )}
         />
         <Route
