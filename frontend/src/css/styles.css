@@ -573,6 +573,11 @@ textarea:focus {
   margin-bottom: 0.75rem;
 }
 
+/* Nova raridade: nome, cor e o botao na mesma linha. */
+.rarity-form {
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+}
+
 .chip-list {
   display: flex;
   flex-wrap: wrap;
