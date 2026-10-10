@@ -265,6 +265,13 @@ describe('autenticação e autorização', () => {
     expect((await attempt('203.0.113.20')).status).toBe(401);
   });
 
+  it('recusa origem fora do CORS com 403, sem erro interno', async () => {
+    const response = await request(app).get('/health').set('Origin', 'https://site-desconhecido.example');
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe('Origem não permitida pelo CORS.');
+  });
+
   it('bloqueia rotas protegidas sem token', async () => {
     const response = await request(app).get(`${DEMO}/items`);
 
