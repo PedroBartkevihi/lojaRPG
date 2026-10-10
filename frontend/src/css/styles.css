@@ -803,6 +803,20 @@ textarea:focus {
   color: var(--muted);
 }
 
+.no-character {
+  display: grid;
+  justify-items: start;
+  gap: 0.9rem;
+}
+
+.no-character .empty-state {
+  margin: 0;
+}
+
+a.primary-action {
+  text-decoration: none;
+}
+
 .wide-section {
   margin-top: 1rem;
 }

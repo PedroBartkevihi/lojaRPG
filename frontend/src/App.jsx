@@ -86,6 +86,7 @@ function AppContent() {
   const [campaignsLoaded, setCampaignsLoaded] = useState(false);
   const [campaignId, setCampaignId] = useState(readStoredCampaignId);
   const [characters, setCharacters] = useState([]);
+  const [charactersLoaded, setCharactersLoaded] = useState(false);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [authView, setAuthView] = useState('login');
   const [notice, showNotice] = useNotice();
@@ -117,6 +118,7 @@ function AppContent() {
     setCampaignsLoaded(false);
     setCampaignId(null);
     setCharacters([]);
+    setCharactersLoaded(false);
     setSelectedCharacterId(null);
     navigateRef.current('/login', { replace: true });
   }, []);
@@ -167,6 +169,7 @@ function AppContent() {
     const data = await api.myCharacter();
     const nextCharacters = data.characters || [];
     setCharacters(nextCharacters);
+    setCharactersLoaded(true);
     setSelectedCharacterId((current) =>
       current && nextCharacters.some((entry) => entry.id === current) ? current : nextCharacters[0]?.id || null
     );
@@ -216,6 +219,7 @@ function AppContent() {
 
   useEffect(() => {
     setCharacters([]);
+    setCharactersLoaded(false);
     setSelectedCharacterId(null);
 
     if (loggedIn && campaignId) {
@@ -345,6 +349,8 @@ function AppContent() {
 
   const isMaster = campaign?.role === 'MESTRE';
   const selectedCharacter = characters.find((entry) => entry.id === selectedCharacterId) || characters[0] || null;
+  // So depois de a lista chegar: antes disso, "sem personagem" e so carregamento.
+  const needsCharacter = charactersLoaded && !isMaster && characters.length === 0;
   const activeRoute = location.pathname.split('/')[1] || 'shop';
   const showTabs = Boolean(campaign) && activeRoute !== 'mesas' && activeRoute !== 'convite';
   const autoSelecting = campaignsLoaded && !campaignId && campaigns.length === 1;
@@ -463,6 +469,7 @@ function AppContent() {
               <InventoryPanel
                 api={api}
                 character={selectedCharacter}
+                needsCharacter={needsCharacter}
                 refreshKey={refreshCount}
                 showNotice={showNotice}
                 onRefreshSession={refreshSession}
@@ -473,7 +480,13 @@ function AppContent() {
         <Route
           path="/history"
           element={inCampaign(
-            <PurchaseHistory api={api} isMaster={isMaster} character={selectedCharacter} refreshKey={refreshCount} />
+            <PurchaseHistory
+              api={api}
+              isMaster={isMaster}
+              character={selectedCharacter}
+              needsCharacter={needsCharacter}
+              refreshKey={refreshCount}
+            />
           )}
         />
         <Route

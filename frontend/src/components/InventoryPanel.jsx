@@ -3,9 +3,17 @@ import { Backpack, Coins, HandCoins, History, Sparkles } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
 import InventoryLogList from './InventoryLogList.jsx';
 import ItemIcon from './ItemIcon.jsx';
+import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonCards } from './Skeleton.jsx';
 
-export default function InventoryPanel({ api, character: selectedCharacter, refreshKey, showNotice, onRefreshSession }) {
+export default function InventoryPanel({
+  api,
+  character: selectedCharacter,
+  needsCharacter = false,
+  refreshKey,
+  showNotice,
+  onRefreshSession
+}) {
   const [inventory, setInventory] = useState([]);
   const [logs, setLogs] = useState([]);
   const [character, setCharacter] = useState(null);
@@ -29,8 +37,10 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
   }, [api, selectedCharacter?.id, showNotice]);
 
   useEffect(() => {
-    loadInventory();
-  }, [loadInventory, refreshKey]);
+    if (!needsCharacter) {
+      loadInventory();
+    }
+  }, [loadInventory, needsCharacter, refreshKey]);
 
   function quantityFor(entry) {
     const value = Number(quantities[entry.itemId]) || 1;
@@ -69,6 +79,20 @@ export default function InventoryPanel({ api, character: selectedCharacter, refr
     } finally {
       setBusyItemId(null);
     }
+  }
+
+  if (needsCharacter) {
+    return (
+      <section className="wide-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Itens conquistados</p>
+            <h2>Inventário</h2>
+          </div>
+        </div>
+        <NoCharacterNotice />
+      </section>
+    );
   }
 
   return (
