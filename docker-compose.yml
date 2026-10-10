@@ -31,6 +31,9 @@ services:
       REFRESH_TOKEN_EXPIRES_IN_DAYS: 7
       CORS_ORIGIN: "http://localhost:8080"
       DATABASE_URL: "postgresql://lojarpg:${POSTGRES_PASSWORD:-lojarpg}@db:5432/lojarpg"
+      # Recria a mesa de demonstracao a cada inicio (os botoes da tela de
+      # entrada usam as contas dela); as outras mesas nao sao tocadas.
+      DEMO_RESET_ON_START: "true"
     depends_on:
       db:
         condition: service_healthy
