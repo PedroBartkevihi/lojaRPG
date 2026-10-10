@@ -3,7 +3,7 @@ import { rarityTier } from '../js/itemVisuals.js';
 import ItemIcon from './ItemIcon.jsx';
 
 export default function ItemCard({ item, onAdd, disabled }) {
-  const unavailable = item.stock <= 0 || disabled;
+  const unavailable = item.stock <= 0;
 
   return (
     <article className="item-card" data-rarity-tier={rarityTier(item.rarityRank)}>
@@ -27,10 +27,13 @@ export default function ItemCard({ item, onAdd, disabled }) {
           <Coins size={17} />
           {item.price} ouro
         </strong>
-        <button className="add-action" onClick={onAdd} disabled={unavailable}>
-          <Plus size={17} />
-          {disabled ? 'Gerenciar' : 'Adicionar'}
-        </button>
+        {/* O Mestre so ve a vitrine; os itens sao editados no painel dele. */}
+        {!disabled && (
+          <button className="add-action" onClick={onAdd} disabled={unavailable}>
+            <Plus size={17} />
+            Adicionar
+          </button>
+        )}
       </div>
     </article>
   );
