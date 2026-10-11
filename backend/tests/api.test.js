@@ -116,6 +116,27 @@ describe('validação das entradas', () => {
     expect((await aria.get(`${DEMO}/items?minPrice=10&maxPrice=60`)).status).toBe(200);
   });
 
+  it('respeita preço máximo zero e mantém os limites inclusivos', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const created = await master.post(`${DEMO}/items`, {
+      name: 'Mapa gratuito', category: 'Equipamentos', rarity: 'Comum', price: 0, stock: 1
+    });
+    expect(created.status).toBe(201);
+    const aria = as(await login('aria@lojarpg.local'));
+
+    for (const query of ['maxPrice=0', 'minPrice=0&maxPrice=0']) {
+      const response = await aria.get(`${DEMO}/items?${query}`);
+      expect(response.status).toBe(200);
+      expect(response.body.items.map((item) => item.id)).toEqual([created.body.item.id]);
+    }
+
+    const range = await aria.get(`${DEMO}/items?minPrice=0&maxPrice=60`);
+    expect(range.status).toBe(200);
+    expect(range.body.items.some((item) => item.price === 0)).toBe(true);
+    expect(range.body.items.some((item) => item.price === 60)).toBe(true);
+    expect(range.body.items.every((item) => item.price <= 60)).toBe(true);
+  });
+
   it('categoria e raridade com nome de número são tratadas como nome', async () => {
     const master = as(await login('mestre@lojarpg.local', 'mestre123'));
     await master.post(`${DEMO}/catalog/categories`, { name: '2026' });

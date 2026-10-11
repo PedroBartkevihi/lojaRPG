@@ -123,10 +123,10 @@ export async function listItems(filters, prisma = getPrisma()) {
     where.rarity = { name: filters.rarity };
   }
 
-  if (filters.minPrice || filters.maxPrice) {
+  if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
     where.price = {};
-    if (filters.minPrice) where.price.gte = Number(filters.minPrice);
-    if (filters.maxPrice) where.price.lte = Number(filters.maxPrice);
+    if (filters.minPrice !== undefined) where.price.gte = Number(filters.minPrice);
+    if (filters.maxPrice !== undefined) where.price.lte = Number(filters.maxPrice);
   }
 
   const items = await prisma.item.findMany({
