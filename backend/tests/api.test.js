@@ -91,8 +91,10 @@ beforeEach(async () => {
   await seed(getPrisma());
 });
 
+// Se a preparacao falhou (banco fora), closeDatabase nao existe: sem o ?., o
+// erro da limpeza esconderia o erro original.
 afterAll(async () => {
-  await closeDatabase();
+  await closeDatabase?.();
 });
 
 describe('validação das entradas', () => {
