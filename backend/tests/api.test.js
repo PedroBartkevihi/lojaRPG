@@ -511,6 +511,69 @@ describe('catálogo', () => {
 });
 
 describe('compras e inventário', () => {
+  it('conclui carrinhos invertidos de dois personagens sem deadlock ou perda de estoque', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const prisma = getPrisma();
+    const initialItems = await prisma.item.findMany({ where: { id: { in: [6, 10] } } });
+    const total = initialItems.reduce((sum, item) => sum + item.price, 0);
+    const originalTransaction = prisma.$transaction.bind(prisma);
+    let transactionNumber = 0;
+    let lockedItem;
+    let firstLocked;
+    let secondReady;
+    const firstLock = new Promise((resolve) => { firstLocked = resolve; });
+    const secondLock = new Promise((resolve) => { secondReady = resolve; });
+    prisma.$transaction = (callback, options) => {
+      const number = transactionNumber++;
+      return originalTransaction(async (tx) => {
+        let firstStockWrite = true;
+        return callback(new Proxy(tx, { get(target, model) {
+          const delegate = Reflect.get(target, model);
+          if (model !== 'item') return delegate;
+          return new Proxy(delegate, { get(modelTarget, action) {
+            const method = Reflect.get(modelTarget, action);
+            if (action !== 'updateMany') return method;
+            return async (args) => {
+              if (!firstStockWrite || args.data?.stock?.decrement === undefined) return method.call(modelTarget, args);
+              firstStockWrite = false;
+              if (number === 0) {
+                const result = await method.call(modelTarget, args);
+                lockedItem = args.where.id;
+                firstLocked();
+                await secondLock;
+                return result;
+              }
+              await firstLock;
+              // Se ambas comecam pelo mesmo item, liberar a primeira antes
+              // de esperar seu lock. Ordens opostas seguram dois locks.
+              if (args.where.id === lockedItem) secondReady();
+              const result = await method.call(modelTarget, args);
+              secondReady();
+              return result;
+            };
+          } });
+        } }));
+      }, options);
+    };
+    try {
+      const responses = await Promise.all([
+        aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }, { itemId: 10, quantity: 1 }] }),
+        borin.post(`${DEMO}/purchases`, { items: [{ itemId: 10, quantity: 1 }, { itemId: 6, quantity: 1 }] })
+      ]);
+      expect(responses.map((response) => response.status)).toEqual([201, 201]);
+      expect(await prisma.purchase.count()).toBe(2);
+      for (const item of initialItems) {
+        expect((await prisma.item.findUnique({ where: { id: item.id } })).stock).toBe(item.stock - 2);
+      }
+      expect((await prisma.character.findUnique({ where: { id: 1 } })).gold).toBe(250 - total);
+      expect((await prisma.character.findUnique({ where: { id: 2 } })).gold).toBe(320 - total);
+    } finally {
+      firstLocked(); secondReady();
+      prisma.$transaction = originalTransaction;
+    }
+  });
+
   it('exige uma chave de compra valida', async () => {
     const token = await login('aria@lojarpg.local');
     for (const idempotencyKey of [undefined, '', 'chave-invalida', ['nao-e-texto']]) {

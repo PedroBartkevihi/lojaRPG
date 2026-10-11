@@ -8,6 +8,16 @@ function response() {
 }
 
 describe('errorHandler', () => {
+  it('reconhece o deadlock real do conector Prisma sem error.code', () => {
+    const res = response();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = Object.assign(new Error('ConnectorError(QueryError(PostgresError { code: "40P01", message: "deadlock detected" }))'), {
+      name: 'PrismaClientUnknownRequestError'
+    });
+    errorHandler(error, {}, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(409);
+  });
+
   it.each(['P2034', 'P2028'])('conflito de transação (%s) vira 409 para tentar de novo', (code) => {
     const res = response();
     vi.spyOn(console, 'warn').mockImplementation(() => {});

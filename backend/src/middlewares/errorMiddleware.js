@@ -19,8 +19,11 @@ export function errorHandler(error, _req, res, _next) {
 
   // Conflito ou deadlock (P2034) e transacao que passou do tempo esperando
   // outra (P2028): a operacao foi desfeita inteira e pode ser repetida.
-  if (error.code === 'P2034' || error.code === 'P2028') {
-    console.warn(`Transação desfeita (${error.code}): ${error.message.split('\n')[0]}`);
+  // O conector do Prisma 6 tambem pode encapsular SQLSTATE 40P01 sem code.
+  const postgresDeadlock = error.name === 'PrismaClientUnknownRequestError' &&
+    /PostgresError\s*\{\s*code:\s*"40P01"/.test(error.message);
+  if (error.code === 'P2034' || error.code === 'P2028' || postgresDeadlock) {
+    console.warn(`Transação desfeita (${error.code || '40P01'}): ${error.message.split('\n')[0]}`);
     return res.status(409).json({ message: 'Outra operação usava os mesmos dados. Tente de novo.' });
   }
 

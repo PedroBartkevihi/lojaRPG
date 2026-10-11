@@ -117,8 +117,9 @@ pede participa da mesa e qual é o papel dele nela.
   antes de excluir qualquer dado. Veja a orientação no DEPLOY.md.
 - **Compras e vendas simultâneas sem perder dinheiro nem estoque.** O desconto
   de ouro e de estoque é um update condicional ("só desconta se ainda houver
-  saldo"), a venda só paga depois de tirar o item do inventário do mesmo
-  jeito, e as edições do Mestre rodam em transação e só gravam se o valor lido
+  saldo"). Compras bloqueiam os itens em ordem de id. Compras e vendas
+  bloqueiam primeiro o personagem; se faltar inventário na venda, o crédito
+  inteiro é desfeito. As edições do Mestre rodam em transação e só gravam se o valor lido
   não mudou (senão respondem 409). Testes disparam compras, vendas e ajustes ao
   mesmo tempo para garantir isso.
 - **Regras de integridade no próprio banco.** As migrations têm restrições

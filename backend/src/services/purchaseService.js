@@ -18,7 +18,9 @@ function normalizeCart(cartItems) {
     grouped.set(itemId, (grouped.get(itemId) || 0) + quantity);
   }
 
-  return [...grouped.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
+  // Todos os carrinhos bloqueiam os itens na mesma ordem, mesmo que dois
+  // jogadores os tenham adicionado em ordens opostas.
+  return [...grouped.entries()].map(([itemId, quantity]) => ({ itemId, quantity })).sort((a, b) => a.itemId - b.itemId);
 }
 
 async function resolveCheckoutCharacter(user, campaignId, characterId, prisma) {
