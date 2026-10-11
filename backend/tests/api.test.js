@@ -397,6 +397,12 @@ describe('itens', () => {
     const stale = await master.put(`${DEMO}/items/6`, { ...opened, name: 'Poção de Cura Maior', expectedStock: opened.stock });
     expect(stale.status).toBe(409);
 
+    // Um cliente antigo nao pode contornar a pre-condicao omitindo-a.
+    const unguarded = await master.put(`${DEMO}/items/6`, { ...opened, name: 'Snapshot antigo' });
+    expect(unguarded.status).toBe(400);
+    expect(unguarded.body.message).toContain('expectedStock');
+    expect((await getPrisma().item.findUnique({ where: { id: 6 } })).stock).toBe(opened.stock - 1);
+
     // Sem mexer no estoque, so o nome muda e a venda continua contada.
     const renamed = await master.put(`${DEMO}/items/6`, { name: 'Poção de Cura Maior' });
     expect(renamed.status).toBe(200);
@@ -436,7 +442,7 @@ describe('itens', () => {
     const updateResponse = await request(app)
       .put(`${DEMO}/items/${itemId}`)
       .set('Authorization', `Bearer ${masterToken}`)
-      .send({ price: 55, stock: 3 });
+      .send({ price: 55, stock: 3, expectedStock: 2 });
 
     expect(updateResponse.status).toBe(200);
     expect(updateResponse.body.item).toMatchObject({ price: 55, stock: 3 });

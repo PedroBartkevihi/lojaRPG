@@ -66,6 +66,9 @@ export async function update(req, res) {
     throw new ApiError(404, 'Item não encontrado.');
   }
 
+  if (req.body.stock !== undefined && req.body.expectedStock === undefined) {
+    throw new ApiError(400, 'Informe expectedStock ao alterar o estoque. Recarregue o item e tente novamente.');
+  }
   const expectedStock =
     req.body.expectedStock === undefined ? undefined : parse(expectedStockSchema, req.body.expectedStock);
   const item = await saveItemChanges(existing, parseItem(req.body, existing), req.user.id, {

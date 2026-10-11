@@ -245,6 +245,11 @@ Catálogo e itens:
 - `POST|PUT|DELETE /catalog/categories` e `/catalog/rarities` (Mestre)
 - `GET /catalog/stock-movements` (Mestre)
 
+Em `PUT /items/:id`, envie `expectedStock` (estoque visto ao abrir a edição)
+sempre que enviar `stock`. Sem essa pré-condição a API retorna 400; se o estoque
+tiver mudado, retorna 409. Ao editar somente nome/preço, omita `stock` para
+preservar as compras feitas durante a edição.
+
 Personagens:
 
 - `GET /characters` (Mestre)
