@@ -96,6 +96,38 @@ afterAll(async () => {
 });
 
 describe('validação das entradas', () => {
+  it('filtros e ids inválidos na URL recebem 400, não 500', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+
+    for (const url of [
+      `${DEMO}/items?search=a&search=b`,
+      `${DEMO}/items?minPrice=abc`,
+      `${DEMO}/items?minPrice=100&maxPrice=10`,
+      `${DEMO}/items/2147483648`
+    ]) {
+      const response = await aria.get(url);
+      expect(response.status, url).toBe(400);
+    }
+
+    expect((await aria.get(`${DEMO}/items?minPrice=10&maxPrice=60`)).status).toBe(200);
+  });
+
+  it('categoria e raridade com nome de número são tratadas como nome', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    await master.post(`${DEMO}/catalog/categories`, { name: '2026' });
+
+    const created = await master.post(`${DEMO}/items`, {
+      name: 'Calendário Arcano',
+      category: '2026',
+      price: 10,
+      rarity: 'Comum',
+      stock: 1
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.item.category).toBe('2026');
+  });
+
   it('recusa cadastro com email inválido ou sem nome', async () => {
     const invalidEmail = await request(app).post('/auth/register').send({
       name: 'Teste',

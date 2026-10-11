@@ -23,8 +23,12 @@ export function integer(field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) 
   return z.coerce.number({ error: message }).int(message).min(min, message).max(max, message);
 }
 
+// Os ids sao `integer` do PostgreSQL (32 bits): um numero maior passaria pela
+// validacao e quebraria a consulta com erro 500.
+const MAX_DATABASE_ID = 2147483647;
+
 export function id(field) {
-  return integer(field, { min: 1 });
+  return integer(field, { min: 1, max: MAX_DATABASE_ID });
 }
 
 export const email = requiredText('Email', 255).toLowerCase().pipe(z.email('Email inválido.'));

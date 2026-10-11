@@ -21,3 +21,22 @@ export const itemIdSchema = id('Id do item');
 
 // Estoque que o Mestre viu ao abrir a edicao (veja saveItemChanges).
 export const expectedStockSchema = integer('Estoque esperado', { min: 0, max: 100000 });
+
+// Filtros da lista, vindos da URL. Um parametro repetido chega como lista (e
+// quebrava o .trim), e um preco com letras virava NaN na consulta: os dois
+// eram erro 500.
+const queryText = z.string({ error: 'Filtro inválido.' }).trim().max(120, 'Filtro muito longo.').optional();
+const queryPrice = (field) => integer(field, { min: 0, max: 1000000 }).optional();
+
+export const itemQuerySchema = z
+  .object({
+    search: queryText,
+    category: queryText,
+    rarity: queryText,
+    status: queryText,
+    minPrice: queryPrice('Preço mínimo'),
+    maxPrice: queryPrice('Preço máximo')
+  })
+  .refine((query) => query.minPrice === undefined || query.maxPrice === undefined || query.minPrice <= query.maxPrice, {
+    message: 'O preço mínimo não pode ser maior que o máximo.'
+  });

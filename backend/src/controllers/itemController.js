@@ -1,6 +1,6 @@
 import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { createItem, findItemById, listItems, reactivateItem } from '../models/itemModel.js';
-import { expectedStockSchema, itemIdSchema, itemSchema } from '../schemas/itemSchemas.js';
+import { expectedStockSchema, itemIdSchema, itemQuerySchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse, parseChanges } from '../utils/validation.js';
@@ -27,13 +27,8 @@ function parseItem(body, existing) {
 export async function index(req, res) {
   const includeInactive = req.query.includeInactive === 'true' && isGameMaster(req);
   const items = await listItems({
+    ...parse(itemQuerySchema, req.query),
     campaignId: req.campaign.id,
-    search: req.query.search?.trim(),
-    category: req.query.category?.trim(),
-    rarity: req.query.rarity?.trim(),
-    status: req.query.status?.trim(),
-    minPrice: req.query.minPrice,
-    maxPrice: req.query.maxPrice,
     includeInactive
   });
 
