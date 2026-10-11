@@ -34,6 +34,11 @@ blocos de carregamento e avisa que a API está acordando.
 
 ## Funcionalidades
 
+O Mestre abre e fecha a loja no painel. Fechada, ela mantém o catálogo visível,
+mas novas compras e vendas recebem 409. Usar itens continua permitido. O estado
+é atualizado nos demais clientes pelo ciclo de atualização da mesa.
+API: `PATCH /campaigns/:id/shop` com `{ "shopOpen": false }`, exclusivo do Mestre.
+
 **Mesas**
 
 - Qualquer conta cria uma mesa e é o Mestre dela; a mesma conta pode ser

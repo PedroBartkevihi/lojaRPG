@@ -1,8 +1,8 @@
 import { ShoppingCart, Trash2 } from 'lucide-react';
 
-export default function CartPanel({ cart, setCart, character, onCheckout, submitting = false }) {
+export default function CartPanel({ cart, setCart, character, onCheckout, submitting = false, shopOpen = true }) {
   const total = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
-  const canCheckout = cart.length > 0 && character && !submitting;
+  const canCheckout = shopOpen && cart.length > 0 && character && !submitting;
 
   function changeQuantity(itemId, quantity) {
     setCart((current) =>

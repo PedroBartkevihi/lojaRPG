@@ -32,6 +32,7 @@ model Campaign {
   name       String
   inviteCode String           @unique @map("invite_code")
   isDemo     Boolean          @default(false) @map("is_demo")
+  shopOpen   Boolean          @default(true) @map("shop_open")
   createdAt  DateTime         @default(now()) @map("created_at")
   members    CampaignMember[]
   characters Character[]

@@ -498,6 +498,7 @@ function AppContent() {
           element={inCampaign(
             <ShopPage
               api={api}
+              shopOpen={campaign?.shopOpen}
               liveKey={liveTick}
               isMaster={isMaster}
               character={selectedCharacter}
@@ -517,6 +518,7 @@ function AppContent() {
             ) : (
               <InventoryPanel
                 api={api}
+                shopOpen={campaign?.shopOpen}
                 character={selectedCharacter}
                 needsCharacter={needsCharacter}
                 refreshKey={refreshCount}
@@ -556,7 +558,7 @@ function AppContent() {
           path="/admin"
           element={inCampaign(
             isMaster ? (
-              <AdminPage api={api} liveKey={liveTick} showNotice={showNotice} onRefresh={refreshSession} />
+              <AdminPage api={api} campaign={campaign} onCampaignsChanged={loadCampaigns} liveKey={liveTick} showNotice={showNotice} onRefresh={refreshSession} />
             ) : (
               <Navigate to="/shop" replace />
             )

@@ -22,6 +22,7 @@ campaignRoutes.post('/join', inviteRateLimiter, asyncHandler(controller.join));
 // Tudo abaixo de /campaigns/:campaignId exige participar da mesa.
 campaignRoutes.use('/:campaignId', asyncHandler(loadCampaign));
 campaignRoutes.get('/:campaignId', asyncHandler(controller.show));
+campaignRoutes.patch('/:campaignId/shop', requireGameMaster, asyncHandler(controller.setShopState));
 campaignRoutes.delete('/:campaignId', requireGameMaster, asyncHandler(controller.remove));
 campaignRoutes.post('/:campaignId/invite-code', requireGameMaster, asyncHandler(controller.newInviteCode));
 campaignRoutes.delete('/:campaignId/members/:userId', asyncHandler(controller.removeMemberAction));

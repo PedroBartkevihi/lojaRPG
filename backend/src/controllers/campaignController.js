@@ -1,6 +1,7 @@
 import { isDemoAccount } from '../config/demo.js';
-import { listCampaignsByUserId, listMembers } from '../models/campaignModel.js';
-import { campaignSchema, inviteCodeSchema, memberIdSchema } from '../schemas/campaignSchemas.js';
+import { listCampaignsByUserId, listMembers, mapCampaign } from '../models/campaignModel.js';
+import { getPrisma } from '../database/connection.js';
+import { campaignSchema, inviteCodeSchema, memberIdSchema, shopStateSchema } from '../schemas/campaignSchemas.js';
 import {
   createCampaign,
   deleteCampaign,
@@ -34,6 +35,12 @@ export async function show(req, res) {
     campaign: req.campaign,
     members: await listMembers(req.campaign.id)
   });
+}
+
+export async function setShopState(req, res) {
+  const data = parse(shopStateSchema, req.body);
+  const campaign = await getPrisma().campaign.update({ where: { id: req.campaign.id }, data });
+  res.json({ campaign: mapCampaign(campaign, req.membership.role) });
 }
 
 export async function remove(req, res) {

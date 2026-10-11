@@ -8,6 +8,7 @@ import { SkeletonCards } from './Skeleton.jsx';
 
 export default function InventoryPanel({
   api,
+  shopOpen = true,
   character: selectedCharacter,
   needsCharacter = false,
   refreshKey,
@@ -107,6 +108,7 @@ export default function InventoryPanel({
           </span>
         )}
       </div>
+      {!shopOpen && <p role="status">A loja está fechada para vendas. Você ainda pode usar seus itens.</p>}
       <div className="surface-panel">
         <div className="panel-title">
           <Backpack size={20} />
@@ -153,7 +155,7 @@ export default function InventoryPanel({
                       Usar
                     </button>
                     {sellable && (
-                      <button className="primary-action" onClick={() => handleAction(entry, 'sell')} disabled={busy}>
+                      <button className="primary-action" onClick={() => handleAction(entry, 'sell')} disabled={busy || !shopOpen}>
                         <HandCoins size={16} />
                         Vender
                       </button>

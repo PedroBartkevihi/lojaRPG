@@ -128,6 +128,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     createCampaign: (body) => request('/campaigns', { method: 'POST', body }),
     joinCampaign: (body) => request('/campaigns/join', { method: 'POST', body }),
     getCampaign: () => request(campaignPath()),
+    setShopState: (body) => request(campaignPath('/shop'), { method: 'PATCH', body }),
     deleteCampaign: () => request(campaignPath(), { method: 'DELETE' }),
     regenerateInviteCode: () => request(campaignPath('/invite-code'), { method: 'POST' }),
     removeMember: (userId) => request(campaignPath(`/members/${userId}`), { method: 'DELETE' }),

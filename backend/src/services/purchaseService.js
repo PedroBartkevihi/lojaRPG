@@ -10,6 +10,7 @@ import { characterIdSchema } from '../schemas/characterSchemas.js';
 import { cartSchema, idempotencyKeySchema } from '../schemas/purchaseSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse } from '../utils/validation.js';
+import { ensureShopOpen } from './shopService.js';
 
 function normalizeCart(cartItems) {
   const grouped = new Map();
@@ -73,6 +74,7 @@ export async function checkout(user, membership, cartItems, characterId, idempot
       return previous.response;
     }
 
+    await ensureShopOpen(campaignId, prisma);
     const character = await resolveCheckoutCharacter(user, campaignId, characterId, prisma);
 
     if (!character) {

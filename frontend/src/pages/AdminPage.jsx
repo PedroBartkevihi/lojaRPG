@@ -5,6 +5,7 @@ import CatalogTab from '../components/admin/CatalogTab.jsx';
 import HistoryTab from '../components/admin/HistoryTab.jsx';
 import ItemsTab from '../components/admin/ItemsTab.jsx';
 import PartyTab from '../components/admin/PartyTab.jsx';
+import ShopSwitch from '../components/ShopSwitch.jsx';
 
 // A aba fica no endereco (?aba=itens) para sobreviver a um recarregamento.
 const TABS = [
@@ -14,7 +15,7 @@ const TABS = [
   { key: 'historicos', label: 'Históricos', Icon: History }
 ];
 
-export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
+export default function AdminPage({ api, campaign, liveKey, showNotice, onRefresh, onCampaignsChanged }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [characters, setCharacters] = useState([]);
@@ -78,6 +79,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         </button>
       </div>
 
+      {campaign && <ShopSwitch api={api} shopOpen={campaign.shopOpen} onChanged={onCampaignsChanged} showNotice={showNotice} />}
       <nav className="subtabs" role="tablist" aria-label="Seções do painel do Mestre">
         {TABS.map(({ key, label, Icon }) => (
           <button

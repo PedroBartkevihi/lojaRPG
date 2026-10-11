@@ -100,6 +100,27 @@ afterAll(async () => {
 });
 
 describe('validação das entradas', () => {
+  it('somente o Mestre abre e fecha a loja; catálogo e uso continuam disponíveis', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const key = randomUUID();
+    const body = { idempotencyKey: key, characterId: 1, items: [{ itemId: 6, quantity: 2 }] };
+    const bought = await aria.post(`${DEMO}/purchases`, body);
+    expect(bought.status).toBe(201);
+    expect((await aria.patch(`${DEMO}/shop`, { shopOpen: false })).status).toBe(403);
+    expect((await master.patch(`${DEMO}/shop`, { shopOpen: 'false' })).status).toBe(400);
+    expect((await master.patch(`${DEMO}/shop`, { shopOpen: false })).body.campaign.shopOpen).toBe(false);
+    expect((await aria.get(`${DEMO}/items`)).status).toBe(200);
+    expect((await aria.get(DEMO)).body.campaign.shopOpen).toBe(false);
+    expect((await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] })).status).toBe(409);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 })).status).toBe(409);
+    const replay = await aria.post(`${DEMO}/purchases`, body);
+    expect(replay.body.purchase.id).toBe(bought.body.purchase.id);
+    expect((await aria.post(`${DEMO}/inventory/1/use`, { itemId: 6, quantity: 1 })).status).toBe(200);
+    expect((await master.patch(`${DEMO}/shop`, { shopOpen: true })).status).toBe(200);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 })).status).toBe(200);
+  });
+
   it('filtros e ids inválidos na URL recebem 400, não 500', async () => {
     const aria = as(await login('aria@lojarpg.local'));
 

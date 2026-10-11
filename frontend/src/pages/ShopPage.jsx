@@ -7,6 +7,7 @@ import { SkeletonCards } from '../components/Skeleton.jsx';
 
 export default function ShopPage({
   api,
+  shopOpen = true,
   liveKey,
   isMaster,
   character,
@@ -85,6 +86,7 @@ export default function ShopPage({
   }, [api, liveKey]);
 
   function addToCart(item) {
+    if (!shopOpen) return;
     if (isMaster) {
       showNotice('Mestre gerencia a loja pelo painel administrativo.');
       return;
@@ -115,7 +117,7 @@ export default function ShopPage({
   }
 
   async function checkout() {
-    if (checkoutLock.current) {
+    if (!shopOpen || checkoutLock.current) {
       return;
     }
 
@@ -188,13 +190,14 @@ export default function ShopPage({
           </select>
         </div>
 
+        {!shopOpen && <p className="surface-panel" role="status">A loja está fechada. Você pode consultar o catálogo, mas não comprar nem vender.</p>}
         {error && <p className="form-error">{error}</p>}
         {loading ? (
           <SkeletonCards count={6} />
         ) : (
           <div className="items-grid">
             {items.map((item) => (
-              <ItemCard key={item.id} item={item} onAdd={() => addToCart(item)} disabled={isMaster} />
+              <ItemCard key={item.id} item={item} onAdd={() => addToCart(item)} disabled={isMaster || !shopOpen} />
             ))}
             {items.length === 0 && <p className="empty-state">Nenhum item encontrado.</p>}
           </div>
@@ -220,6 +223,7 @@ export default function ShopPage({
                 character={character}
                 onCheckout={checkout}
                 submitting={checkingOut}
+                shopOpen={shopOpen}
               />
             </div>
           </>
