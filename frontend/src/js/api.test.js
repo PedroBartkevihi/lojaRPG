@@ -20,9 +20,19 @@ function setup({ refreshStatus = 200 } = {}) {
 
     if (pathname === '/auth/refresh') {
       await new Promise((resolve) => setTimeout(resolve, 20));
+
+      if (refreshStatus === 'rede') {
+        throw new TypeError('Failed to fetch');
+      }
+
+      if (refreshStatus === 502) {
+        // Pagina de erro do proxy, em HTML.
+        return { ok: false, status: 502, text: async () => '<html>Bad Gateway</html>' };
+      }
+
       return refreshStatus === 200
         ? reply(200, { accessToken: 'access-novo', refreshToken: 'refresh-2' })
-        : reply(401, { message: 'Refresh token inválido ou expirado.' });
+        : reply(refreshStatus, { message: 'Refresh token inválido ou expirado.' });
     }
 
     if (pathname === '/auth/login') {
@@ -84,6 +94,18 @@ describe('renovação da sessão', () => {
 
     await expect(api.listCampaigns()).rejects.toThrow('Token inválido ou expirado.');
     expect(onUnauthorized).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a API está fora (503)', 503],
+    ['o limite de requisições estourou (429)', 429],
+    ['o proxy devolve uma página de erro (502)', 502],
+    ['a rede cai', 'rede']
+  ])('mantém a sessão quando %s durante a renovação', async (_caso, refreshStatus) => {
+    const { api, onUnauthorized } = setup({ refreshStatus });
+
+    await expect(api.listCampaigns()).rejects.toThrow(/tente de novo/i);
+    expect(onUnauthorized).not.toHaveBeenCalled();
   });
 
   it('senha errada no login não conta como sessão vencida', async () => {

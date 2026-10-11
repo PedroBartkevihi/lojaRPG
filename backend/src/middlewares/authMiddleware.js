@@ -11,8 +11,17 @@ export async function authenticate(req, _res, next) {
     return next(new ApiError(401, 'Token de autenticação não informado.'));
   }
 
+  let payload;
+
   try {
-    const payload = jwt.verify(token, env.jwtSecret);
+    payload = jwt.verify(token, env.jwtSecret);
+  } catch (_error) {
+    return next(new ApiError(401, 'Token inválido ou expirado.'));
+  }
+
+  // Uma falha do banco aqui e indisponibilidade, nao credencial ruim: vai para
+  // o tratamento de erros em vez de virar 401, que faria o front deslogar.
+  try {
     const user = await findUserById(payload.sub);
 
     if (!user) {
@@ -21,7 +30,7 @@ export async function authenticate(req, _res, next) {
 
     req.user = user;
     return next();
-  } catch (_error) {
-    return next(new ApiError(401, 'Token inválido ou expirado.'));
+  } catch (error) {
+    return next(error);
   }
 }
