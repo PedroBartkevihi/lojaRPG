@@ -958,6 +958,23 @@ describe('mesas', () => {
 });
 
 describe('inventário e recompensas', () => {
+  it('compras e vendas simultâneas do mesmo personagem não travam o banco', async () => {
+    const borin = as(await login('borin@lojarpg.local'));
+
+    // Borin compra e vende Poção de Cura ao mesmo tempo, várias vezes. Com a
+    // compra e a venda travando personagem e inventário em ordens opostas, o
+    // PostgreSQL abortava uma delas por deadlock (erro 500).
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        index % 2 === 0
+          ? borin.post(`${DEMO}/purchases`, { characterId: 2, items: [{ itemId: 6, quantity: 1 }] })
+          : borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 })
+      )
+    );
+
+    expect(responses.map((response) => response.status).filter((status) => status >= 500)).toEqual([]);
+  });
+
   it('vende pela metade do preço, paga o personagem e devolve o item ao estoque', async () => {
     const borin = as(await login('borin@lojarpg.local'));
 

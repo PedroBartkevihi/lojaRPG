@@ -9,7 +9,9 @@ import { ApiError } from '../utils/ApiError.js';
 // inteiro a cada um (`each`). Na divisao, o que nao fecha em partes iguais
 // sobra e e informado ao Mestre. Cada credito fica na auditoria de ouro.
 export async function giveGold({ actorUserId, campaignId, characterIds, total, mode, reason }) {
-  const ids = [...new Set(characterIds)];
+  // Em ordem crescente, como os outros bloqueios: duas recompensas ao mesmo
+  // tempo para os mesmos personagens nao esperam uma pela outra.
+  const ids = [...new Set(characterIds)].sort((a, b) => a - b);
   const share = mode === 'split' ? Math.floor(total / ids.length) : total;
   const remainder = mode === 'split' ? total - share * ids.length : 0;
 
