@@ -20,6 +20,8 @@ export default function ShopPage({
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [search, setSearch] = useState('');
+  // A busca so sai 300 ms depois da ultima tecla, e nao a cada letra.
+  const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,6 +29,9 @@ export default function ShopPage({
   // Trava sincrona: dois cliques seguidos chegam antes de o botao redesenhar
   // desativado, e cada um faria uma compra.
   const checkoutLock = useRef(false);
+  // Numero da busca mais recente: com a rede lenta, uma resposta antiga pode
+  // chegar depois da atual e nao deve substitui-la.
+  const latestItemsRequest = useRef(0);
 
   const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
   const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
@@ -34,21 +39,38 @@ export default function ShopPage({
   // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
   // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
   const loadItems = useCallback(async () => {
+    const requestId = latestItemsRequest.current + 1;
+    latestItemsRequest.current = requestId;
+    const isLatest = () => requestId === latestItemsRequest.current;
     setError('');
 
     try {
-      const data = await api.listItems({ search, category });
+      const data = await api.listItems({ search: searchTerm, category });
+
+      if (!isLatest()) {
+        return;
+      }
+
       const freshItems = new Map(data.items.map((item) => [item.id, item]));
       setItems(data.items);
       setCart((current) =>
         current.map((entry) => (freshItems.has(entry.item.id) ? { ...entry, item: freshItems.get(entry.item.id) } : entry))
       );
     } catch (requestError) {
-      setError(requestError.message);
+      if (isLatest()) {
+        setError(requestError.message);
+      }
     } finally {
-      setLoading(false);
+      if (isLatest()) {
+        setLoading(false);
+      }
     }
-  }, [api, search, category]);
+  }, [api, searchTerm, category]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchTerm(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     loadItems();

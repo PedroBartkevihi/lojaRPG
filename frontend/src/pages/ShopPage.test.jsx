@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import ShopPage from './ShopPage.jsx';
@@ -13,6 +13,7 @@ const potion = {
   rarity: 'Comum',
   rarityRank: 1
 };
+const sword = { ...potion, id: 7, name: 'Espada Longa', category: 'Armas' };
 const aria = { id: 2, name: 'Aria', className: 'Ladina', race: 'Elfa', level: 4, gold: 250 };
 
 function renderShop(api) {
@@ -56,5 +57,34 @@ describe('ShopPage', () => {
     expect(screen.getByRole('button', { name: /finalizando/i })).toBeDisabled();
 
     await act(async () => finishPurchase());
+  });
+  it('uma busca antiga que responde depois não substitui o resultado da busca atual', async () => {
+    const user = userEvent.setup();
+    const pending = {};
+    const api = {
+      listItems: vi.fn(({ search } = {}) =>
+        search
+          ? new Promise((resolve) => {
+              pending[search] = () => resolve({ items: [search === 'espada' ? sword : potion] });
+            })
+          : Promise.resolve({ items: [potion, sword] })
+      )
+    };
+    renderShop(api);
+    const box = await screen.findByPlaceholderText('Buscar item');
+
+    await user.type(box, 'espada');
+    await waitFor(() => expect(pending.espada).toBeDefined());
+    await user.clear(box);
+    await user.type(box, 'pocao');
+    await waitFor(() => expect(pending.pocao).toBeDefined());
+
+    // A resposta da busca atual chega primeiro; a antiga, por ultimo.
+    await act(async () => pending.pocao());
+    await act(async () => pending.espada());
+
+    expect(screen.getByRole('heading', { name: 'Poção de Cura' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Espada Longa' })).not.toBeInTheDocument();
+    expect(api.listItems.mock.calls.filter(([params]) => params?.search?.startsWith('esp'))).toHaveLength(1);
   });
 });
