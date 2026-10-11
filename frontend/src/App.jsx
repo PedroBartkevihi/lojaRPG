@@ -468,7 +468,10 @@ function AppContent() {
         </div>
       </header>
 
-      {notice && <div className="toast">{notice}</div>}
+      {/* Regiao viva: leitores de tela anunciam o aviso sem mudar o foco. */}
+      <div className="toast-region" role="status" aria-live="polite">
+        {notice && <div className="toast">{notice}</div>}
+      </div>
 
       <Routes>
         <Route path="/" element={<Navigate to="/shop" replace />} />

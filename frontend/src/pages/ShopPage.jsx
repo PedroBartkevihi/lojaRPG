@@ -167,7 +167,11 @@ export default function ShopPage({
               placeholder="Buscar item"
             />
           </label>
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            aria-label="Filtrar por categoria"
+          >
             <option value="">Todas as categorias</option>
             {categories.map((itemCategory) => (
               <option key={itemCategory} value={itemCategory}>

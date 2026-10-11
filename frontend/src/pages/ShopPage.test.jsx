@@ -33,6 +33,12 @@ function renderShop(api) {
 }
 
 describe('ShopPage', () => {
+  it('o filtro de categoria tem nome para leitores de tela', async () => {
+    renderShop({ listItems: vi.fn().mockResolvedValue({ items: [potion, sword] }) });
+
+    expect(await screen.findByRole('combobox', { name: 'Filtrar por categoria' })).toBeInTheDocument();
+  });
+
   it('dois cliques seguidos em Finalizar compra fazem uma compra só', async () => {
     const user = userEvent.setup();
     let finishPurchase;

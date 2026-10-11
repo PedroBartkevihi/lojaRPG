@@ -77,6 +77,10 @@ describe('convite por link', () => {
     expect(api.calls).toContainEqual({ route: 'POST /campaigns/join', body: { inviteCode: 'ABCD1234' } });
     expect(await screen.findByText('Mesa do Caio')).toBeInTheDocument();
     expect(localStorage.getItem('lojaRpgInvite')).toBeNull();
+    // O aviso e anunciado por leitores de tela.
+    expect(screen.getAllByRole('status').map((element) => element.textContent)).toContain(
+      'Você entrou na mesa Mesa do Caio.'
+    );
   });
 
   it('entra na mesa quando a pessoa troca para o login antes de entrar', async () => {

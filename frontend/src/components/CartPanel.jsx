@@ -42,6 +42,7 @@ export default function CartPanel({ cart, setCart, character, onCheckout, submit
                 max={entry.item.stock}
                 value={entry.quantity}
                 onChange={(event) => changeQuantity(entry.item.id, event.target.value)}
+                aria-label={`Quantidade de ${entry.item.name}`}
               />
               <button className="icon-button danger" onClick={() => removeItem(entry.item.id)} title="Remover">
                 <Trash2 size={17} />
