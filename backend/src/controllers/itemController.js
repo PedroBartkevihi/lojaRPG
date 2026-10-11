@@ -1,6 +1,6 @@
 import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { createItem, findItemById, listItems, reactivateItem } from '../models/itemModel.js';
-import { itemIdSchema, itemSchema } from '../schemas/itemSchemas.js';
+import { expectedStockSchema, itemIdSchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse, parseChanges } from '../utils/validation.js';
@@ -71,7 +71,12 @@ export async function update(req, res) {
     throw new ApiError(404, 'Item não encontrado.');
   }
 
-  const item = await saveItemChanges(existing, parseItem(req.body, existing), req.user.id, req.body.stockReason);
+  const expectedStock =
+    req.body.expectedStock === undefined ? undefined : parse(expectedStockSchema, req.body.expectedStock);
+  const item = await saveItemChanges(existing, parseItem(req.body, existing), req.user.id, {
+    stockReason: req.body.stockReason,
+    expectedStock
+  });
 
   res.json({ item });
 }

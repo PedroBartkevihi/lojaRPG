@@ -51,13 +51,25 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
     setSaving(true);
     setError('');
 
+    const payload = {
+      ...form,
+      price: Number(form.price),
+      sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
+      stock: Number(form.stock)
+    };
+
+    // Na edicao, o estoque so vai se o Mestre mexeu nele, junto com o valor que
+    // ele viu: uma compra feita com o formulario aberto nao e desfeita.
+    if (item) {
+      if (payload.stock === item.stock) {
+        delete payload.stock;
+      } else {
+        payload.expectedStock = item.stock;
+      }
+    }
+
     try {
-      await onSave({
-        ...form,
-        price: Number(form.price),
-        sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
-        stock: Number(form.stock)
-      });
+      await onSave(payload);
       setForm(emptyForm);
     } catch (requestError) {
       setError(requestError.message);

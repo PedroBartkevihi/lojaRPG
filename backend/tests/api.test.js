@@ -350,6 +350,27 @@ describe('autenticação e autorização', () => {
 });
 
 describe('itens', () => {
+  it('editar o item não repõe a unidade vendida enquanto o formulário estava aberto', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const opened = (await master.get(`${DEMO}/items?includeInactive=true`)).body.items.find((item) => item.id === 6);
+
+    await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] });
+
+    // O formulario envia o estoque que o Mestre viu: a compra no meio gera 409.
+    const stale = await master.put(`${DEMO}/items/6`, { ...opened, name: 'Poção de Cura Maior', expectedStock: opened.stock });
+    expect(stale.status).toBe(409);
+
+    // Sem mexer no estoque, so o nome muda e a venda continua contada.
+    const renamed = await master.put(`${DEMO}/items/6`, { name: 'Poção de Cura Maior' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.item.stock).toBe(opened.stock - 1);
+
+    const restocked = await master.put(`${DEMO}/items/6`, { stock: 20, expectedStock: opened.stock - 1 });
+    expect(restocked.status).toBe(200);
+    expect(restocked.body.item.stock).toBe(20);
+  });
+
   it('busca itens sem diferenciar acentos nem maiúsculas', async () => {
     const playerToken = await login('aria@lojarpg.local');
 

@@ -18,3 +18,6 @@ export const itemSchema = z.object({
 });
 
 export const itemIdSchema = id('Id do item');
+
+// Estoque que o Mestre viu ao abrir a edicao (veja saveItemChanges).
+export const expectedStockSchema = integer('Estoque esperado', { min: 0, max: 100000 });

@@ -58,4 +58,46 @@ describe('AdminItemForm', () => {
 
     expect(screen.getByLabelText('Categoria')).toHaveValue('Poções');
   });
+
+  describe('editando um item', () => {
+    const potion = {
+      id: 6,
+      name: 'Poção de Cura',
+      category: 'Poções',
+      description: '',
+      price: 50,
+      sellPrice: null,
+      isSellable: true,
+      rarity: 'Incomum',
+      stock: 5,
+      imageUrl: ''
+    };
+
+    it('não manda o estoque quando o Mestre só muda o nome', async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn().mockResolvedValue();
+      render(<AdminItemForm item={potion} categories={categories} rarities={rarities} onSave={onSave} />);
+
+      await user.clear(screen.getByLabelText('Nome'));
+      await user.type(screen.getByLabelText('Nome'), 'Poção de Cura Maior');
+      await user.click(screen.getByRole('button', { name: /salvar/i }));
+
+      const payload = onSave.mock.calls[0][0];
+      expect(payload.name).toBe('Poção de Cura Maior');
+      expect(payload).not.toHaveProperty('stock');
+      expect(payload).not.toHaveProperty('expectedStock');
+    });
+
+    it('manda o estoque novo com o valor visto ao abrir', async () => {
+      const user = userEvent.setup();
+      const onSave = vi.fn().mockResolvedValue();
+      render(<AdminItemForm item={potion} categories={categories} rarities={rarities} onSave={onSave} />);
+
+      await user.clear(screen.getByLabelText('Estoque'));
+      await user.type(screen.getByLabelText('Estoque'), '12');
+      await user.click(screen.getByRole('button', { name: /salvar/i }));
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ stock: 12, expectedStock: 5 }));
+    });
+  });
 });
