@@ -130,21 +130,36 @@ function AppContent() {
     navigateRef.current = navigate;
   }, [navigate]);
 
+  // A API le a mesa deste ref, que acompanha a tela. O localStorage so guarda
+  // a escolha para o proximo carregamento: ele e dividido entre as abas, e
+  // outra aba que trocasse de mesa mudaria a mesa das requisicoes desta.
+  const campaignIdRef = useRef(campaignId);
+
+  const setActiveCampaign = useCallback((id) => {
+    campaignIdRef.current = id;
+    setCampaignId(id);
+
+    if (id) {
+      localStorage.setItem(CAMPAIGN_KEY, String(id));
+    } else {
+      localStorage.removeItem(CAMPAIGN_KEY);
+    }
+  }, []);
+
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    localStorage.removeItem(CAMPAIGN_KEY);
     setToken(null);
     setUser(null);
     setCampaigns([]);
     setCampaignsLoaded(false);
-    setCampaignId(null);
+    setActiveCampaign(null);
     setCharacters([]);
     setCharactersLoaded(false);
     setSelectedCharacterId(null);
     navigateRef.current('/login', { replace: true });
-  }, []);
+  }, [setActiveCampaign]);
 
   const storeTokens = useCallback((data) => {
     const accessToken = data.accessToken || data.token;
@@ -171,7 +186,7 @@ function AppContent() {
         clearSession,
         () => localStorage.getItem(REFRESH_TOKEN_KEY),
         storeTokens,
-        () => localStorage.getItem(CAMPAIGN_KEY)
+        () => campaignIdRef.current
       ),
     [clearSession, storeTokens]
   );
@@ -184,12 +199,20 @@ function AppContent() {
   }, [api]);
 
   // Recarrega os personagens do usuario na mesa ativa (ouro, nivel etc.).
+  // Uma resposta que chega depois de trocar de mesa e da mesa anterior: fica de fora.
   const refreshSession = useCallback(async () => {
-    if (!localStorage.getItem(CAMPAIGN_KEY)) {
+    const requestedCampaignId = campaignIdRef.current;
+
+    if (!requestedCampaignId) {
       return;
     }
 
     const data = await api.myCharacter();
+
+    if (campaignIdRef.current !== requestedCampaignId) {
+      return;
+    }
+
     const nextCharacters = data.characters || [];
     setCharacters(nextCharacters);
     setCharactersLoaded(true);
@@ -201,21 +224,19 @@ function AppContent() {
 
   const selectCampaign = useCallback(
     (nextCampaign, path = '/shop', options = {}) => {
-      localStorage.setItem(CAMPAIGN_KEY, String(nextCampaign.id));
-      setCampaignId(nextCampaign.id);
+      setActiveCampaign(nextCampaign.id);
       navigate(path, options);
     },
-    [navigate]
+    [navigate, setActiveCampaign]
   );
 
   // A lista e atualizada antes de soltar a mesa; com a lista antiga, a selecao
   // automatica abriria de novo a mesa que acabou de sair.
   const leaveCampaign = useCallback(async () => {
     await loadCampaigns();
-    localStorage.removeItem(CAMPAIGN_KEY);
-    setCampaignId(null);
+    setActiveCampaign(null);
     navigate('/mesas', { replace: true });
-  }, [loadCampaigns, navigate]);
+  }, [loadCampaigns, navigate, setActiveCampaign]);
 
   const joinWithCode = useCallback(
     async (code) => {
@@ -270,13 +291,11 @@ function AppContent() {
     }
 
     if (campaignId && !campaign) {
-      localStorage.removeItem(CAMPAIGN_KEY);
-      setCampaignId(null);
+      setActiveCampaign(null);
     } else if (!campaignId && campaigns.length === 1) {
-      localStorage.setItem(CAMPAIGN_KEY, String(campaigns[0].id));
-      setCampaignId(campaigns[0].id);
+      setActiveCampaign(campaigns[0].id);
     }
-  }, [campaignsLoaded, campaignId, campaign, campaigns]);
+  }, [campaignsLoaded, campaignId, campaign, campaigns, setActiveCampaign]);
 
   // Quem abre um link de convite sem estar logado entra na mesa depois do login.
   useEffect(() => {

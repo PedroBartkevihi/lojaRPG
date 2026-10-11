@@ -132,3 +132,46 @@ describe('convite por link', () => {
     expect(localStorage.getItem('lojaRpgInvite')).toBeNull();
   });
 });
+
+describe('mesa por aba', () => {
+  it('as requisições usam a mesa da tela, mesmo se outra aba trocar de mesa', async () => {
+    const user = userEvent.setup();
+    const mesas = [
+      { id: 7, name: 'Mesa do Caio', role: 'MESTRE', memberCount: 1, inviteCode: 'AAAAAAAA' },
+      { id: 8, name: 'Mesa da Lia', role: 'MESTRE', memberCount: 1, inviteCode: 'BBBBBBBB' }
+    ];
+    const paths = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const { pathname } = new URL(url);
+        paths.push(pathname);
+        const id = Number(pathname.split('/')[2]);
+        const body =
+          pathname === '/campaigns'
+            ? { campaigns: mesas }
+            : pathname.endsWith('/characters/me')
+              ? { characters: [] }
+              : pathname.endsWith('/items')
+                ? { items: [] }
+                : { campaign: mesas.find((entry) => entry.id === id), members: [] };
+        return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+      })
+    );
+    localStorage.setItem('lojaRpgToken', 'access-1');
+    localStorage.setItem('lojaRpgRefreshToken', 'refresh-1');
+    localStorage.setItem('lojaRpgUser', JSON.stringify({ id: 9, name: 'Caio' }));
+    localStorage.setItem('lojaRpgCampaign', '7');
+    window.history.pushState({}, '', '/shop');
+    render(<App />);
+
+    await screen.findByText('Mesa do Caio');
+    // Outra aba do mesmo navegador abre a Mesa da Lia.
+    localStorage.setItem('lojaRpgCampaign', '8');
+    paths.length = 0;
+    await user.click(screen.getByRole('button', { name: /^mesa$/i }));
+
+    await waitFor(() => expect(paths).toContain('/campaigns/7'));
+    expect(paths.some((path) => path.startsWith('/campaigns/8'))).toBe(false);
+  });
+});
