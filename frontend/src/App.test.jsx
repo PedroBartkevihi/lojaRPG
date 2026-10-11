@@ -25,7 +25,8 @@ function fakeApi() {
       return { message: 'Você entrou na mesa Mesa do Caio.', campaign: mesa };
     },
     'GET /campaigns/7/characters/me': () => ({ characters: [] }),
-    'GET /campaigns/7/items': () => ({ items: [] })
+    'GET /campaigns/7/items': () => ({ items: [] }),
+    'GET /campaigns/7/catalog/categories': () => ({ categories: [] })
   };
 
   const fetchMock = vi.fn(async (url, options = {}) => {
@@ -156,6 +157,8 @@ describe('mesa por aba', () => {
             ? { campaigns: mesas }
             : pathname.endsWith('/characters/me')
               ? { characters: [] }
+              : pathname.endsWith('/catalog/categories')
+                ? { categories: [] }
               : pathname.endsWith('/items')
                 ? { items: [] }
                 : { campaign: mesas.find((entry) => entry.id === id), members: [] };

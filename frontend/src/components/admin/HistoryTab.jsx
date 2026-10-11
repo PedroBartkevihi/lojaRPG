@@ -1,9 +1,27 @@
 import { Coins, Gift, PackagePlus } from 'lucide-react';
+import { useCallback } from 'react';
+import { usePagedHistory } from '../../js/usePagedHistory.js';
+import HistoryPagination from '../HistoryPagination.jsx';
 import InventoryLogList from '../InventoryLogList.jsx';
 import PurchaseHistory from '../PurchaseHistory.jsx';
 import { SkeletonRows } from '../Skeleton.jsx';
 
-export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAuditLogs, loading, purchasesKey }) {
+export default function HistoryTab({ api, refreshKey }) {
+  const loadInventory = useCallback(async (params) => {
+    const data = await api.listInventoryLogs(params);
+    return { entries: data.logs, pagination: data.pagination };
+  }, [api]);
+  const loadGold = useCallback(async (params) => {
+    const data = await api.listGoldAudit(params);
+    return { entries: data.logs, pagination: data.pagination };
+  }, [api]);
+  const loadStock = useCallback(async (params) => {
+    const data = await api.listStockMovements(params);
+    return { entries: data.movements, pagination: data.pagination };
+  }, [api]);
+  const inventory = usePagedHistory(loadInventory, refreshKey);
+  const gold = usePagedHistory(loadGold, refreshKey);
+  const stock = usePagedHistory(loadStock, refreshKey);
   return (
     <div className="panel-grid admin-tab">
       <div className="surface-panel">
@@ -11,7 +29,8 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
           <Gift size={20} />
           <h3>Vendas, usos e recompensas</h3>
         </div>
-        {loading ? <SkeletonRows count={3} /> : <InventoryLogList logs={inventoryLogs} showCharacter limit={15} />}
+        {inventory.loading && inventory.entries.length === 0 ? <SkeletonRows count={3} /> : <InventoryLogList logs={inventory.entries} showCharacter />}
+        <HistoryPagination page={inventory} label="vendas, usos e recompensas" />
       </div>
 
       <div className="surface-panel">
@@ -20,7 +39,7 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
           <h3>Auditoria de ouro</h3>
         </div>
         <div className="history-list">
-          {goldAuditLogs.map((log) => (
+          {gold.entries.map((log) => (
             <article className="history-entry" key={log.id}>
               <header>
                 <div>
@@ -36,9 +55,10 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
               </p>
             </article>
           ))}
-          {loading && <SkeletonRows count={3} />}
-          {!loading && goldAuditLogs.length === 0 && <p className="empty-state">Nenhum ajuste de ouro registrado.</p>}
+          {gold.loading && gold.entries.length === 0 && <SkeletonRows count={3} />}
+          {!gold.loading && gold.entries.length === 0 && <p className="empty-state">Nenhum ajuste de ouro registrado.</p>}
         </div>
+        <HistoryPagination page={gold} label="auditoria de ouro" />
       </div>
 
       <div className="surface-panel">
@@ -47,7 +67,7 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
           <h3>Histórico de estoque</h3>
         </div>
         <div className="history-list">
-          {stockMovements.slice(0, 15).map((movement) => (
+          {stock.entries.map((movement) => (
             <article className="history-entry" key={movement.id}>
               <header>
                 <div>
@@ -61,12 +81,13 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
               </p>
             </article>
           ))}
-          {loading && <SkeletonRows count={3} />}
-          {!loading && stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
+          {stock.loading && stock.entries.length === 0 && <SkeletonRows count={3} />}
+          {!stock.loading && stock.entries.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
         </div>
+        <HistoryPagination page={stock} label="estoque" />
       </div>
 
-      <PurchaseHistory api={api} isMaster refreshKey={purchasesKey} embedded />
+      <PurchaseHistory api={api} isMaster refreshKey={refreshKey} embedded />
     </div>
   );
 }

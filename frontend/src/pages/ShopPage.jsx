@@ -79,8 +79,8 @@ export default function ShopPage({
 
   useEffect(() => {
     api
-      .listItems()
-      .then((data) => setCategories([...new Set(data.items.map((item) => item.category))].sort()))
+      .listCategories()
+      .then((data) => setCategories(data.categories.map((entry) => entry.name).sort()))
       .catch((requestError) => setError(requestError.message));
   }, [api, liveKey]);
 

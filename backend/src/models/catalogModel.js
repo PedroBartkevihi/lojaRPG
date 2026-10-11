@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage } from '../utils/historyPagination.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const FALLBACK_CATEGORY_NAME = 'Sem categoria';
@@ -198,7 +199,7 @@ export async function deleteRarity(campaignId, id, prisma = getPrisma()) {
 }
 
 export async function listStockMovements(filters, prisma = getPrisma()) {
-  const movements = await prisma.stockMovement.findMany({
+  return historyPage(prisma.stockMovement, {
     where: {
       item: { campaignId: Number(filters.campaignId) },
       ...(filters.itemId ? { itemId: Number(filters.itemId) } : {})
@@ -206,11 +207,8 @@ export async function listStockMovements(filters, prisma = getPrisma()) {
     include: {
       item: { select: { name: true } },
       actor: { select: { name: true } }
-    },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
-  });
-
-  return movements.map((movement) => ({
+    }
+  }, filters, (movement) => ({
     id: movement.id,
     itemId: movement.itemId,
     itemName: movement.item?.name,

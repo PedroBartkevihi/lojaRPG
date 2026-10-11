@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Coins, History, PackagePlus, RefreshCcw, Tags } from 'lucide-react';
 import CatalogTab from '../components/admin/CatalogTab.jsx';
@@ -18,56 +18,50 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [characters, setCharacters] = useState([]);
-  const [goldAuditLogs, setGoldAuditLogs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [rarities, setRarities] = useState([]);
-  const [stockMovements, setStockMovements] = useState([]);
-  const [inventoryLogs, setInventoryLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const requestVersion = useRef(0);
+  const loadedTab = useRef(null);
 
   const activeTab = TABS.some((tab) => tab.key === searchParams.get('aba')) ? searchParams.get('aba') : 'grupo';
 
   // `silent` e a recarga automatica e a que vem depois de uma acao: a tela
   // atual fica ate os dados novos chegarem, sem "Carregando".
   const loadAdminData = useCallback(async ({ silent = false } = {}) => {
+    const request = ++requestVersion.current;
     if (!silent) {
       setLoading(true);
     }
 
     try {
-      const [itemsData, charactersData, auditData, categoriesData, raritiesData, stockData, logsData] =
-        await Promise.all([
-          api.listItems({ includeInactive: true }),
-          api.listCharacters(),
-          api.listGoldAudit(),
-          api.listCategories(),
-          api.listRarities(),
-          api.listStockMovements(),
-          api.listInventoryLogs()
-        ]);
-      setItems(itemsData.items);
-      setCharacters(charactersData.characters);
-      setGoldAuditLogs(auditData.logs);
-      setCategories(categoriesData.categories);
-      setRarities(raritiesData.rarities);
-      setStockMovements(stockData.movements);
-      setInventoryLogs(logsData.logs);
+      const sources = {
+        grupo: [() => api.listItems({ includeInactive: true }), () => api.listCharacters()],
+        itens: [() => api.listItems({ includeInactive: true }), () => api.listCategories(), () => api.listRarities()],
+        catalogo: [() => api.listCategories(), () => api.listRarities()],
+        historicos: []
+      };
+      const data = Object.assign({}, ...await Promise.all(sources[activeTab].map((load) => load())));
+      if (request !== requestVersion.current) return;
+      if (data.items) setItems(data.items);
+      if (data.characters) setCharacters(data.characters);
+      if (data.categories) setCategories(data.categories);
+      if (data.rarities) setRarities(data.rarities);
+      loadedTab.current = activeTab;
+    } catch (error) {
+      if (request === requestVersion.current) throw error;
     } finally {
-      setLoading(false);
+      if (request === requestVersion.current) setLoading(false);
     }
-  }, [api]);
+  }, [api, activeTab]);
 
   const reload = useCallback(() => loadAdminData({ silent: true }), [loadAdminData]);
 
   useEffect(() => {
-    loadAdminData().catch((error) => showNotice(error.message));
-  }, [loadAdminData, showNotice]);
-
-  useEffect(() => {
-    if (liveKey) {
-      reload().catch(() => {});
-    }
-  }, [liveKey, reload]);
+    loadAdminData({ silent: loadedTab.current === activeTab }).catch((error) => showNotice(error.message));
+    return () => { requestVersion.current += 1; };
+  }, [loadAdminData, showNotice, liveKey, activeTab]);
 
   return (
     <section className="wide-section">
@@ -76,7 +70,9 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
           <p className="eyebrow">Controle do Mestre</p>
           <h2>Painel do Mestre</h2>
         </div>
-        <button className="secondary-action" onClick={() => loadAdminData().catch((error) => showNotice(error.message))}>
+        <button className="secondary-action" onClick={() => activeTab === 'historicos'
+          ? setHistoryVersion((value) => value + 1)
+          : loadAdminData().catch((error) => showNotice(error.message))}>
           <RefreshCcw size={17} />
           Atualizar
         </button>
@@ -132,12 +128,9 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
       )}
       {activeTab === 'historicos' && (
         <HistoryTab
+          key={historyVersion}
           api={api}
-          stockMovements={stockMovements}
-          inventoryLogs={inventoryLogs}
-          goldAuditLogs={goldAuditLogs}
-          loading={loading}
-          purchasesKey={`${liveKey}:${items.length}:${characters.length}`}
+          refreshKey={liveKey}
         />
       )}
     </section>

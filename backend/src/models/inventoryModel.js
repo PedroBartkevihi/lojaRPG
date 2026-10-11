@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage } from '../utils/historyPagination.js';
 import { effectiveSellPrice } from './itemModel.js';
 
 function mapInventoryItem(entry) {
@@ -111,7 +112,7 @@ export async function createInventoryLog(data, prisma = getPrisma()) {
 }
 
 export async function listInventoryLogs(filters, prisma = getPrisma()) {
-  const logs = await prisma.inventoryLog.findMany({
+  return historyPage(prisma.inventoryLog, {
     where: {
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
@@ -120,10 +121,6 @@ export async function listInventoryLogs(filters, prisma = getPrisma()) {
       character: { select: { name: true } },
       item: { select: { name: true } },
       actor: { select: { name: true } }
-    },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: 50
-  });
-
-  return logs.map(mapInventoryLog);
+    }
+  }, filters, mapInventoryLog);
 }

@@ -17,6 +17,7 @@ import {
   stockItemIdSchema
 } from '../schemas/catalogSchemas.js';
 import { parse } from '../utils/validation.js';
+import { historyQuerySchema } from '../utils/historyPagination.js';
 
 function parseCategory(body) {
   return parse(categorySchema, body);
@@ -77,5 +78,6 @@ export async function raritiesRemove(req, res) {
 export async function stockMovements(req, res) {
   const itemId = req.query.itemId ? parse(stockItemIdSchema, req.query.itemId) : undefined;
 
-  res.json({ movements: await listStockMovements({ campaignId: req.campaign.id, itemId }) });
+  const page = await listStockMovements({ campaignId: req.campaign.id, itemId, ...parse(historyQuerySchema, req.query) });
+  res.json({ movements: page.entries, pagination: page.pagination });
 }

@@ -38,6 +38,7 @@ describe('InventoryPanel', () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const api = {
+      characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }),
       myInventory: vi.fn().mockResolvedValue(inventoryResponse()),
       sellItem: vi.fn().mockResolvedValue({ message: 'Venda concluída: 2x Poção de Cura por 50 ouro.' })
     };
@@ -50,7 +51,7 @@ describe('InventoryPanel', () => {
 
     expect(await screen.findByText('A loja paga 25 ouro cada')).toBeInTheDocument();
     expect(screen.getByText('A loja não compra este item')).toBeInTheDocument();
-    expect(screen.getByText('Recebeu 1x Chave do Templo de Mestre do Cofre')).toBeInTheDocument();
+    expect(await screen.findByText('Recebeu 1x Chave do Templo de Mestre do Cofre')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /vender/i })).toHaveLength(1);
 
     await user.type(screen.getByLabelText('Quantidade de Poção de Cura'), '2');
@@ -65,7 +66,8 @@ describe('InventoryPanel', () => {
   it('não usa o item quando o jogador cancela a confirmação', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const api = { myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn() };
+    const api = { myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn(),
+      characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }) };
 
     render(<InventoryPanel api={api} character={character} />);
 

@@ -4,6 +4,7 @@ import { listPurchases } from '../models/purchaseModel.js';
 import { characterIdSchema } from '../schemas/characterSchemas.js';
 import { checkout } from '../services/purchaseService.js';
 import { ApiError } from '../utils/ApiError.js';
+import { historyQuerySchema } from '../utils/historyPagination.js';
 import { parse } from '../utils/validation.js';
 
 export async function create(req, res) {
@@ -24,16 +25,19 @@ export async function me(req, res) {
     throw new ApiError(403, 'Você não pode ver compras deste personagem.');
   }
 
-  res.json({ purchases: await listPurchases({ campaignId: req.campaign.id, characterId: character.id }) });
+  const page = await listPurchases({ campaignId: req.campaign.id, characterId: character.id, ...parse(historyQuerySchema, req.query) });
+  res.json({ purchases: page.entries, pagination: page.pagination });
 }
 
 export async function index(req, res) {
+  const pagination = parse(historyQuerySchema, req.query);
   if (isGameMaster(req)) {
-    return res.json({ purchases: await listPurchases({ campaignId: req.campaign.id }) });
+    const page = await listPurchases({ campaignId: req.campaign.id, ...pagination });
+    return res.json({ purchases: page.entries, pagination: page.pagination });
   }
 
   const character = await findCharacterByUserId(req.user.id, req.campaign.id);
-  return res.json({
-    purchases: character ? await listPurchases({ campaignId: req.campaign.id, characterId: character.id }) : []
-  });
+  const page = character ? await listPurchases({ campaignId: req.campaign.id, characterId: character.id, ...pagination }) :
+    { entries: [], pagination: { limit: pagination.limit, hasMore: false, nextCursor: null } };
+  return res.json({ purchases: page.entries, pagination: page.pagination });
 }

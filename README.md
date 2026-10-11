@@ -204,7 +204,7 @@ npm run lint
 npm test
 ```
 
-Os 49 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+Os testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
 mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
@@ -270,6 +270,20 @@ Compras e inventário:
 - `POST /inventory/:characterId/sell` e `POST /inventory/:characterId/use`
   (dono do personagem, com `itemId` e `quantity`)
 - `GET /inventory/logs` (Mestre): vendas, usos e recompensas da mesa
+- `GET /inventory/:characterId/logs` (dono ou Mestre): histórico paginado do personagem
+
+Compras, auditoria de ouro e movimentações de estoque/inventário aceitam
+`limit` (padrão 25, máximo 100) e `cursor`. As respostas mantêm `purchases`,
+`logs` ou `movements` e acrescentam `pagination: { limit, hasMore, nextCursor }`.
+Passe `nextCursor` na próxima chamada com os mesmos filtros; ele usa data e id,
+sem depender de a linha de fronteira ainda existir. `GET /inventory/me` também
+retorna `logsPagination`; `includeLogs=false` permite carregar só equipamentos.
+
+O painel carrega apenas os dados da aba ativa. Nos históricos, **Mostrar mais**
+acrescenta páginas anteriores e pausa a atualização automática dessa lista
+para preservar a leitura. **Ver registros recentes** volta à primeira página
+e retoma as atualizações. A loja consulta categorias pelo endpoint próprio,
+sem baixar o catálogo de itens duas vezes por ciclo.
 
 O checkout exige `idempotencyKey` (UUID) no corpo, junto de `items` e
 `characterId`. Gere uma chave para cada intenção de compra e reutilize-a

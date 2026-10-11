@@ -19,7 +19,7 @@ const aria = { id: 2, name: 'Aria', className: 'Ladina', race: 'Elfa', level: 4,
 function renderShop(api) {
   return render(
     <ShopPage
-      api={api}
+      api={{ listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), ...api }}
       liveKey={0}
       isMaster={false}
       character={aria}
@@ -33,6 +33,17 @@ function renderShop(api) {
 }
 
 describe('ShopPage', () => {
+  it('busca categorias sem baixar novamente o catalogo completo de itens', async () => {
+    const api = {
+      listItems: vi.fn().mockResolvedValue({ items: [potion] }),
+      listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }] })
+    };
+    renderShop(api);
+    await screen.findByRole('heading', { name: potion.name });
+    expect(api.listItems).toHaveBeenCalledTimes(1);
+    expect(api.listCategories).toHaveBeenCalledTimes(1);
+  });
+
   it('reenvia a mesma chave apos falha de rede e cria outra so para uma nova compra', async () => {
     const user = userEvent.setup();
     const api = {

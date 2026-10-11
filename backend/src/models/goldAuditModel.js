@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage } from '../utils/historyPagination.js';
 
 function mapGoldAuditLog(log) {
   if (!log) {
@@ -49,14 +50,11 @@ export async function createGoldAuditLog(data, prisma = getPrisma()) {
 }
 
 export async function listGoldAuditLogs(filters, prisma = getPrisma()) {
-  const logs = await prisma.goldAuditLog.findMany({
+  return historyPage(prisma.goldAuditLog, {
     where: {
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },
-    include: includeAudit,
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
-  });
-
-  return logs.map(mapGoldAuditLog);
+    include: includeAudit
+  }, filters, mapGoldAuditLog);
 }

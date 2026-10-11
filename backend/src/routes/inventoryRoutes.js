@@ -7,6 +7,7 @@ export const inventoryRoutes = Router();
 
 inventoryRoutes.get('/me', asyncHandler(controller.me));
 inventoryRoutes.get('/logs', requireGameMaster, asyncHandler(controller.logs));
+inventoryRoutes.get('/:characterId/logs', asyncHandler(controller.characterLogs));
 inventoryRoutes.get('/:characterId', asyncHandler(controller.show));
 inventoryRoutes.post('/:characterId/sell', asyncHandler(controller.sell));
 inventoryRoutes.post('/:characterId/use', asyncHandler(controller.use));

@@ -154,11 +154,12 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     myInventory: (params = {}) => request(withQuery(campaignPath('/inventory/me'), params)),
     sellItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/sell`), { method: 'POST', body }),
     useItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/use`), { method: 'POST', body }),
-    listInventoryLogs: () => request(campaignPath('/inventory/logs')),
+    listInventoryLogs: (params = {}) => request(withQuery(campaignPath('/inventory/logs'), params)),
+    characterInventoryLogs: (id, params = {}) => request(withQuery(campaignPath(`/inventory/${id}/logs`), params)),
     giveGold: (body) => request(campaignPath('/rewards/gold'), { method: 'POST', body }),
     giveItem: (body) => request(campaignPath('/rewards/items'), { method: 'POST', body }),
     createPurchase: (body) => request(campaignPath('/purchases'), { method: 'POST', body }),
     myPurchases: (params = {}) => request(withQuery(campaignPath('/purchases/me'), params)),
-    listPurchases: () => request(campaignPath('/purchases'))
+    listPurchases: (params = {}) => request(withQuery(campaignPath('/purchases'), params))
   };
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Backpack, Coins, HandCoins, History, Sparkles } from 'lucide-react';
+import { Backpack, Coins, HandCoins, Sparkles } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
-import InventoryLogList from './InventoryLogList.jsx';
+import InventoryHistory from './InventoryHistory.jsx';
 import ItemIcon from './ItemIcon.jsx';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonCards } from './Skeleton.jsx';
@@ -15,7 +15,6 @@ export default function InventoryPanel({
   onRefreshSession
 }) {
   const [inventory, setInventory] = useState([]);
-  const [logs, setLogs] = useState([]);
   const [character, setCharacter] = useState(null);
   const [quantities, setQuantities] = useState({});
   const [busyItemId, setBusyItemId] = useState(null);
@@ -25,9 +24,8 @@ export default function InventoryPanel({
     setLoading(true);
 
     try {
-      const data = await api.myInventory({ characterId: selectedCharacter?.id });
+      const data = await api.myInventory({ characterId: selectedCharacter?.id, includeLogs: false });
       setInventory(data.inventory);
-      setLogs(data.logs || []);
       setCharacter(data.character);
     } catch (error) {
       showNotice?.(error.message);
@@ -168,13 +166,7 @@ export default function InventoryPanel({
           </div>
         )}
       </div>
-      <div className="surface-panel inventory-history">
-        <div className="panel-title">
-          <History size={20} />
-          <h3>Movimentações</h3>
-        </div>
-        <InventoryLogList logs={logs} limit={15} />
-      </div>
+      <InventoryHistory api={api} characterId={character?.id} refreshKey={refreshKey} />
     </section>
   );
 }

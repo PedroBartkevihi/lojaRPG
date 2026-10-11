@@ -1330,3 +1330,14 @@ a.primary-action {
     display: none;
   }
 }
+
+.history-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.history-pagination .form-error {
+  flex-basis: 100%;
+}

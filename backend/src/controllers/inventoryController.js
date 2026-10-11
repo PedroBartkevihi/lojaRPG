@@ -5,13 +5,18 @@ import { characterIdSchema } from '../schemas/characterSchemas.js';
 import { sellItemSchema, useItemSchema } from '../schemas/inventorySchemas.js';
 import { sellItem, useItem } from '../services/inventoryService.js';
 import { ApiError } from '../utils/ApiError.js';
+import { historyQuerySchema } from '../utils/historyPagination.js';
 import { parse } from '../utils/validation.js';
 
 async function inventoryResponse(req, character) {
+  const page = req.query.includeLogs === 'false' ? null : await listInventoryLogs({
+    campaignId: req.campaign.id, characterId: character.id, ...parse(historyQuerySchema, req.query)
+  });
   return {
     character,
     inventory: await listInventoryByCharacterId(character.id),
-    logs: await listInventoryLogs({ campaignId: req.campaign.id, characterId: character.id })
+    logs: page?.entries || [],
+    logsPagination: page?.pagination || null
   };
 }
 
@@ -71,5 +76,13 @@ export async function use(req, res) {
 }
 
 export async function logs(req, res) {
-  res.json({ logs: await listInventoryLogs({ campaignId: req.campaign.id }) });
+  const page = await listInventoryLogs({ campaignId: req.campaign.id, ...parse(historyQuerySchema, req.query) });
+  res.json({ logs: page.entries, pagination: page.pagination });
+}
+
+export async function characterLogs(req, res) {
+  const character = await findCharacterById(parse(characterIdSchema, req.params.characterId), req.campaign.id);
+  ensureInventoryAccess(req, character);
+  const page = await listInventoryLogs({ campaignId: req.campaign.id, characterId: character.id, ...parse(historyQuerySchema, req.query) });
+  res.json({ logs: page.entries, pagination: page.pagination });
 }

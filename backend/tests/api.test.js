@@ -1135,6 +1135,80 @@ describe('mesas', () => {
   });
 });
 
+describe('historicos paginados', () => {
+  it('percorre mais de 50 registros com datas iguais sem repetir nem perder entradas', async () => {
+    const prisma = getPrisma();
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const at = new Date('2026-01-01T00:00:00Z');
+    await prisma.inventoryLog.createMany({ data: Array.from({ length: 65 }, () => ({
+      characterId: 1, itemId: 6, type: 'USO', quantity: 1, createdAt: at
+    })) });
+    await prisma.goldAuditLog.createMany({ data: Array.from({ length: 65 }, () => ({
+      characterId: 1, actorUserId: 1, previousGold: 0, newGold: 1, delta: 1, reason: 'Historico', createdAt: at
+    })) });
+    await prisma.stockMovement.createMany({ data: Array.from({ length: 65 }, () => ({
+      itemId: 6, previousStock: 0, newStock: 1, delta: 1, reason: 'Historico', createdAt: at
+    })) });
+    await prisma.purchase.createMany({ data: Array.from({ length: 65 }, () => ({ characterId: 1, totalValue: 1, purchasedAt: at })) });
+    for (const [path, field] of [
+      ['/inventory/logs', 'logs'], ['/characters/gold-audit', 'logs'],
+      ['/catalog/stock-movements', 'movements'], ['/purchases', 'purchases']
+    ]) {
+      const ids = [];
+      let cursor;
+      const sizes = [];
+      do {
+        const response = await master.get(`${DEMO}${path}?limit=25${cursor ? `&cursor=${cursor}` : ''}`);
+        expect(response.status).toBe(200);
+        ids.push(...response.body[field].map((entry) => entry.id));
+        sizes.push(response.body[field].length);
+        cursor = response.body.pagination.nextCursor;
+      } while (cursor);
+      expect(sizes).toEqual([25, 25, 15]);
+      expect(new Set(ids).size).toBe(65);
+      expect(ids).toEqual([...ids].sort((a, b) => b - a));
+    }
+  });
+
+  it('mantem o cursor valido com insercoes novas e exclusao da linha de fronteira', async () => {
+    const prisma = getPrisma();
+    const aria = as(await login('aria@lojarpg.local'));
+    await prisma.inventoryLog.createMany({ data: Array.from({ length: 4 }, () => ({
+      characterId: 1, itemId: 6, type: 'USO', quantity: 1, createdAt: new Date('2026-01-01T00:00:00Z')
+    })) });
+    const first = await aria.get(`${DEMO}/inventory/1/logs?limit=2`);
+    expect(first.status).toBe(200);
+    await prisma.inventoryLog.delete({ where: { id: first.body.logs[1].id } });
+    const newer = await prisma.inventoryLog.create({ data: { characterId: 1, itemId: 6, type: 'USO', quantity: 1 } });
+    const second = await aria.get(`${DEMO}/inventory/1/logs?limit=2&cursor=${first.body.pagination.nextCursor}`);
+    expect(second.status).toBe(200);
+    expect(second.body.logs).toHaveLength(2);
+    expect(second.body.logs.map((entry) => entry.id)).not.toContain(newer.id);
+    expect(second.body.pagination.hasMore).toBe(false);
+    expect((await aria.get(`${DEMO}/inventory/2/logs`)).status).toBe(403);
+    const foreign = await prisma.campaign.create({ data: { name: 'Outra mesa', inviteCode: 'PAGINADO' } });
+    const other = await prisma.character.create({ data: {
+      campaignId: foreign.id, userId: 2, name: 'Outro', className: 'Mago', race: 'Elfo'
+    } });
+    expect((await aria.get(`${DEMO}/inventory/${other.id}/logs`)).status).toBe(404);
+  });
+
+  it('valida limite e cursor e preserva filtros de personagem em compras', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    for (const query of ['limit=0', 'limit=101', 'limit=abc', 'limit=1&limit=2', 'cursor=abc', 'cursor=a&cursor=b']) {
+      expect((await master.get(`${DEMO}/purchases?${query}`)).status).toBe(400);
+    }
+    const prisma = getPrisma();
+    await prisma.purchase.createMany({ data: [{ characterId: 1, totalValue: 10 }, { characterId: 2, totalValue: 20 }] });
+    const own = await aria.get(`${DEMO}/purchases/me?characterId=1&limit=1`);
+    expect(own.body.purchases).toHaveLength(1);
+    expect(own.body.purchases[0].characterId).toBe(1);
+    expect(own.body.pagination.hasMore).toBe(false);
+    expect((await aria.get(`${DEMO}/purchases/me?characterId=2`)).status).toBe(403);
+  });
+});
+
 describe('inventário e recompensas', () => {
   it('compras e vendas simultâneas do mesmo personagem não travam o banco', async () => {
     const borin = as(await login('borin@lojarpg.local'));

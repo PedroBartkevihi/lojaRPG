@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage } from '../utils/historyPagination.js';
 
 function mapPurchase(purchase) {
   if (!purchase) {
@@ -81,14 +82,12 @@ export async function findPurchaseById(id, prisma = getPrisma()) {
 }
 
 export async function listPurchases(filters, prisma = getPrisma()) {
-  const purchases = await prisma.purchase.findMany({
+  return historyPage(prisma.purchase, {
     where: {
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },
     include: includePurchase,
-    orderBy: [{ purchasedAt: 'desc' }, { id: 'desc' }]
-  });
-
-  return purchases.map(mapPurchase);
+    timeField: 'purchasedAt'
+  }, filters, mapPurchase);
 }

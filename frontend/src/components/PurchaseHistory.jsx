@@ -1,33 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { ReceiptText } from 'lucide-react';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonRows } from './Skeleton.jsx';
+import { usePagedHistory } from '../js/usePagedHistory.js';
+import HistoryPagination from './HistoryPagination.jsx';
 
 export default function PurchaseHistory({ api, isMaster, character, needsCharacter = false, refreshKey, embedded = false }) {
-  const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (needsCharacter) {
-      return;
-    }
-
-    async function loadPurchases() {
-      setError('');
-
-      try {
-        const data = isMaster ? await api.listPurchases() : await api.myPurchases({ characterId: character?.id });
-        setPurchases(data.purchases);
-      } catch (requestError) {
-        setError(requestError.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadPurchases();
-  }, [api, isMaster, character?.id, needsCharacter, refreshKey]);
+  const loadPage = useCallback(async (params) => {
+    const data = isMaster ? await api.listPurchases(params) : await api.myPurchases({ ...params, characterId: character?.id });
+    return { entries: data.purchases, pagination: data.pagination };
+  }, [api, isMaster, character?.id]);
+  const page = usePagedHistory(loadPage, refreshKey, !needsCharacter);
+  const purchases = page.entries;
 
   const content = needsCharacter ? (
     <NoCharacterNotice />
@@ -37,8 +21,7 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
         <ReceiptText size={20} />
         <h3>Histórico de compras</h3>
       </div>
-      {error && <p className="form-error">{error}</p>}
-      {loading ? (
+      {page.loading && purchases.length === 0 ? (
         <SkeletonRows count={3} />
       ) : (
         <div className="history-list">
@@ -63,6 +46,7 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
           {purchases.length === 0 && <p className="empty-state">Nenhuma compra registrada.</p>}
         </div>
       )}
+      <HistoryPagination page={page} label="compras" />
     </div>
   );
 
