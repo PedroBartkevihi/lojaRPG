@@ -1,8 +1,8 @@
 import { ShoppingCart, Trash2 } from 'lucide-react';
 
-export default function CartPanel({ cart, setCart, character, onCheckout, disabled }) {
+export default function CartPanel({ cart, setCart, character, onCheckout, submitting = false }) {
   const total = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
-  const canCheckout = cart.length > 0 && character && !disabled;
+  const canCheckout = cart.length > 0 && character && !submitting;
 
   function changeQuantity(itemId, quantity) {
     setCart((current) =>
@@ -42,6 +42,7 @@ export default function CartPanel({ cart, setCart, character, onCheckout, disabl
                 max={entry.item.stock}
                 value={entry.quantity}
                 onChange={(event) => changeQuantity(entry.item.id, event.target.value)}
+                aria-label={`Quantidade de ${entry.item.name}`}
               />
               <button className="icon-button danger" onClick={() => removeItem(entry.item.id)} title="Remover">
                 <Trash2 size={17} />
@@ -55,7 +56,7 @@ export default function CartPanel({ cart, setCart, character, onCheckout, disabl
         <strong>{total} ouro</strong>
       </div>
       <button className="primary-action full" disabled={!canCheckout} onClick={onCheckout}>
-        Finalizar compra
+        {submitting ? 'Finalizando...' : 'Finalizar compra'}
       </button>
     </div>
   );

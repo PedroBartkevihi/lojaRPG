@@ -1,9 +1,18 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Uma pagina de erro do proxy (HTML) vira resposta sem corpo, e quem chamou
+// recebe a mensagem generica em vez de um erro de JSON.
 async function parseResponse(response) {
   const text = await response.text();
-  return text ? JSON.parse(text) : {};
+
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch (_error) {
+    return {};
+  }
 }
+
+const RENEWAL_UNAVAILABLE_MESSAGE = 'Não foi possível renovar a sessão agora. Tente de novo em instantes.';
 
 function withQuery(path, params = {}) {
   const search = new URLSearchParams();
@@ -24,25 +33,34 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
 
   // Quando o access token vence, varias requisicoes recebem 401 juntas. Cada
   // refresh token so vale uma vez, entao todas esperam a mesma renovacao.
+  // Devolve 'renewed', 'rejected' (a sessao acabou) ou 'unavailable' (rede
+  // fora, limite ou erro do servidor: a sessao fica para a proxima tentativa).
   async function renewSession(usedToken) {
     // Outra requisicao (ou outra aba) ja renovou: basta repetir com o token novo.
     if (getToken() !== usedToken) {
-      return true;
+      return 'renewed';
     }
 
     const refreshToken = getRefreshToken?.();
 
     if (!refreshToken) {
-      return false;
+      return 'rejected';
     }
 
     if (!renewing) {
       renewing = request('/auth/refresh', { method: 'POST', body: { refreshToken }, retry: false })
         .then((refreshed) => {
           onTokenRefresh?.(refreshed);
-          return true;
+          return 'renewed';
         })
-        .catch(() => getRefreshToken?.() !== refreshToken)
+        .catch((error) => {
+          if (getRefreshToken?.() !== refreshToken) {
+            return 'renewed';
+          }
+
+          // So a recusa do refresh token (401) encerra a sessao.
+          return error.status === 401 ? 'rejected' : 'unavailable';
+        })
         .finally(() => {
           renewing = null;
         });
@@ -80,15 +98,23 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     // So e sessao vencida quando a requisicao levava um token. Um 401 sem token
     // (senha errada) ou da propria renovacao e so um erro para quem chamou.
     if (response.status === 401 && token && path !== '/auth/refresh') {
-      if (retry && (await renewSession(token))) {
+      const renewal = retry ? await renewSession(token) : 'rejected';
+
+      if (renewal === 'renewed') {
         return request(path, { ...options, retry: false });
+      }
+
+      if (renewal === 'unavailable') {
+        throw new Error(RENEWAL_UNAVAILABLE_MESSAGE);
       }
 
       onUnauthorized?.();
     }
 
     if (!response.ok) {
-      throw new Error(data.message || 'Erro ao comunicar com a API.');
+      const error = new Error(data.message || 'Erro ao comunicar com a API.');
+      error.status = response.status;
+      throw error;
     }
 
     return data;

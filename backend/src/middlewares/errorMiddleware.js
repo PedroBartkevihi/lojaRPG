@@ -17,6 +17,13 @@ export function errorHandler(error, _req, res, _next) {
     return res.status(404).json({ message: 'Registro não encontrado.' });
   }
 
+  // Conflito ou deadlock (P2034) e transacao que passou do tempo esperando
+  // outra (P2028): a operacao foi desfeita inteira e pode ser repetida.
+  if (error.code === 'P2034' || error.code === 'P2028') {
+    console.warn(`Transação desfeita (${error.code}): ${error.message.split('\n')[0]}`);
+    return res.status(409).json({ message: 'Outra operação usava os mesmos dados. Tente de novo.' });
+  }
+
   const statusCode = error.statusCode || 500;
   const message = statusCode === 500 ? 'Erro interno do servidor.' : error.message;
 

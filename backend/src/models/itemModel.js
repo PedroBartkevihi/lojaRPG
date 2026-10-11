@@ -51,9 +51,11 @@ const includeRelations = {
 };
 
 // Categoria e raridade sao sempre as da mesma mesa do item: um id de outra
-// mesa e recusado e um nome novo vira uma categoria desta mesa.
+// mesa e recusado e um nome novo vira uma categoria desta mesa. `value` e um
+// id (numero) ou um nome (texto), e quem decide e o tipo: uma categoria
+// chamada "2026" e um nome, nao o id 2026.
 async function resolveCategoryId(campaignId, value, prisma) {
-  if (Number.isInteger(Number(value))) {
+  if (typeof value === 'number') {
     const category = await prisma.category.findFirst({ where: { id: Number(value), campaignId } });
 
     if (!category) {
@@ -74,7 +76,7 @@ async function resolveCategoryId(campaignId, value, prisma) {
 }
 
 async function resolveRarityId(campaignId, value, prisma) {
-  if (Number.isInteger(Number(value))) {
+  if (typeof value === 'number') {
     const rarity = await prisma.rarity.findFirst({ where: { id: Number(value), campaignId } });
 
     if (!rarity) {

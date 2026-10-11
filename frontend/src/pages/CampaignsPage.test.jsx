@@ -70,4 +70,12 @@ describe('CampaignsPage', () => {
     expect(api.createCampaign).toHaveBeenCalledWith({ name: 'Mesa nova' });
     expect(onSelect).toHaveBeenCalledWith(created, '/mesa');
   });
+
+  it('a conta de demonstração não vê os formulários de criar e entrar em mesas', () => {
+    renderPage({ isDemo: true });
+
+    expect(screen.queryByLabelText(/código de convite/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/nome da mesa/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/não cria nem entra em outras mesas/i)).toBeInTheDocument();
+  });
 });

@@ -16,7 +16,7 @@ export default function ItemCard({ item, onAdd, disabled }) {
           </span>
         </div>
       </div>
-      {item.imageUrl && <img className="item-image" src={item.imageUrl} alt="" />}
+      {item.imageUrl && <img className="item-image" src={item.imageUrl} alt="" loading="lazy" />}
       <div className="item-card-body">
         <span className="item-category">{item.category}</span>
         <h3>{item.name}</h3>

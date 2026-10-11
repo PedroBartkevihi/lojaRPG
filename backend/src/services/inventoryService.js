@@ -30,8 +30,14 @@ async function findCampaignItem(campaignId, itemId, prisma) {
 }
 
 // A loja paga o preco de venda do item, que volta ao estoque. Tirar do
-// inventario e o primeiro passo e so acontece se o personagem ainda tiver as
-// unidades; duas vendas simultaneas do ultimo item nao pagam duas vezes.
+// inventario so acontece se o personagem ainda tiver as unidades; se faltar,
+// a transacao e desfeita (inclusive o credito) e duas vendas simultaneas do
+// ultimo item nao pagam duas vezes.
+//
+// A ordem dos bloqueios e a mesma da compra: personagem, depois inventario e
+// estoque. Com a venda travando o inventario primeiro, uma compra e uma venda
+// do mesmo personagem ao mesmo tempo esperavam uma pela outra (deadlock) e o
+// banco abortava uma delas.
 export async function sellItem({ user, campaignId, characterId, itemId, quantity }) {
   return withTransaction(async (prisma) => {
     const character = await findOwnCharacter(user, campaignId, characterId, 'vender', prisma);
@@ -41,12 +47,12 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
       throw new ApiError(400, `A loja não compra ${item.name}.`);
     }
 
+    const total = item.effectiveSellPrice * quantity;
+    await creditCharacterGold(character.id, total, prisma);
+
     if (!(await removeInventoryItem(character.id, item.id, quantity, prisma))) {
       throw new ApiError(400, `Quantidade insuficiente de ${item.name} no inventário.`);
     }
-
-    const total = item.effectiveSellPrice * quantity;
-    await creditCharacterGold(character.id, total, prisma);
 
     const newStock = await incrementItemStock(item.id, quantity, prisma);
     await createStockMovement(

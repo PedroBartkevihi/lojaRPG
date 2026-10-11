@@ -60,6 +60,21 @@ function as(token) {
   };
 }
 
+let accountCount = 0;
+
+// Contas proprias para as mesas reais: as da demonstracao ficam so na mesa de
+// demonstracao. Cada cadastro sai de um IP proprio para nao gastar o rate
+// limit de autenticacao dos outros testes.
+async function newAccount(name) {
+  accountCount += 1;
+  const response = await request(app)
+    .post('/auth/register')
+    .set('X-Forwarded-For', `198.51.100.${accountCount}`)
+    .send({ name, email: `${name.toLowerCase()}.${accountCount}@exemplo.com`, password: 'segredo1' });
+  expect(response.status).toBe(201);
+  return { token: response.body.token, user: response.body.user };
+}
+
 async function createCampaign(token, name = 'Mesa do Borin') {
   const response = await as(token).post('/campaigns', { name });
   expect(response.status).toBe(201);
@@ -76,11 +91,45 @@ beforeEach(async () => {
   await seed(getPrisma());
 });
 
+// Se a preparacao falhou (banco fora), closeDatabase nao existe: sem o ?., o
+// erro da limpeza esconderia o erro original.
 afterAll(async () => {
-  await closeDatabase();
+  await closeDatabase?.();
 });
 
 describe('validação das entradas', () => {
+  it('filtros e ids inválidos na URL recebem 400, não 500', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+
+    for (const url of [
+      `${DEMO}/items?search=a&search=b`,
+      `${DEMO}/items?minPrice=abc`,
+      `${DEMO}/items?minPrice=100&maxPrice=10`,
+      `${DEMO}/items/2147483648`
+    ]) {
+      const response = await aria.get(url);
+      expect(response.status, url).toBe(400);
+    }
+
+    expect((await aria.get(`${DEMO}/items?minPrice=10&maxPrice=60`)).status).toBe(200);
+  });
+
+  it('categoria e raridade com nome de número são tratadas como nome', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    await master.post(`${DEMO}/catalog/categories`, { name: '2026' });
+
+    const created = await master.post(`${DEMO}/items`, {
+      name: 'Calendário Arcano',
+      category: '2026',
+      price: 10,
+      rarity: 'Comum',
+      stock: 1
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.item.category).toBe('2026');
+  });
+
   it('recusa cadastro com email inválido ou sem nome', async () => {
     const invalidEmail = await request(app).post('/auth/register').send({
       name: 'Teste',
@@ -335,6 +384,27 @@ describe('autenticação e autorização', () => {
 });
 
 describe('itens', () => {
+  it('editar o item não repõe a unidade vendida enquanto o formulário estava aberto', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const opened = (await master.get(`${DEMO}/items?includeInactive=true`)).body.items.find((item) => item.id === 6);
+
+    await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] });
+
+    // O formulario envia o estoque que o Mestre viu: a compra no meio gera 409.
+    const stale = await master.put(`${DEMO}/items/6`, { ...opened, name: 'Poção de Cura Maior', expectedStock: opened.stock });
+    expect(stale.status).toBe(409);
+
+    // Sem mexer no estoque, so o nome muda e a venda continua contada.
+    const renamed = await master.put(`${DEMO}/items/6`, { name: 'Poção de Cura Maior' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.item.stock).toBe(opened.stock - 1);
+
+    const restocked = await master.put(`${DEMO}/items/6`, { stock: 20, expectedStock: opened.stock - 1 });
+    expect(restocked.status).toBe(200);
+    expect(restocked.body.item.stock).toBe(20);
+  });
+
   it('busca itens sem diferenciar acentos nem maiúsculas', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
@@ -620,25 +690,27 @@ describe('mesas', () => {
   });
 
   it('a mesma conta e jogador numa mesa e Mestre em outra', async () => {
-    const borinToken = await login('borin@lojarpg.local');
+    const [{ token: borinToken }, { token: caioToken }] = [await newAccount('Borin'), await newAccount('Caio')];
     const campaign = await createCampaign(borinToken);
+    const caioCampaign = await createCampaign(caioToken, 'Mesa do Caio');
+    await as(borinToken).post('/campaigns/join', { inviteCode: caioCampaign.inviteCode });
 
     const list = await as(borinToken).get('/campaigns');
 
     expect(list.body.campaigns).toEqual([
-      expect.objectContaining({ id: 1, role: 'JOGADOR' }),
-      expect.objectContaining({ id: campaign.id, role: 'MESTRE' })
+      expect.objectContaining({ id: campaign.id, role: 'MESTRE' }),
+      expect.objectContaining({ id: caioCampaign.id, role: 'JOGADOR' })
     ]);
-    expect(list.body.campaigns[0]).not.toHaveProperty('inviteCode');
+    expect(list.body.campaigns[1]).not.toHaveProperty('inviteCode');
 
-    const createInDemo = await as(borinToken).post(`${DEMO}/items`, {
+    const createAsPlayer = await as(borinToken).post(`/campaigns/${caioCampaign.id}/items`, {
       name: 'Tocha',
       category: 'Equipamentos',
       price: 1,
       rarity: 'Comum',
       stock: 1
     });
-    expect(createInDemo.status).toBe(403);
+    expect(createAsPlayer.status).toBe(403);
 
     const createInOwn = await as(borinToken).post(`/campaigns/${campaign.id}/items`, {
       name: 'Tocha',
@@ -651,7 +723,7 @@ describe('mesas', () => {
   });
 
   it('jogador entra pelo código de convite e cria personagem na mesa', async () => {
-    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const [{ token: borinToken }, { token: liaToken }] = [await newAccount('Borin'), await newAccount('Lia')];
     const campaign = await createCampaign(borinToken);
     const typedCode = `${campaign.inviteCode.slice(0, 4)}-${campaign.inviteCode.slice(4)}`.toLowerCase();
 
@@ -699,8 +771,8 @@ describe('mesas', () => {
   });
 
   it('uma mesa não ve nem altera itens, personagens e catálogo de outra', async () => {
-    const [borinToken, masterToken, ariaToken] = [
-      await login('borin@lojarpg.local'),
+    const [{ token: borinToken }, masterToken, ariaToken] = [
+      await newAccount('Borin'),
       await login('mestre@lojarpg.local', 'mestre123'),
       await login('aria@lojarpg.local')
     ];
@@ -750,7 +822,10 @@ describe('mesas', () => {
   });
 
   it('Mestre troca o código, remove jogador e ele volta com os personagens', async () => {
-    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const [{ token: borinToken, user: borinUser }, { token: liaToken, user: liaUser }] = [
+      await newAccount('Borin'),
+      await newAccount('Lia')
+    ];
     const campaign = await createCampaign(borinToken);
     const [borin, lia] = [as(borinToken), as(liaToken)];
     const base = `/campaigns/${campaign.id}`;
@@ -765,13 +840,13 @@ describe('mesas', () => {
     expect(regenerated.status).toBe(200);
     expect(regenerated.body.campaign.inviteCode).not.toBe(campaign.inviteCode);
 
-    const playerRemovesMaster = await lia.delete(`${base}/members/3`);
+    const playerRemovesMaster = await lia.delete(`${base}/members/${borinUser.id}`);
     expect(playerRemovesMaster.status).toBe(403);
 
-    const masterLeaves = await borin.delete(`${base}/members/3`);
+    const masterLeaves = await borin.delete(`${base}/members/${borinUser.id}`);
     expect(masterLeaves.status).toBe(400);
 
-    const removed = await borin.delete(`${base}/members/4`);
+    const removed = await borin.delete(`${base}/members/${liaUser.id}`);
     expect(removed.status).toBe(200);
     expect((await lia.get(`${base}/items`)).status).toBe(404);
     expect((await borin.get(`${base}/characters`)).body.characters).toEqual([]);
@@ -785,13 +860,13 @@ describe('mesas', () => {
       expect.objectContaining({ name: 'Lia Sombra' })
     ]);
 
-    const leave = await lia.delete(`${base}/members/4`);
+    const leave = await lia.delete(`${base}/members/${liaUser.id}`);
     expect(leave.status).toBe(200);
     expect(leave.body.message).toContain('Você saiu');
   });
 
   it('Mestre exclui a mesa mesmo com compras e inventário', async () => {
-    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const [{ token: borinToken }, { token: liaToken }] = [await newAccount('Borin'), await newAccount('Lia')];
     const campaign = await createCampaign(borinToken);
     const [borin, lia] = [as(borinToken), as(liaToken)];
     const base = `/campaigns/${campaign.id}`;
@@ -816,7 +891,7 @@ describe('mesas', () => {
 
     const removed = await borin.delete(base);
     expect(removed.status).toBe(200);
-    expect((await lia.get('/campaigns')).body.campaigns.map((entry) => entry.id)).toEqual([1]);
+    expect((await lia.get('/campaigns')).body.campaigns).toEqual([]);
 
     const prisma = getPrisma();
     expect(await prisma.item.count({ where: { campaignId: campaign.id } })).toBe(0);
@@ -824,17 +899,44 @@ describe('mesas', () => {
     expect(await prisma.item.count({ where: { campaignId: 1 } })).toBe(10);
   });
 
-  it('o reset da demonstração preserva as mesas reais', async () => {
-    const register = await request(app).post('/auth/register').send({
-      name: 'Pedro',
-      email: 'pedro@exemplo.com',
-      password: 'segredo1'
-    });
-    const realCampaign = await createCampaign(register.body.token, 'Mesa do Pedro');
-    const ariaToken = await login('aria@lojarpg.local');
-    const ariaCampaign = await createCampaign(ariaToken, 'Mesa criada na demo');
+  it('contas de demonstração ficam só na mesa de demonstração', async () => {
+    const pedro = await newAccount('Pedro');
+    const realCampaign = await createCampaign(pedro.token, 'Mesa do Pedro');
+    const ariaLogin = await request(app)
+      .post('/auth/login')
+      .set('X-Forwarded-For', '203.0.113.60')
+      .send({ email: 'aria@lojarpg.local', password: 'jogador123' });
+    const aria = as(ariaLogin.body.token);
 
-    await as(ariaToken).post('/campaigns/join', { inviteCode: realCampaign.inviteCode });
+    expect(ariaLogin.body.user.isDemo).toBe(true);
+    expect(pedro.user.isDemo).toBe(false);
+
+    const join = await aria.post('/campaigns/join', { inviteCode: realCampaign.inviteCode });
+    expect(join.status).toBe(403);
+    expect(join.body.message).toContain('conta de demonstração');
+
+    const create = await aria.post('/campaigns', { name: 'Mesa da Aria' });
+    expect(create.status).toBe(403);
+
+    const demo = await aria.post('/campaigns/join', { inviteCode: 'MESADEMO' });
+    expect(demo.status).toBe(200);
+    expect((await aria.get('/campaigns')).body.campaigns.map((campaign) => campaign.id)).toEqual([1]);
+  });
+
+  it('o reset da demonstração preserva as mesas reais e os personagens delas', async () => {
+    const [pedro, caio] = [await newAccount('Pedro'), await newAccount('Caio')];
+    const realCampaign = await createCampaign(pedro.token, 'Mesa do Pedro');
+    const base = `/campaigns/${realCampaign.id}`;
+
+    await as(caio.token).post('/campaigns/join', { inviteCode: realCampaign.inviteCode });
+    const character = (
+      await as(caio.token).post(`${base}/characters`, { name: 'Caio Ferro', className: 'Guerreiro', race: 'Anão', level: 1 })
+    ).body.character;
+    await as(pedro.token).patch(`${base}/characters/${character.id}/gold`, { amount: 100, mode: 'adjust', reason: 'Início' });
+    const potion = (await as(caio.token).get(`${base}/items?search=Cura`)).body.items[0];
+    await as(caio.token).post(`${base}/purchases`, { characterId: character.id, items: [{ itemId: potion.id, quantity: 1 }] });
+
+    const ariaToken = await login('aria@lojarpg.local');
     await as(ariaToken).post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] });
 
     await resetDemo(getPrisma());
@@ -843,22 +945,38 @@ describe('mesas', () => {
     const campaigns = await prisma.campaign.findMany({ orderBy: { id: 'asc' } });
 
     expect(campaigns.map((campaign) => campaign.name)).toEqual(['Mesa de demonstração', 'Mesa do Pedro']);
-    expect(campaigns.some((campaign) => campaign.id === ariaCampaign.id)).toBe(false);
-    expect(await prisma.campaignMember.findMany({ where: { campaignId: realCampaign.id } })).toEqual([
-      expect.objectContaining({ userId: register.body.user.id, role: 'MESTRE' })
-    ]);
+    expect(await prisma.campaignMember.count({ where: { campaignId: realCampaign.id } })).toBe(2);
     expect(await prisma.item.count({ where: { campaignId: realCampaign.id } })).toBe(10);
+    expect(await prisma.character.findUnique({ where: { id: character.id } })).toMatchObject({ name: 'Caio Ferro' });
+    expect(await prisma.purchase.count({ where: { characterId: character.id } })).toBe(1);
     expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 250 });
-    expect(await prisma.purchase.count()).toBe(0);
+    expect(await prisma.purchase.count({ where: { character: { campaignId: 1 } } })).toBe(0);
 
     const newUser = await prisma.user.create({
       data: { name: 'Depois do reset', email: 'depois@exemplo.com', passwordHash: 'x' }
     });
-    expect(newUser.id).toBeGreaterThan(register.body.user.id);
+    expect(newUser.id).toBeGreaterThan(caio.user.id);
   });
 });
 
 describe('inventário e recompensas', () => {
+  it('compras e vendas simultâneas do mesmo personagem não travam o banco', async () => {
+    const borin = as(await login('borin@lojarpg.local'));
+
+    // Borin compra e vende Poção de Cura ao mesmo tempo, várias vezes. Com a
+    // compra e a venda travando personagem e inventário em ordens opostas, o
+    // PostgreSQL abortava uma delas por deadlock (erro 500).
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        index % 2 === 0
+          ? borin.post(`${DEMO}/purchases`, { characterId: 2, items: [{ itemId: 6, quantity: 1 }] })
+          : borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 })
+      )
+    );
+
+    expect(responses.map((response) => response.status).filter((status) => status >= 500)).toEqual([]);
+  });
+
   it('vende pela metade do preço, paga o personagem e devolve o item ao estoque', async () => {
     const borin = as(await login('borin@lojarpg.local'));
 
@@ -1016,7 +1134,7 @@ describe('inventário e recompensas', () => {
   });
 
   it('Mestre não da ouro a personagem de outra mesa', async () => {
-    const [borinToken, liaToken] = [await login('borin@lojarpg.local'), await login('lia@lojarpg.local')];
+    const [{ token: borinToken }, { token: liaToken }] = [await newAccount('Borin'), await newAccount('Lia')];
     const campaign = await createCampaign(borinToken);
     await as(liaToken).post('/campaigns/join', { inviteCode: campaign.inviteCode });
     const outsider = (

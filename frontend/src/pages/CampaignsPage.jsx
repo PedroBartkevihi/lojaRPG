@@ -12,6 +12,7 @@ export default function CampaignsPage({
   campaigns,
   loadingCampaigns = false,
   activeCampaignId,
+  isDemo = false,
   onSelect,
   onCampaignsChanged,
   showNotice
@@ -98,45 +99,61 @@ export default function CampaignsPage({
         </div>
       </div>
 
-      <aside className="side-column">
-        <form className="surface-panel stack-form compact-form" onSubmit={joinCampaign}>
-          <div className="panel-title">
-            <DoorOpen size={20} />
-            <h3>Entrar com convite</h3>
+      {/* A conta de demonstracao fica so na mesa de demonstracao (a API recusa o resto). */}
+      {isDemo ? (
+        <aside className="side-column">
+          <div className="surface-panel">
+            <div className="panel-title">
+              <Users size={20} />
+              <h3>Jogar com o seu grupo</h3>
+            </div>
+            <p className="form-hint">
+              A conta de demonstração não cria nem entra em outras mesas. Saia e crie uma conta para montar a mesa do
+              seu grupo ou entrar com um convite.
+            </p>
           </div>
-          <label>
-            Código de convite
-            <input
-              value={inviteCode}
-              onChange={(event) => setInviteCode(event.target.value)}
-              placeholder="ABCD-EFGH"
-              autoCapitalize="characters"
-              required
-            />
-          </label>
-          <button className="primary-action" disabled={loading === 'join'}>
-            <DoorOpen size={17} />
-            {loading === 'join' ? 'Entrando...' : 'Entrar na mesa'}
-          </button>
-        </form>
-        <form className="surface-panel stack-form compact-form" onSubmit={createCampaign}>
-          <div className="panel-title">
-            <Plus size={20} />
-            <h3>Criar mesa</h3>
-          </div>
-          <label>
-            Nome da mesa
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
-          </label>
-          <p className="form-hint">
-            Você será o Mestre. A mesa começa com o catálogo de exemplo, que você pode editar.
-          </p>
-          <button className="secondary-action" disabled={loading === 'create'}>
-            <Plus size={17} />
-            {loading === 'create' ? 'Criando...' : 'Criar mesa'}
-          </button>
-        </form>
-      </aside>
+        </aside>
+      ) : (
+        <aside className="side-column">
+          <form className="surface-panel stack-form compact-form" onSubmit={joinCampaign}>
+            <div className="panel-title">
+              <DoorOpen size={20} />
+              <h3>Entrar com convite</h3>
+            </div>
+            <label>
+              Código de convite
+              <input
+                value={inviteCode}
+                onChange={(event) => setInviteCode(event.target.value)}
+                placeholder="ABCD-EFGH"
+                autoCapitalize="characters"
+                required
+              />
+            </label>
+            <button className="primary-action" disabled={loading === 'join'}>
+              <DoorOpen size={17} />
+              {loading === 'join' ? 'Entrando...' : 'Entrar na mesa'}
+            </button>
+          </form>
+          <form className="surface-panel stack-form compact-form" onSubmit={createCampaign}>
+            <div className="panel-title">
+              <Plus size={20} />
+              <h3>Criar mesa</h3>
+            </div>
+            <label>
+              Nome da mesa
+              <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
+            </label>
+            <p className="form-hint">
+              Você será o Mestre. A mesa começa com o catálogo de exemplo, que você pode editar.
+            </p>
+            <button className="secondary-action" disabled={loading === 'create'}>
+              <Plus size={17} />
+              {loading === 'create' ? 'Criando...' : 'Criar mesa'}
+            </button>
+          </form>
+        </aside>
+      )}
     </section>
   );
 }

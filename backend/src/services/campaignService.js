@@ -1,3 +1,4 @@
+import { isDemoAccount } from '../config/demo.js';
 import { ROLES } from '../config/roles.js';
 import { STARTER_CATEGORIES, STARTER_ITEMS, STARTER_RARITIES } from '../data/starterCatalog.js';
 import { withTransaction } from '../database/transaction.js';
@@ -51,7 +52,15 @@ async function copyStarterCatalog(campaignId, actorUserId, prisma) {
   });
 }
 
+function rejectDemoAccount(user, action) {
+  if (isDemoAccount(user)) {
+    throw new ApiError(403, `A conta de demonstração não pode ${action}. Crie uma conta para jogar com o seu grupo.`);
+  }
+}
+
 export async function createCampaign(user, data) {
+  rejectDemoAccount(user, 'criar mesas');
+
   return withTransaction(async (prisma) => {
     const campaign = await createCampaignRecord(
       {
@@ -84,6 +93,7 @@ export async function joinCampaign(user, inviteCode) {
       return { campaign: existing.campaign, joined: false };
     }
 
+    rejectDemoAccount(user, 'entrar em outras mesas');
     await addMember({ campaignId: campaign.id, userId: user.id, role: ROLES.PLAYER }, prisma);
 
     return {

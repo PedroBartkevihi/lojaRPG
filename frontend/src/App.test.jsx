@@ -77,6 +77,10 @@ describe('convite por link', () => {
     expect(api.calls).toContainEqual({ route: 'POST /campaigns/join', body: { inviteCode: 'ABCD1234' } });
     expect(await screen.findByText('Mesa do Caio')).toBeInTheDocument();
     expect(localStorage.getItem('lojaRpgInvite')).toBeNull();
+    // O aviso e anunciado por leitores de tela.
+    expect(screen.getAllByRole('status').map((element) => element.textContent)).toContain(
+      'Você entrou na mesa Mesa do Caio.'
+    );
   });
 
   it('entra na mesa quando a pessoa troca para o login antes de entrar', async () => {
@@ -103,6 +107,20 @@ describe('convite por link', () => {
     expect(api.calls.map((call) => call.route)).not.toContain('POST /campaigns/join');
   });
 
+  it('na tela do convite, esconde os botões da demonstração', () => {
+    window.history.pushState({}, '', '/convite/ABCD1234');
+    const { unmount } = render(<App />);
+
+    expect(screen.queryByRole('button', { name: /entrar como jogador/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/participar da mesa do convite/i)).toBeInTheDocument();
+
+    unmount();
+    localStorage.clear();
+    window.history.pushState({}, '', '/login');
+    render(<App />);
+    expect(screen.getByRole('button', { name: /entrar como jogador/i })).toBeInTheDocument();
+  });
+
   it('esquece o convite aberto há mais de um dia', async () => {
     const user = userEvent.setup();
     const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
@@ -116,5 +134,48 @@ describe('convite por link', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/mesas'));
     expect(api.calls.map((call) => call.route)).not.toContain('POST /campaigns/join');
     expect(localStorage.getItem('lojaRpgInvite')).toBeNull();
+  });
+});
+
+describe('mesa por aba', () => {
+  it('as requisições usam a mesa da tela, mesmo se outra aba trocar de mesa', async () => {
+    const user = userEvent.setup();
+    const mesas = [
+      { id: 7, name: 'Mesa do Caio', role: 'MESTRE', memberCount: 1, inviteCode: 'AAAAAAAA' },
+      { id: 8, name: 'Mesa da Lia', role: 'MESTRE', memberCount: 1, inviteCode: 'BBBBBBBB' }
+    ];
+    const paths = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const { pathname } = new URL(url);
+        paths.push(pathname);
+        const id = Number(pathname.split('/')[2]);
+        const body =
+          pathname === '/campaigns'
+            ? { campaigns: mesas }
+            : pathname.endsWith('/characters/me')
+              ? { characters: [] }
+              : pathname.endsWith('/items')
+                ? { items: [] }
+                : { campaign: mesas.find((entry) => entry.id === id), members: [] };
+        return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+      })
+    );
+    localStorage.setItem('lojaRpgToken', 'access-1');
+    localStorage.setItem('lojaRpgRefreshToken', 'refresh-1');
+    localStorage.setItem('lojaRpgUser', JSON.stringify({ id: 9, name: 'Caio' }));
+    localStorage.setItem('lojaRpgCampaign', '7');
+    window.history.pushState({}, '', '/shop');
+    render(<App />);
+
+    await screen.findByText('Mesa do Caio');
+    // Outra aba do mesmo navegador abre a Mesa da Lia.
+    localStorage.setItem('lojaRpgCampaign', '8');
+    paths.length = 0;
+    await user.click(screen.getByRole('button', { name: /^mesa$/i }));
+
+    await waitFor(() => expect(paths).toContain('/campaigns/7'));
+    expect(paths.some((path) => path.startsWith('/campaigns/8'))).toBe(false);
   });
 });

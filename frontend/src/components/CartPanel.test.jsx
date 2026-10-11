@@ -25,6 +25,7 @@ describe('CartPanel', () => {
 
     expect(screen.getByText('Poção de Cura')).toBeInTheDocument();
     expect(screen.getByText('100 ouro')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Quantidade de Poção de Cura' })).toHaveValue(2);
 
     await user.click(screen.getByRole('button', { name: /finalizar compra/i }));
 

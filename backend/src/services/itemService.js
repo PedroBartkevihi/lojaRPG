@@ -5,12 +5,14 @@ import { ApiError } from '../utils/ApiError.js';
 
 const STOCK_CHANGED_MESSAGE = 'O estoque do item mudou durante a edição. Recarregue e tente novamente.';
 
-// `existing` e o item lido antes da edicao. A troca de estoque confere que
-// nenhuma compra alterou esse valor no meio do caminho; sem isso, salvar so o
-// preco regravaria o estoque antigo e desfaria a compra.
-export async function saveItemChanges(existing, data, actorUserId, stockReason) {
+// `existing` e o item lido agora; `expectedStock`, o estoque que o Mestre viu
+// ao abrir o formulario. A troca de estoque so acontece se nenhuma compra o
+// mudou desde entao; sem isso, salvar o formulario aberto antes de uma compra
+// regravaria o estoque antigo e desfaria a venda. Sem `expectedStock` (o
+// formulario nao mexeu no estoque), a comparacao e com o valor atual.
+export async function saveItemChanges(existing, data, actorUserId, { stockReason, expectedStock } = {}) {
   return withTransaction(async (prisma) => {
-    if (!(await replaceItemStock(existing.id, existing.stock, data.stock, prisma))) {
+    if (!(await replaceItemStock(existing.id, expectedStock ?? existing.stock, data.stock, prisma))) {
       throw new ApiError(409, STOCK_CHANGED_MESSAGE);
     }
 
