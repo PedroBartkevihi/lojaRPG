@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Coins, Search, ShoppingCart } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
@@ -23,6 +23,10 @@ export default function ShopPage({
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [checkingOut, setCheckingOut] = useState(false);
+  // Trava sincrona: dois cliques seguidos chegam antes de o botao redesenhar
+  // desativado, e cada um faria uma compra.
+  const checkoutLock = useRef(false);
 
   const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
   const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
@@ -88,6 +92,13 @@ export default function ShopPage({
   }
 
   async function checkout() {
+    if (checkoutLock.current) {
+      return;
+    }
+
+    checkoutLock.current = true;
+    setCheckingOut(true);
+
     try {
       const payload = {
         characterId: character.id,
@@ -103,6 +114,9 @@ export default function ShopPage({
       showNotice(data.message);
     } catch (requestError) {
       showNotice(requestError.message);
+    } finally {
+      checkoutLock.current = false;
+      setCheckingOut(false);
     }
   }
 
@@ -167,7 +181,13 @@ export default function ShopPage({
               showNotice={showNotice}
             />
             <div id="carrinho">
-              <CartPanel cart={cart} setCart={setCart} character={character} onCheckout={checkout} disabled={false} />
+              <CartPanel
+                cart={cart}
+                setCart={setCart}
+                character={character}
+                onCheckout={checkout}
+                submitting={checkingOut}
+              />
             </div>
           </>
         ) : (
