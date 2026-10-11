@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,7 +54,8 @@ async function login(email, password = 'jogador123') {
 function as(token) {
   return {
     get: (url) => request(app).get(url).set('Authorization', `Bearer ${token}`),
-    post: (url, body) => request(app).post(url).set('Authorization', `Bearer ${token}`).send(body),
+    post: (url, body) => request(app).post(url).set('Authorization', `Bearer ${token}`)
+      .send(url.endsWith('/purchases') ? { idempotencyKey: randomUUID(), ...body } : body),
     put: (url, body) => request(app).put(url).set('Authorization', `Bearer ${token}`).send(body),
     patch: (url, body) => request(app).patch(url).set('Authorization', `Bearer ${token}`).send(body),
     delete: (url) => request(app).delete(url).set('Authorization', `Bearer ${token}`)
@@ -165,7 +167,7 @@ describe('validação das entradas', () => {
     const emptyCart = await request(app)
       .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [] });
+      .send({ idempotencyKey: randomUUID(), items: [] });
 
     expect(emptyCart.status).toBe(400);
     expect(emptyCart.body.message).toBe('Carrinho vazio.');
@@ -173,7 +175,7 @@ describe('validação das entradas', () => {
     const zeroQuantity = await request(app)
       .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 6, quantity: 0 }] });
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 0 }] });
 
     expect(zeroQuantity.status).toBe(400);
     expect(zeroQuantity.body.message).toBe('Itens do carrinho inválidos.');
@@ -503,13 +505,71 @@ describe('catálogo', () => {
 });
 
 describe('compras e inventário', () => {
+  it('exige uma chave de compra valida', async () => {
+    const token = await login('aria@lojarpg.local');
+    for (const idempotencyKey of [undefined, '', 'chave-invalida', ['nao-e-texto']]) {
+      const response = await request(app).post(`${DEMO}/purchases`).set('Authorization', `Bearer ${token}`)
+        .send({ idempotencyKey, items: [{ itemId: 6, quantity: 1 }] });
+      expect(response.status).toBe(400);
+    }
+    expect(await getPrisma().purchase.count()).toBe(0);
+  });
+
+  it('a mesma intencao concorrente ou reenviada compra e desconta uma unica vez', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), characterId: 1, items: [{ itemId: 6, quantity: 1 }] };
+    const [first, simultaneous] = await Promise.all([
+      aria.post(`${DEMO}/purchases`, payload), aria.post(`${DEMO}/purchases`, payload)
+    ]);
+    const retry = await aria.post(`${DEMO}/purchases`, payload);
+    expect([first.status, simultaneous.status, retry.status]).toEqual([201, 201, 201]);
+    expect(simultaneous.body).toEqual(first.body);
+    expect(retry.body).toEqual(first.body);
+    expect(await getPrisma().purchase.count()).toBe(1);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(200);
+    expect((await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 1, itemId: 6 } } })).quantity).toBe(1);
+  });
+
+  it('recusa reutilizar a chave com outro payload mas permite uma nova intencao igual', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] };
+    expect((await aria.post(`${DEMO}/purchases`, payload)).status).toBe(201);
+    expect((await aria.post(`${DEMO}/purchases`, { ...payload, items: [{ itemId: 6, quantity: 2 }] })).status).toBe(409);
+    expect((await aria.post(`${DEMO}/purchases`, { ...payload, idempotencyKey: randomUUID() })).status).toBe(201);
+    expect(await getPrisma().purchase.count()).toBe(2);
+  });
+
+  it('uma compra abortada nao consome a chave nem reserva estoque', async () => {
+    const prisma = getPrisma();
+    const aria = as(await login('aria@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] };
+    await prisma.character.update({ where: { id: 1 }, data: { gold: 0 } });
+    expect((await aria.post(`${DEMO}/purchases`, payload)).status).toBe(400);
+    expect(await prisma.checkoutRequest.count()).toBe(0);
+    await prisma.character.update({ where: { id: 1 }, data: { gold: 100 } });
+    expect((await aria.post(`${DEMO}/purchases`, payload)).status).toBe(201);
+    expect((await prisma.character.findUnique({ where: { id: 1 } })).gold).toBe(50);
+  });
+
+  it('a chave de outro usuario nao revela nem reutiliza a compra dele', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] };
+    const first = await aria.post(`${DEMO}/purchases`, payload);
+    const second = await borin.post(`${DEMO}/purchases`, payload);
+    expect([first.status, second.status]).toEqual([201, 201]);
+    expect(first.body.purchase.characterId).toBe(1);
+    expect(second.body.purchase.characterId).toBe(2);
+    expect(second.body.purchase.id).not.toBe(first.body.purchase.id);
+  });
+
   it('recusa compra sem ouro suficiente', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
       .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 7, quantity: 2 }] });
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 7, quantity: 2 }] });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain('Ouro insuficiente');
@@ -521,7 +581,7 @@ describe('compras e inventário', () => {
     const response = await request(app)
       .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 9, quantity: 2 }] });
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 9, quantity: 2 }] });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain('Estoque insuficiente');
@@ -533,7 +593,7 @@ describe('compras e inventário', () => {
     const purchaseResponse = await request(app)
       .post(`${DEMO}/purchases`)
       .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 6, quantity: 1 }] });
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] });
 
     expect(purchaseResponse.status).toBe(201);
     expect(purchaseResponse.body.character.gold).toBe(200);
@@ -570,7 +630,7 @@ describe('compras e inventário', () => {
         request(app)
           .post(`${DEMO}/purchases`)
           .set('Authorization', `Bearer ${token}`)
-          .send({ items: [{ itemId: 8, quantity: 1 }] })
+          .send({ idempotencyKey: randomUUID(), items: [{ itemId: 8, quantity: 1 }] })
       )
     );
 
@@ -589,7 +649,7 @@ describe('compras e inventário', () => {
         request(app)
           .post(`${DEMO}/purchases`)
           .set('Authorization', `Bearer ${playerToken}`)
-          .send({ items: [{ itemId: 7, quantity: 1 }] })
+          .send({ idempotencyKey: randomUUID(), items: [{ itemId: 7, quantity: 1 }] })
       )
     );
 
@@ -610,7 +670,7 @@ describe('compras e inventário', () => {
       request(app)
         .post(`${DEMO}/purchases`)
         .set('Authorization', `Bearer ${playerToken}`)
-        .send({ items: [{ itemId: 7, quantity: 1 }] }),
+        .send({ idempotencyKey: randomUUID(), items: [{ itemId: 7, quantity: 1 }] }),
       request(app)
         .patch(`${DEMO}/characters/1/gold`)
         .set('Authorization', `Bearer ${masterToken}`)
@@ -642,7 +702,7 @@ describe('compras e inventário', () => {
       request(app)
         .post(`${DEMO}/purchases`)
         .set('Authorization', `Bearer ${playerToken}`)
-        .send({ items: [{ itemId: 8, quantity: 1 }] }),
+        .send({ idempotencyKey: randomUUID(), items: [{ itemId: 8, quantity: 1 }] }),
       request(app)
         .put(`${DEMO}/items/8`)
         .set('Authorization', `Bearer ${masterToken}`)

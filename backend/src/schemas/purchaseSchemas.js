@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const idempotencyKeySchema = z.uuid('Envie uma chave de compra válida (idempotencyKey).');
+
 const INVALID_CART_ITEM = 'Itens do carrinho inválidos.';
 
 const positiveInteger = z.coerce

@@ -20,6 +20,7 @@ model User {
   goldAuditLogs  GoldAuditLog[]   @relation("GoldAuditActor")
   stockMovements StockMovement[]  @relation("StockMovementActor")
   inventoryLogs  InventoryLog[]   @relation("InventoryLogActor")
+  checkoutRequests CheckoutRequest[]
 
   @@map("users")
 }
@@ -37,6 +38,7 @@ model Campaign {
   categories Category[]
   rarities   Rarity[]
   items      Item[]
+  checkoutRequests CheckoutRequest[]
 
   @@map("campaigns")
 }
@@ -184,6 +186,21 @@ model Purchase {
 
   @@index([characterId])
   @@map("purchases")
+}
+
+// A reserva e o resultado sao gravados na mesma transacao da compra.
+model CheckoutRequest {
+  userId      Int      @map("user_id")
+  campaignId  Int      @map("campaign_id")
+  key         String   @db.VarChar(36)
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  response    Json?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId, key])
+  @@index([campaignId])
+  @@map("checkout_requests")
 }
 
 model PurchaseItem {

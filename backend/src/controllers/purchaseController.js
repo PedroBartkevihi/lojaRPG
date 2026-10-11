@@ -7,7 +7,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { parse } from '../utils/validation.js';
 
 export async function create(req, res) {
-  const result = await checkout(req.user, req.membership, req.body.items, req.body.characterId);
+  const result = await checkout(req.user, req.membership, req.body.items, req.body.characterId, req.body.idempotencyKey);
   res.status(201).json(result);
 }
 

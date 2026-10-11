@@ -29,6 +29,7 @@ export default function ShopPage({
   // Trava sincrona: dois cliques seguidos chegam antes de o botao redesenhar
   // desativado, e cada um faria uma compra.
   const checkoutLock = useRef(false);
+  const checkoutIntent = useRef(null);
   // Numero da busca mais recente: com a rede lenta, uma resposta antiga pode
   // chegar depois da atual e nao deve substitui-la.
   const latestItemsRequest = useRef(0);
@@ -129,7 +130,13 @@ export default function ShopPage({
           quantity: entry.quantity
         }))
       };
+      const fingerprint = JSON.stringify(payload);
+      if (checkoutIntent.current?.fingerprint !== fingerprint) {
+        checkoutIntent.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      payload.idempotencyKey = checkoutIntent.current.key;
       const data = await api.createPurchase(payload);
+      checkoutIntent.current = null;
       setCart([]);
       await loadItems();
       await onRefreshSession();

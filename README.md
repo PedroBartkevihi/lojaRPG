@@ -265,6 +265,14 @@ Compras e inventário:
   (dono do personagem, com `itemId` e `quantity`)
 - `GET /inventory/logs` (Mestre): vendas, usos e recompensas da mesa
 
+O checkout exige `idempotencyKey` (UUID) no corpo, junto de `items` e
+`characterId`. Gere uma chave para cada intenção de compra e reutilize-a
+se a resposta se perder. A mesma chave, usuário e mesa retornam o resultado
+original sem cobrar novamente; um payload diferente com a mesma chave recebe
+409. Uma compra deliberadamente nova deve usar outra chave. Clientes antigos
+sem chave recebem 400 e precisam ser atualizados. A reserva e o resultado são
+persistidos na mesma transação da compra e não expiram automaticamente.
+
 Recompensas (Mestre):
 
 - `POST /rewards/gold`: `characterIds`, `total`, `mode` (`split` divide,

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ROLES } from '../config/roles.js';
 import { withTransaction } from '../database/transaction.js';
 import { createStockMovement } from '../models/catalogModel.js';
@@ -6,7 +7,7 @@ import { addInventoryItem } from '../models/inventoryModel.js';
 import { decrementItemStock, findItemsByIds } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase, findPurchaseById } from '../models/purchaseModel.js';
 import { characterIdSchema } from '../schemas/characterSchemas.js';
-import { cartSchema } from '../schemas/purchaseSchemas.js';
+import { cartSchema, idempotencyKeySchema } from '../schemas/purchaseSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse } from '../utils/validation.js';
 
@@ -40,7 +41,7 @@ async function resolveCheckoutCharacter(user, campaignId, characterId, prisma) {
 
 // `membership` e o papel do usuario na mesa da compra; so os itens dessa mesa
 // podem entrar no carrinho.
-export async function checkout(user, membership, cartItems, characterId) {
+export async function checkout(user, membership, cartItems, characterId, idempotencyKey) {
   const { campaignId } = membership;
 
   if (membership.role !== ROLES.PLAYER) {
@@ -48,8 +49,28 @@ export async function checkout(user, membership, cartItems, characterId) {
   }
 
   const normalizedCart = normalizeCart(cartItems);
+  const key = parse(idempotencyKeySchema, idempotencyKey);
+  const requestHash = createHash('sha256').update(JSON.stringify({
+    characterId: characterId ? parse(characterIdSchema, characterId) : null,
+    items: [...normalizedCart].sort((a, b) => a.itemId - b.itemId)
+  })).digest('hex');
+  const identity = { userId: user.id, campaignId, key };
 
   return withTransaction(async (prisma) => {
+    // INSERT ON CONFLICT espera a transacao concorrente terminar. Se a compra
+    // falhar, a reserva tambem volta atras e a mesma chave pode ser tentada.
+    const reservation = await prisma.checkoutRequest.createMany({
+      data: { ...identity, requestHash },
+      skipDuplicates: true
+    });
+    if (reservation.count === 0) {
+      const previous = await prisma.checkoutRequest.findUnique({ where: { userId_campaignId_key: identity } });
+      if (previous.requestHash !== requestHash) {
+        throw new ApiError(409, 'Esta chave de compra já foi usada com outro carrinho.');
+      }
+      return previous.response;
+    }
+
     const character = await resolveCheckoutCharacter(user, campaignId, characterId, prisma);
 
     if (!character) {
@@ -129,10 +150,15 @@ export async function checkout(user, membership, cartItems, characterId) {
       );
     }
 
-    return {
+    const result = {
       message: 'Compra concluída com sucesso.',
       purchase: await findPurchaseById(purchase.id, prisma),
       character: await findCharacterById(character.id, campaignId, prisma)
     };
+    await prisma.checkoutRequest.update({
+      where: { userId_campaignId_key: identity },
+      data: { response: JSON.parse(JSON.stringify(result)) }
+    });
+    return result;
   });
 }

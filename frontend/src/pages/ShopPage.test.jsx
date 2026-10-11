@@ -33,6 +33,26 @@ function renderShop(api) {
 }
 
 describe('ShopPage', () => {
+  it('reenvia a mesma chave apos falha de rede e cria outra so para uma nova compra', async () => {
+    const user = userEvent.setup();
+    const api = {
+      listItems: vi.fn().mockResolvedValue({ items: [potion] }),
+      createPurchase: vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValue({ message: 'Compra concluída.' })
+    };
+    renderShop(api);
+    await user.click(await screen.findByRole('button', { name: /adicionar/i }));
+    await user.click(screen.getByRole('button', { name: /finalizar compra/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /finalizar compra/i })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: /finalizar compra/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /finalizar compra/i })).toBeDisabled());
+    expect(api.createPurchase.mock.calls[0][0]).toEqual(api.createPurchase.mock.calls[1][0]);
+    expect(api.createPurchase.mock.calls[0][0].idempotencyKey).toMatch(/^[a-f0-9-]{36}$/);
+    await user.click(screen.getByRole('button', { name: /adicionar/i }));
+    await user.click(screen.getByRole('button', { name: /finalizar compra/i }));
+    expect(api.createPurchase.mock.calls[2][0].idempotencyKey).not.toBe(api.createPurchase.mock.calls[0][0].idempotencyKey);
+  });
+
   it('o filtro de categoria tem nome para leitores de tela', async () => {
     renderShop({ listItems: vi.fn().mockResolvedValue({ items: [potion, sword] }) });
 
