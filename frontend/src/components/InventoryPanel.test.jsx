@@ -38,6 +38,8 @@ describe('InventoryPanel', () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const api = {
+      getCampaign: vi.fn().mockResolvedValue({ members: [] }),
+      characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
       characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }),
       myInventory: vi.fn().mockResolvedValue(inventoryResponse()),
       sellItem: vi.fn().mockResolvedValue({ message: 'Venda concluída: 2x Poção de Cura por 50 ouro.' })
@@ -66,7 +68,8 @@ describe('InventoryPanel', () => {
   it('não usa o item quando o jogador cancela a confirmação', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const api = { myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn(),
+    const api = { getCampaign: vi.fn().mockResolvedValue({ members: [] }), characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
+      myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn(),
       characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }) };
 
     render(<InventoryPanel api={api} character={character} />);

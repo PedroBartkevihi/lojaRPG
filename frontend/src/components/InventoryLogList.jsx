@@ -1,4 +1,5 @@
 export function describeInventoryLog(log) {
+  if (log.type === 'TROCA') return `Troca de ${log.quantity}x ${log.itemName}`;
   if (log.type === 'VENDA') {
     return `Vendeu ${log.quantity}x ${log.itemName} por ${log.total} ouro`;
   }

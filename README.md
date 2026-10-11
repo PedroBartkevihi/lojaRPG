@@ -39,6 +39,14 @@ mas novas compras e vendas recebem 409. Usar itens continua permitido. O estado
 é atualizado nos demais clientes pelo ciclo de atualização da mesa.
 API: `PATCH /campaigns/:id/shop` com `{ "shopOpen": false }`, exclusivo do Mestre.
 
+No inventário, o jogador pode entregar itens e/ou ouro a outro personagem ativo
+da mesma mesa, inclusive com a loja fechada. A confirmação identifica o destino;
+o histórico de itens e a auditoria de ouro registram os dois lados. Não há aprovação
+intermediária do Mestre. `POST /campaigns/:id/inventory/:characterId/give` exige
+`targetCharacterId`, `idempotencyKey` UUID e `gold` positivo e/ou `itemId` + `quantity`.
+Repetir a mesma chave não transfere duas vezes. O histórico pessoal de ouro está em
+`GET /campaigns/:id/inventory/:characterId/gold-logs`, com a mesma paginação dos demais.
+
 **Mesas**
 
 - Qualquer conta cria uma mesa e é o Mestre dela; a mesma conta pode ser

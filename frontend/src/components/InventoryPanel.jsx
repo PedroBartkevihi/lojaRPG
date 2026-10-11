@@ -5,6 +5,7 @@ import InventoryHistory from './InventoryHistory.jsx';
 import ItemIcon from './ItemIcon.jsx';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonCards } from './Skeleton.jsx';
+import TransferPanel from './TransferPanel.jsx';
 
 export default function InventoryPanel({
   api,
@@ -169,6 +170,8 @@ export default function InventoryPanel({
         )}
       </div>
       <InventoryHistory api={api} characterId={character?.id} refreshKey={refreshKey} />
+      {character && (!selectedCharacter || character.id === selectedCharacter.id) && <TransferPanel key={character.id} api={api} character={character} inventory={inventory}
+        refreshKey={refreshKey} onRefresh={onRefreshSession || loadInventory} showNotice={showNotice} />}
     </section>
   );
 }

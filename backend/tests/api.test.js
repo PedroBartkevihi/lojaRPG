@@ -100,6 +100,58 @@ afterAll(async () => {
 });
 
 describe('validação das entradas', () => {
+  it('entrega item e ouro atomicamente, audita ambos os lados e não duplica reenvios', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 2 }] });
+    const stock = (await getPrisma().item.findUnique({ where: { id: 6 } })).stock;
+    const targetQuantity = (await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 2, itemId: 6 } } })).quantity;
+    const body = { targetCharacterId: 2, itemId: 6, quantity: 1, gold: 20, idempotencyKey: randomUUID() };
+    const results = await Promise.all([aria.post(`${DEMO}/inventory/1/give`, body), aria.post(`${DEMO}/inventory/1/give`, body)]);
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(130);
+    expect((await getPrisma().character.findUnique({ where: { id: 2 } })).gold).toBe(340);
+    expect((await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 2, itemId: 6 } } })).quantity).toBe(targetQuantity + 1);
+    expect((await getPrisma().item.findUnique({ where: { id: 6 } })).stock).toBe(stock);
+    expect(await getPrisma().inventoryLog.count({ where: { type: 'TROCA' } })).toBe(2);
+    expect((await aria.get(`${DEMO}/inventory/1/gold-logs`)).body.logs[0].delta).toBe(-20);
+    expect((await aria.get(`${DEMO}/inventory/2/gold-logs`)).status).toBe(403);
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { ...body, gold: 21 })).status).toBe(409);
+    const failed = await aria.post(`${DEMO}/inventory/1/give`, { ...body, quantity: 9, idempotencyKey: randomUUID() });
+    expect(failed.status).toBe(400);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(130);
+  });
+
+  it('recusa origem alheia, mesma origem, destinatário de outra mesa ou removido e dados inválidos', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const key = () => randomUUID();
+    expect((await aria.post(`${DEMO}/inventory/2/give`, { targetCharacterId: 1, gold: 1, idempotencyKey: key() })).status).toBe(403);
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 1, gold: 1, idempotencyKey: key() })).status).toBe(400);
+    for (const payload of [{}, { gold: -1 }, { itemId: 6 }, { quantity: 1 }, { gold: 0 }]) {
+      expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, idempotencyKey: key(), ...payload })).status).toBe(400);
+    }
+    const other = await newAccount('DestinoExterno');
+    const otherCampaign = await createCampaign(other.token);
+    const foreign = await getPrisma().character.create({ data: { campaignId: otherCampaign.id, userId: other.user.id, name: 'Outro', className: 'Mago', race: 'Elfo' } });
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: foreign.id, gold: 1, idempotencyKey: key() })).status).toBe(404);
+    const borin = await getPrisma().character.findUnique({ where: { id: 2 } });
+    await getPrisma().campaignMember.delete({ where: { campaignId_userId: { campaignId: 1, userId: borin.userId } } });
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, gold: 1, idempotencyKey: key() })).status).toBe(404);
+  });
+
+  it('serializa transferências opostas e concorrentes sem criar dinheiro', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const opposite = await Promise.all([
+      aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, gold: 20, idempotencyKey: randomUUID() }),
+      borin.post(`${DEMO}/inventory/2/give`, { targetCharacterId: 1, gold: 10, idempotencyKey: randomUUID() })
+    ]);
+    expect(opposite.map((r) => r.status)).toEqual([200, 200]);
+    const attempts = await Promise.all([2, 3].map((targetCharacterId) => aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId, gold: 200, idempotencyKey: randomUUID() })));
+    expect(attempts.map((r) => r.status).sort()).toEqual([200, 400]);
+    const balances = await getPrisma().character.aggregate({ where: { campaignId: 1 }, _sum: { gold: true } });
+    expect(balances._sum.gold).toBe(750);
+  });
+
   it('somente o Mestre abre e fecha a loja; catálogo e uso continuam disponíveis', async () => {
     const master = as(await login('mestre@lojarpg.local', 'mestre123'));
     const aria = as(await login('aria@lojarpg.local'));

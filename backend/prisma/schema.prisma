@@ -21,6 +21,7 @@ model User {
   stockMovements StockMovement[]  @relation("StockMovementActor")
   inventoryLogs  InventoryLog[]   @relation("InventoryLogActor")
   checkoutRequests CheckoutRequest[]
+  transferRequests TransferRequest[]
 
   @@map("users")
 }
@@ -40,6 +41,7 @@ model Campaign {
   rarities   Rarity[]
   items      Item[]
   checkoutRequests CheckoutRequest[]
+  transferRequests TransferRequest[]
 
   @@map("campaigns")
 }
@@ -265,4 +267,18 @@ model StockMovement {
   @@index([actorUserId])
   @@map("stock_movements")
   @@index([createdAt, id])
+}
+
+model TransferRequest {
+  userId      Int      @map("user_id")
+  campaignId  Int      @map("campaign_id")
+  key         String   @db.VarChar(36)
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  response    Json?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId, key])
+  @@index([campaignId])
+  @@map("transfer_requests")
 }

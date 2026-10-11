@@ -155,6 +155,8 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     myInventory: (params = {}) => request(withQuery(campaignPath('/inventory/me'), params)),
     sellItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/sell`), { method: 'POST', body }),
     useItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/use`), { method: 'POST', body }),
+    transfer: (characterId, body) => request(campaignPath(`/inventory/${characterId}/give`), { method: 'POST', body }),
+    characterGoldLogs: (id, params = {}) => request(withQuery(campaignPath(`/inventory/${id}/gold-logs`), params)),
     listInventoryLogs: (params = {}) => request(withQuery(campaignPath('/inventory/logs'), params)),
     characterInventoryLogs: (id, params = {}) => request(withQuery(campaignPath(`/inventory/${id}/logs`), params)),
     giveGold: (body) => request(campaignPath('/rewards/gold'), { method: 'POST', body }),
