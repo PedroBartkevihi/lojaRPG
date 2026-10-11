@@ -308,6 +308,9 @@ function AppContent() {
 
   if (!token || !user) {
     const isRegisterRoute = location.pathname === '/register';
+    // Quem chegou por um convite precisa de conta propria: a de demonstracao
+    // nao entra em outras mesas, entao os botoes dela somem dessa tela.
+    const hasPendingInvite = Boolean(inviteCode || readPendingInvite());
 
     return (
       <main className="auth-screen">
@@ -339,10 +342,10 @@ function AppContent() {
                 Telas que se atualizam durante a sessão
               </li>
             </ul>
-            {DEMO_LOGIN_ENABLED && <DemoLogin api={api} onLogin={saveSession} />}
+            {DEMO_LOGIN_ENABLED && !hasPendingInvite && <DemoLogin api={api} onLogin={saveSession} />}
           </section>
           <section className="auth-panel">
-            {(inviteCode || readPendingInvite()) && (
+            {hasPendingInvite && (
               <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
             )}
             {isRegisterRoute || authView === 'register' ? (
@@ -460,6 +463,7 @@ function AppContent() {
               campaigns={campaigns}
               loadingCampaigns={!campaignsLoaded}
               activeCampaignId={campaign?.id}
+              isDemo={Boolean(user.isDemo)}
               onSelect={selectCampaign}
               onCampaignsChanged={loadCampaigns}
               showNotice={showNotice}

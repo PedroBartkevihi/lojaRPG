@@ -109,8 +109,10 @@ pede participa da mesa e qual é o papel dele nela.
   Mestre: quem cria a mesa é o Mestre dela. Os códigos de convite usam um
   alfabeto sem caracteres ambíguos (0/O, 1/I), e as tentativas de entrar têm
   rate limit.
-- **Demonstração e mesas reais no mesmo banco.** O reset da demonstração apaga
-  só a mesa `MESA-DEMO`, as contas de exemplo e as mesas criadas por elas.
+- **Demonstração e mesas reais no mesmo banco.** As contas de exemplo são
+  públicas, então a API não deixa que criem ou entrem em outras mesas (numa
+  mesa real, qualquer visitante veria a mesa e o reset apagaria os
+  personagens). O reset apaga só a mesa `MESA-DEMO` e as contas de exemplo.
 - **Compras e vendas simultâneas sem perder dinheiro nem estoque.** O desconto
   de ouro e de estoque é um update condicional ("só desconta se ainda houver
   saldo"), a venda só paga depois de tirar o item do inventário do mesmo

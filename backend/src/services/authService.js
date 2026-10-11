@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { isDemoAccount } from '../config/demo.js';
 import { env } from '../config/env.js';
 import { withTransaction } from '../database/transaction.js';
 import {
@@ -43,7 +44,8 @@ function authPayload(user, refreshToken) {
   const accessToken = createAccessToken(user);
 
   return {
-    user,
+    // isDemo deixa o front esconder o que a conta de demonstracao nao pode fazer.
+    user: { ...user, isDemo: isDemoAccount(user) },
     accessToken,
     token: accessToken,
     refreshToken

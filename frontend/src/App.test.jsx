@@ -103,6 +103,20 @@ describe('convite por link', () => {
     expect(api.calls.map((call) => call.route)).not.toContain('POST /campaigns/join');
   });
 
+  it('na tela do convite, esconde os botões da demonstração', () => {
+    window.history.pushState({}, '', '/convite/ABCD1234');
+    const { unmount } = render(<App />);
+
+    expect(screen.queryByRole('button', { name: /entrar como jogador/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/participar da mesa do convite/i)).toBeInTheDocument();
+
+    unmount();
+    localStorage.clear();
+    window.history.pushState({}, '', '/login');
+    render(<App />);
+    expect(screen.getByRole('button', { name: /entrar como jogador/i })).toBeInTheDocument();
+  });
+
   it('esquece o convite aberto há mais de um dia', async () => {
     const user = userEvent.setup();
     const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;

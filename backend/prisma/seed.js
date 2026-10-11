@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { pathToFileURL } from 'node:url';
+import { DEMO_ACCOUNT_EMAILS } from '../src/config/demo.js';
 import { STARTER_CATEGORIES, STARTER_ITEMS, STARTER_RARITIES } from '../src/data/starterCatalog.js';
 import { deleteCampaigns } from '../src/models/campaignModel.js';
 
@@ -21,6 +22,12 @@ const DEMO_USERS = [
 ];
 
 const DEMO_EMAILS = DEMO_USERS.map((user) => user.email);
+
+// A API usa a lista de src/config/demo.js para restringir essas contas; as
+// duas precisam bater.
+if (DEMO_EMAILS.some((email) => !DEMO_ACCOUNT_EMAILS.includes(email))) {
+  throw new Error('As contas de demonstração do seed precisam estar em src/config/demo.js.');
+}
 
 const TABLES_WITH_SERIAL_ID = [
   'users',
