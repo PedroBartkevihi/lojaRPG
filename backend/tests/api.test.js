@@ -923,6 +923,53 @@ describe('mesas', () => {
     expect((await aria.get('/campaigns')).body.campaigns.map((campaign) => campaign.id)).toEqual([1]);
   });
 
+  it('bloqueia acesso demo e o reset quando ha dados legados fora da demonstracao', async () => {
+    const pedro = await newAccount('Pedro');
+    const campaign = await createCampaign(pedro.token);
+    const prisma = getPrisma();
+    await prisma.campaignMember.create({ data: { campaignId: campaign.id, userId: 2, role: 'JOGADOR' } });
+    const character = await prisma.character.create({
+      data: { campaignId: campaign.id, userId: 2, name: 'Legado', className: 'Mago', race: 'Elfo', gold: 100 }
+    });
+    const purchase = await prisma.purchase.create({ data: { characterId: character.id, totalValue: 25 } });
+    const aria = as(await login('aria@lojarpg.local'));
+    expect((await aria.get('/campaigns')).body.campaigns.map((entry) => entry.id)).toEqual([1]);
+    expect((await aria.post('/campaigns/join', { inviteCode: campaign.inviteCode })).status).toBe(403);
+    expect((await aria.get(`/campaigns/${campaign.id}`)).status).toBe(404);
+    expect((await aria.get(`/campaigns/${campaign.id}/characters/me`)).status).toBe(404);
+    expect((await aria.post(`/campaigns/${campaign.id}/purchases`, { characterId: character.id, items: [] })).status).toBe(404);
+    await expect(resetDemo(prisma)).rejects.toThrow('preservar dados legados');
+    expect(await prisma.character.findUnique({ where: { id: character.id } })).not.toBeNull();
+    expect(await prisma.purchase.findUnique({ where: { id: purchase.id } })).not.toBeNull();
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).not.toBeNull();
+
+    // Mesmo depois de sair da mesa, o personagem antigo precisa ser preservado.
+    await prisma.campaignMember.delete({ where: { campaignId_userId: { campaignId: campaign.id, userId: 2 } } });
+    await expect(resetDemo(prisma)).rejects.toThrow('preservar dados legados');
+  });
+
+  it('nao identifica como demo uma mesa antiga pelo id ou pelo Mestre publico', async () => {
+    const prisma = getPrisma();
+    await prisma.campaign.update({ where: { id: 1 }, data: { isDemo: false, name: 'Mesa principal', inviteCode: 'LEGADO23' } });
+    await expect(resetDemo(prisma)).rejects.toThrow('preservar dados legados');
+    expect(await prisma.character.count()).toBe(3);
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    expect((await master.get('/campaigns')).body.campaigns).toEqual([]);
+    expect((await master.delete(DEMO)).status).toBe(404);
+  });
+
+  it('mantem a identidade demo depois de regenerar o convite', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const renewed = await master.post(`${DEMO}/invite-code`);
+    expect(renewed.status).toBe(200);
+    expect(renewed.body.campaign.inviteCode).not.toBe('MESADEMO');
+    expect(renewed.body.campaign.isDemo).toBe(true);
+    const aria = as(await login('aria@lojarpg.local'));
+    expect((await aria.post('/campaigns/join', { inviteCode: renewed.body.campaign.inviteCode })).status).toBe(200);
+    await resetDemo(getPrisma());
+    expect((await master.get(DEMO)).body.campaign.inviteCode).toBe('MESADEMO');
+  });
+
   it('o reset da demonstração preserva as mesas reais e os personagens delas', async () => {
     const [pedro, caio] = [await newAccount('Pedro'), await newAccount('Caio')];
     const realCampaign = await createCampaign(pedro.token, 'Mesa do Pedro');

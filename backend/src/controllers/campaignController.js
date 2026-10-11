@@ -1,3 +1,4 @@
+import { isDemoAccount } from '../config/demo.js';
 import { listCampaignsByUserId, listMembers } from '../models/campaignModel.js';
 import { campaignSchema, inviteCodeSchema, memberIdSchema } from '../schemas/campaignSchemas.js';
 import {
@@ -10,7 +11,8 @@ import {
 import { parse } from '../utils/validation.js';
 
 export async function index(req, res) {
-  res.json({ campaigns: await listCampaignsByUserId(req.user.id) });
+  const campaigns = await listCampaignsByUserId(req.user.id);
+  res.json({ campaigns: isDemoAccount(req.user) ? campaigns.filter((campaign) => campaign.isDemo) : campaigns });
 }
 
 export async function create(req, res) {

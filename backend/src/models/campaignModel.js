@@ -12,6 +12,7 @@ export function mapCampaign(campaign, role) {
     name: campaign.name,
     role,
     inviteCode: role === ROLES.GAME_MASTER ? campaign.inviteCode : undefined,
+    isDemo: campaign.isDemo,
     memberCount: campaign._count?.members,
     createdAt: campaign.createdAt
   };

@@ -87,6 +87,10 @@ export async function joinCampaign(user, inviteCode) {
       throw new ApiError(404, 'Código de convite inválido.');
     }
 
+    if (!campaign.isDemo) {
+      rejectDemoAccount(user, 'entrar em outras mesas');
+    }
+
     const existing = await findMembership(campaign.id, user.id, prisma);
 
     if (existing) {

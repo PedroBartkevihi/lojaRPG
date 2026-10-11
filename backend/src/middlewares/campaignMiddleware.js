@@ -1,3 +1,4 @@
+import { isDemoAccount } from '../config/demo.js';
 import { findMembership } from '../models/campaignModel.js';
 import { campaignIdSchema } from '../schemas/campaignSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -9,7 +10,7 @@ export async function loadCampaign(req, _res, next) {
   const campaignId = parse(campaignIdSchema, req.params.campaignId);
   const membership = await findMembership(campaignId, req.user.id);
 
-  if (!membership) {
+  if (!membership || (isDemoAccount(req.user) && !membership.campaign.isDemo)) {
     throw new ApiError(404, 'Mesa não encontrada.');
   }
 

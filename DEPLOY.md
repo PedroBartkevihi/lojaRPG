@@ -129,6 +129,47 @@ Dados de um banco SQLite das versões antigas não são migrados.
 
 ## Backup do PostgreSQL
 
+### Contas demo com dados legados
+
+A mesa de demonstracao possui a marca persistente `campaigns.is_demo`, que
+nao muda ao regenerar o convite. A migration marca apenas o codigo reservado
+`MESADEMO`; nao presume que a mesa de id 1, chamada "Mesa principal" em uma
+migration antiga, seja descartavel.
+
+Se uma conta publica tiver vinculos, personagens ou registros em uma mesa real,
+o reset para **antes de excluir dados**. O acesso dessas contas a mesas reais
+tambem e bloqueado, mesmo com um vinculo antigo. Para publicar sem executar o
+reset durante a revisao, defina `DEMO_RESET_ON_START=false`; as migrations
+continuam obrigatorias. Com a variavel ligada, esse bloqueio interrompe o inicio
+da API, preservando os dados.
+
+Faca backup e identifique os vinculos antes de qualquer transferencia:
+
+```sql
+SELECT u.id AS user_id, u.email, c.id AS campaign_id, c.name, m.role
+FROM users u
+JOIN campaign_members m ON m.user_id = u.id
+JOIN campaigns c ON c.id = m.campaign_id
+WHERE NOT c.is_demo
+  AND u.email IN ('mestre@lojarpg.local', 'aria@lojarpg.local',
+                  'borin@lojarpg.local', 'lia@lojarpg.local');
+
+SELECT ch.id, ch.name, ch.user_id, ch.campaign_id
+FROM characters ch JOIN users u ON u.id = ch.user_id
+JOIN campaigns c ON c.id = ch.campaign_id
+WHERE NOT c.is_demo
+  AND u.email IN ('mestre@lojarpg.local', 'aria@lojarpg.local',
+                  'borin@lojarpg.local', 'lia@lojarpg.local');
+```
+
+Essas consultas iniciais nao substituem revisar autoria de itens e auditorias.
+Confirme com o responsavel pela mesa a conta individual que recebera os dados;
+so entao planeje uma transferencia transacional de propriedade e vinculos,
+preservando personagens, compras e historicos. Nao apague personagens para
+liberar o reset. Uma demo antiga com convite ja regenerado tambem requer
+classificacao manual: nao marque uma mesa como demo apenas por nome ou id.
+Nenhuma transferencia automatica para uma conta presumida e executada.
+
 Banco do Docker:
 
 ```bash

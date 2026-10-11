@@ -30,6 +30,7 @@ model Campaign {
   id         Int              @id @default(autoincrement())
   name       String
   inviteCode String           @unique @map("invite_code")
+  isDemo     Boolean          @default(false) @map("is_demo")
   createdAt  DateTime         @default(now()) @map("created_at")
   members    CampaignMember[]
   characters Character[]
