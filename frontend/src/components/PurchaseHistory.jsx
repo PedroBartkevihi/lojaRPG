@@ -1,15 +1,19 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ReceiptText } from 'lucide-react';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonRows } from './Skeleton.jsx';
 import { usePagedHistory } from '../js/usePagedHistory.js';
 import HistoryPagination from './HistoryPagination.jsx';
+import SessionFilter from './SessionFilter.jsx';
 
-export default function PurchaseHistory({ api, isMaster, character, needsCharacter = false, refreshKey, embedded = false }) {
+export default function PurchaseHistory({ api, isMaster, character, needsCharacter = false, refreshKey, embedded = false, sessionId }) {
+  const [selectedSession, setSelectedSession] = useState('');
+  const filter = embedded ? sessionId : selectedSession;
   const loadPage = useCallback(async (params) => {
-    const data = isMaster ? await api.listPurchases(params) : await api.myPurchases({ ...params, characterId: character?.id });
+    const query = { ...params, ...(filter ? { sessionId: filter } : {}) };
+    const data = isMaster ? await api.listPurchases(query) : await api.myPurchases({ ...query, characterId: character?.id });
     return { entries: data.purchases, pagination: data.pagination };
-  }, [api, isMaster, character?.id]);
+  }, [api, isMaster, character?.id, filter]);
   const page = usePagedHistory(loadPage, refreshKey, !needsCharacter);
   const purchases = page.entries;
 
@@ -21,6 +25,7 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
         <ReceiptText size={20} />
         <h3>Histórico de compras</h3>
       </div>
+      {!embedded && <SessionFilter api={api} value={filter} onChange={setSelectedSession} refreshKey={refreshKey} />}
       {page.loading && purchases.length === 0 ? (
         <SkeletonRows count={3} />
       ) : (

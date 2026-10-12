@@ -7,7 +7,7 @@ import PurchaseHistory from './PurchaseHistory.jsx';
 describe('PurchaseHistory', () => {
   it('mostra registros depois do quinquagesimo e nao perde a pagina ao atualizar a sessao', async () => {
     const user = userEvent.setup();
-    const api = { myPurchases: vi.fn(async ({ cursor }) => {
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), myPurchases: vi.fn(async ({ cursor }) => {
       const start = Number(cursor || 0);
       return {
         purchases: Array.from({ length: Math.min(25, 65 - start) }, (_, index) => ({
@@ -33,7 +33,7 @@ describe('PurchaseHistory', () => {
 
   it('ignora uma resposta antiga ao trocar de personagem', async () => {
     let oldResponse;
-    const api = { myPurchases: vi.fn(({ characterId }) => characterId === 2
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), myPurchases: vi.fn(({ characterId }) => characterId === 2
       ? new Promise((resolve) => { oldResponse = resolve; })
       : Promise.resolve({ purchases: [{ id: 30, purchasedAt: '2026-01-01', totalValue: 1, items: [] }] })) };
     const { rerender } = render(<PurchaseHistory api={api} character={{ id: 2 }} />);
@@ -45,7 +45,7 @@ describe('PurchaseHistory', () => {
   });
 
   it('lista as compras do personagem', async () => {
-    const api = {
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }),
       myPurchases: vi.fn().mockResolvedValue({
         purchases: [
           {
@@ -66,7 +66,7 @@ describe('PurchaseHistory', () => {
   });
 
   it('manda criar o personagem em vez de mostrar erro para quem ainda não tem um', () => {
-    const api = { myPurchases: vi.fn() };
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), myPurchases: vi.fn() };
 
     render(
       <MemoryRouter>

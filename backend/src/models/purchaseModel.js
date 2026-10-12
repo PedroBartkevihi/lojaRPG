@@ -1,5 +1,5 @@
 import { getPrisma } from '../database/connection.js';
-import { historyPage } from '../utils/historyPagination.js';
+import { historyPage, sessionWhere } from '../utils/historyPagination.js';
 
 function mapPurchase(purchase) {
   if (!purchase) {
@@ -8,6 +8,7 @@ function mapPurchase(purchase) {
 
   return {
     id: purchase.id,
+    sessionId: purchase.sessionId,
     characterId: purchase.characterId,
     characterName: purchase.character?.name,
     userName: purchase.character?.user?.name,
@@ -52,6 +53,7 @@ const includePurchase = {
 export async function createPurchase(data, prisma = getPrisma()) {
   const purchase = await prisma.purchase.create({
     data: {
+      sessionId: data.sessionId ?? null,
       characterId: Number(data.characterId),
       totalValue: Number(data.totalValue)
     },
@@ -84,6 +86,7 @@ export async function findPurchaseById(id, prisma = getPrisma()) {
 export async function listPurchases(filters, prisma = getPrisma()) {
   return historyPage(prisma.purchase, {
     where: {
+      ...sessionWhere(filters.sessionId),
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },

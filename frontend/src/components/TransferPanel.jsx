@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePagedHistory } from '../js/usePagedHistory.js';
 import HistoryPagination from './HistoryPagination.jsx';
 
-export default function TransferPanel({ api, character, inventory, refreshKey, onRefresh, showNotice }) {
+export default function TransferPanel({ api, character, inventory, refreshKey, onRefresh, showNotice, sessionId }) {
   const [recipients, setRecipients] = useState([]);
   const [target, setTarget] = useState('');
   const [itemId, setItemId] = useState('');
@@ -21,9 +21,9 @@ export default function TransferPanel({ api, character, inventory, refreshKey, o
     return () => { current = false; };
   }, [api, character.id, refreshKey]);
   const loadGold = useCallback(async (params) => {
-    const data = await api.characterGoldLogs(character.id, params);
+    const data = await api.characterGoldLogs(character.id, { ...params, ...(sessionId ? { sessionId } : {}) });
     return { entries: data.logs, pagination: data.pagination };
-  }, [api, character.id]);
+  }, [api, character.id, sessionId]);
   const history = usePagedHistory(loadGold, refreshKey);
   async function submit(event) {
     event.preventDefault();

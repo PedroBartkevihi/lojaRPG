@@ -6,6 +6,7 @@ import AdminPage from './AdminPage.jsx';
 
 function createApi() {
   return {
+    listSessions: vi.fn().mockResolvedValue({ sessions: [] }),
     listItems: vi.fn().mockResolvedValue({
       items: [
         { id: 6, name: 'Poção de Cura', category: 'Poções', rarity: 'Comum', price: 50, stock: 12, isActive: true, isSellable: true, effectiveSellPrice: 25 }

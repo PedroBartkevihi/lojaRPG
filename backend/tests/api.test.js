@@ -100,6 +100,52 @@ afterAll(async () => {
 });
 
 describe('validação das entradas', () => {
+  it('agrupa compras, vendas, usos, recompensas e trocas na sessão e mantém eventos externos separados', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    expect((await aria.post(`${DEMO}/sessions`, {})).status).toBe(403);
+    const started = await master.post(`${DEMO}/sessions`, { notes: 'Exploração da cripta' });
+    expect(started.status).toBe(201);
+    const sessionId = started.body.session.id;
+    const buy = { items: [{ itemId: 6, quantity: 2 }], idempotencyKey: randomUUID() };
+    const bought = await aria.post(`${DEMO}/purchases`, buy);
+    expect(bought.body.purchase.sessionId).toBe(sessionId);
+    expect((await aria.post(`${DEMO}/inventory/1/use`, { itemId: 6, quantity: 1 })).status).toBe(200);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 })).status).toBe(200);
+    expect((await master.post(`${DEMO}/rewards/gold`, { characterIds: [1], total: 10, mode: 'each', reason: 'Tesouro' })).status).toBe(200);
+    expect((await master.post(`${DEMO}/rewards/items`, { characterId: 1, itemId: 6, quantity: 1, reason: 'Baú' })).status).toBe(200);
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, itemId: 6, quantity: 1, gold: 2, idempotencyKey: randomUUID() })).status).toBe(200);
+    const summary = await aria.get(`${DEMO}/sessions/${sessionId}/summary`);
+    expect(summary.body.summary).toMatchObject({ spent: 100, purchaseCount: 1, goldChange: 10 });
+    expect(summary.body.summary.movements.map((m) => m.type)).toEqual(expect.arrayContaining(['USO', 'VENDA', 'RECOMPENSA', 'TROCA']));
+    expect((await aria.post(`${DEMO}/sessions/${sessionId}/close`, {})).status).toBe(403);
+    expect((await master.post(`${DEMO}/sessions/${sessionId}/close`, { notes: 'Cripta concluída' })).status).toBe(200);
+    expect((await master.post(`${DEMO}/sessions/${sessionId}/close`, {})).status).toBe(409);
+    await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] });
+    const filtered = await aria.get(`${DEMO}/purchases/me?sessionId=${sessionId}`);
+    expect(filtered.body.purchases.map((p) => p.id)).toEqual([bought.body.purchase.id]);
+    expect((await aria.get(`${DEMO}/purchases/me?sessionId=none`)).body.purchases).toHaveLength(1);
+    expect((await aria.get(`${DEMO}/inventory/1/logs?sessionId=${sessionId}`)).body.logs.every((log) => log.sessionId === sessionId)).toBe(true);
+    expect((await master.get(`${DEMO}/catalog/stock-movements?sessionId=${sessionId}`)).body.movements).toHaveLength(2);
+    const next = await master.post(`${DEMO}/sessions`, {});
+    expect(next.body.session.number).toBe(2);
+    expect((await aria.post(`${DEMO}/purchases`, buy)).body.purchase.sessionId).toBe(sessionId);
+    expect((await aria.get(`${DEMO}/sessions/${next.body.session.id}/summary`)).body.summary.purchaseCount).toBe(0);
+  });
+
+  it('permite só uma sessão aberta, valida filtros e isola o diário por mesa', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const results = await Promise.all([master.post(`${DEMO}/sessions`, {}), master.post(`${DEMO}/sessions`, {})]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect((await master.get(`${DEMO}/sessions`)).body.sessions).toHaveLength(1);
+    const outsider = await newAccount('DiarioExterno');
+    const own = await createCampaign(outsider.token);
+    const sid = results.find((r) => r.status === 201).body.session.id;
+    expect((await as(outsider.token).get(`/campaigns/${own.id}/sessions/${sid}/summary`)).status).toBe(404);
+    expect((await as(outsider.token).post(`/campaigns/${own.id}/sessions/${sid}/close`, {})).status).toBe(404);
+    expect((await master.get(`${DEMO}/purchases?sessionId=abc`)).status).toBe(400);
+  });
+
   it('entrega item e ouro atomicamente, audita ambos os lados e não duplica reenvios', async () => {
     const aria = as(await login('aria@lojarpg.local'));
     await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 2 }] });

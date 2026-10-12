@@ -6,6 +6,7 @@ import ItemIcon from './ItemIcon.jsx';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonCards } from './Skeleton.jsx';
 import TransferPanel from './TransferPanel.jsx';
+import SessionFilter from './SessionFilter.jsx';
 
 export default function InventoryPanel({
   api,
@@ -21,6 +22,7 @@ export default function InventoryPanel({
   const [quantities, setQuantities] = useState({});
   const [busyItemId, setBusyItemId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState('');
 
   const loadInventory = useCallback(async () => {
     setLoading(true);
@@ -169,9 +171,10 @@ export default function InventoryPanel({
           </div>
         )}
       </div>
-      <InventoryHistory api={api} characterId={character?.id} refreshKey={refreshKey} />
+      <SessionFilter api={api} value={sessionId} onChange={setSessionId} refreshKey={refreshKey} />
+      <InventoryHistory api={api} characterId={character?.id} refreshKey={refreshKey} sessionId={sessionId} />
       {character && (!selectedCharacter || character.id === selectedCharacter.id) && <TransferPanel key={character.id} api={api} character={character} inventory={inventory}
-        refreshKey={refreshKey} onRefresh={onRefreshSession || loadInventory} showNotice={showNotice} />}
+        refreshKey={refreshKey} sessionId={sessionId} onRefresh={onRefreshSession || loadInventory} showNotice={showNotice} />}
     </section>
   );
 }

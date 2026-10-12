@@ -35,6 +35,7 @@ model Campaign {
   isDemo     Boolean          @default(false) @map("is_demo")
   shopOpen   Boolean          @default(true) @map("shop_open")
   createdAt  DateTime         @default(now()) @map("created_at")
+  sessions   CampaignSession[]
   members    CampaignMember[]
   characters Character[]
   categories Category[]
@@ -178,6 +179,10 @@ model InventoryLog {
   @@index([itemId])
   @@map("inventory_logs")
   @@index([createdAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
 }
 
 model Purchase {
@@ -191,6 +196,10 @@ model Purchase {
   @@index([characterId])
   @@map("purchases")
   @@index([purchasedAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
 }
 
 // A reserva e o resultado sao gravados na mesma transacao da compra.
@@ -236,6 +245,10 @@ model GoldAuditLog {
   @@index([characterId])
   @@map("gold_audit_logs")
   @@index([createdAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
 }
 
 model RefreshToken {
@@ -267,6 +280,10 @@ model StockMovement {
   @@index([actorUserId])
   @@map("stock_movements")
   @@index([createdAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
 }
 
 model TransferRequest {
@@ -281,4 +298,21 @@ model TransferRequest {
   @@id([userId, campaignId, key])
   @@index([campaignId])
   @@map("transfer_requests")
+}
+
+model CampaignSession {
+  id Int @id @default(autoincrement())
+  campaignId Int @map("campaign_id")
+  number Int
+  startedAt DateTime @default(now()) @map("started_at")
+  endedAt DateTime? @map("ended_at")
+  notes String @default("")
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  purchases Purchase[]
+  inventoryLogs InventoryLog[]
+  goldAuditLogs GoldAuditLog[]
+  stockMovements StockMovement[]
+  @@unique([campaignId, number])
+  @@index([campaignId, startedAt, id])
+  @@map("campaign_sessions")
 }

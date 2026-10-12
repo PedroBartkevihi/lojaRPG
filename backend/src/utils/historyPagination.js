@@ -2,11 +2,16 @@ import { z } from 'zod';
 import { ApiError } from './ApiError.js';
 
 export const historyQuerySchema = z.object({
+  sessionId: z.union([z.literal('none'), z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(1).max(2147483647))]).optional(),
   limit: z.string().regex(/^\d+$/, 'Limite inválido.').default('25')
     .transform(Number).pipe(z.number().int().min(1).max(100)),
   cursor: z.string().max(200).regex(/^[A-Za-z0-9_-]+$/, 'Cursor inválido.').optional()
 });
 const cursorSchema = z.object({ at: z.iso.datetime(), id: z.number().int().min(1).max(2147483647) });
+
+export function sessionWhere(sessionId) {
+  return sessionId === undefined ? {} : { sessionId: sessionId === 'none' ? null : sessionId };
+}
 
 // O cursor guarda data + id, entao continua valido se a linha for excluida.
 // O filtro de mesa/personagem sempre vem do chamador autenticado.

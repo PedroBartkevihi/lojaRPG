@@ -1,4 +1,4 @@
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { creditCharacterGold, findCharacterById } from '../models/characterModel.js';
 import { createGoldAuditLog } from '../models/goldAuditModel.js';
 import { addInventoryItem, createInventoryLog } from '../models/inventoryModel.js';
@@ -19,7 +19,7 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
     throw new ApiError(400, `${total} de ouro não dá para dividir entre ${ids.length} personagens.`);
   }
 
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const characters = [];
 
     for (const characterId of ids) {
@@ -31,7 +31,7 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
 
       const newGold = await creditCharacterGold(character.id, share, prisma);
       await createGoldAuditLog(
-        {
+        { sessionId,
           actorUserId,
           characterId: character.id,
           previousGold: newGold - share,
@@ -57,7 +57,7 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
 // O item vem da aventura, nao da loja: o estoque nao muda, e itens fora da
 // loja (inativos) tambem podem ser dados.
 export async function giveItem({ actorUserId, campaignId, characterId, itemId, quantity, reason }) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const character = await findCharacterById(characterId, campaignId, prisma);
 
     if (!character) {
@@ -72,7 +72,7 @@ export async function giveItem({ actorUserId, campaignId, characterId, itemId, q
 
     await addInventoryItem(character.id, item.id, quantity, prisma);
     await createInventoryLog(
-      {
+      { sessionId,
         characterId: character.id,
         itemId: item.id,
         actorUserId,

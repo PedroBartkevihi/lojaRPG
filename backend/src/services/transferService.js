@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { debitCharacterGold, creditCharacterGold, findCharacterById } from '../models/characterModel.js';
 import { createGoldAuditLog } from '../models/goldAuditModel.js';
 import { addInventoryItem, createInventoryLog, removeInventoryItem } from '../models/inventoryModel.js';
@@ -11,7 +11,7 @@ export async function transfer({ user, campaignId, characterId, data }) {
   const { idempotencyKey: key, ...payload } = data;
   const identity = { userId: user.id, campaignId, key };
   const requestHash = createHash('sha256').update(JSON.stringify({ characterId, ...payload })).digest('hex');
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const source = await findCharacterById(characterId, campaignId, prisma);
     if (!source) throw new ApiError(404, 'Personagem não encontrado.');
     if (source.userId !== user.id) throw new ApiError(403, 'Você só pode entregar bens dos seus personagens.');
@@ -36,7 +36,7 @@ export async function transfer({ user, campaignId, characterId, data }) {
       if (target.gold + data.gold > 2147483647) throw new ApiError(400, 'Saldo do destinatário excede o limite permitido.');
       await creditCharacterGold(target.id, data.gold, prisma);
       for (const [character, delta, direction] of [[sender, -data.gold, `para ${target.name}`], [target, data.gold, `de ${sender.name}`]]) {
-        await createGoldAuditLog({ actorUserId: user.id, characterId: character.id,
+        await createGoldAuditLog({ sessionId, actorUserId: user.id, characterId: character.id,
           previousGold: character.gold, newGold: character.gold + delta, delta,
           reason: `TROCA ${direction}${data.reason ? `: ${data.reason}` : ''}` }, prisma);
       }
@@ -47,7 +47,7 @@ export async function transfer({ user, campaignId, characterId, data }) {
       if (!(await removeInventoryItem(characterId, item.id, data.quantity, prisma))) throw new ApiError(400, 'Quantidade insuficiente no inventário.');
       await addInventoryItem(target.id, item.id, data.quantity, prisma);
       for (const [id, direction] of [[sender.id, `Entregou para ${target.name}`], [target.id, `Recebeu de ${sender.name}`]]) {
-        await createInventoryLog({ characterId: id, itemId: item.id, actorUserId: user.id, type: 'TROCA', quantity: data.quantity,
+        await createInventoryLog({ sessionId, characterId: id, itemId: item.id, actorUserId: user.id, type: 'TROCA', quantity: data.quantity,
           reason: `${direction}${data.reason ? `: ${data.reason}` : ''}` }, prisma);
       }
     }

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ROLES } from '../config/roles.js';
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { createStockMovement } from '../models/catalogModel.js';
 import { debitCharacterGold, findCharacterById, findCharacterByUserId } from '../models/characterModel.js';
 import { addInventoryItem } from '../models/inventoryModel.js';
@@ -59,7 +59,7 @@ export async function checkout(user, membership, cartItems, characterId, idempot
   })).digest('hex');
   const identity = { userId: user.id, campaignId, key };
 
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     // INSERT ON CONFLICT espera a transacao concorrente terminar. Se a compra
     // falhar, a reserva tambem volta atras e a mesma chave pode ser tentada.
     const reservation = await prisma.checkoutRequest.createMany({
@@ -111,7 +111,7 @@ export async function checkout(user, membership, cartItems, characterId, idempot
     }
 
     const purchase = await createPurchase(
-      {
+      { sessionId,
         characterId: character.id,
         totalValue
       },
@@ -131,7 +131,7 @@ export async function checkout(user, membership, cartItems, characterId, idempot
       });
 
       await createStockMovement(
-        {
+        { sessionId,
           itemId: item.id,
           actorUserId: user.id,
           previousStock: newStock + cartItem.quantity,

@@ -1,4 +1,4 @@
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { createStockMovement } from '../models/catalogModel.js';
 import { deactivateItem, replaceItemStock, updateItem } from '../models/itemModel.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -11,7 +11,7 @@ const STOCK_CHANGED_MESSAGE = 'O estoque do item mudou durante a edição. Recar
 // regravaria o estoque antigo e desfaria a venda. Sem `expectedStock` (o
 // formulario nao mexeu no estoque), a comparacao e com o valor atual.
 export async function saveItemChanges(existing, data, actorUserId, { stockReason, expectedStock } = {}) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(existing.campaignId, async (prisma, sessionId) => {
     if (!(await replaceItemStock(existing.id, expectedStock ?? existing.stock, data.stock, prisma))) {
       throw new ApiError(409, STOCK_CHANGED_MESSAGE);
     }
@@ -20,7 +20,7 @@ export async function saveItemChanges(existing, data, actorUserId, { stockReason
 
     if (item.stock !== existing.stock) {
       await createStockMovement(
-        {
+        { sessionId,
           itemId: item.id,
           actorUserId,
           previousStock: existing.stock,
@@ -36,7 +36,7 @@ export async function saveItemChanges(existing, data, actorUserId, { stockReason
 }
 
 export async function removeItem(existing, actorUserId) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(existing.campaignId, async (prisma, sessionId) => {
     if (!(await replaceItemStock(existing.id, existing.stock, 0, prisma))) {
       throw new ApiError(409, STOCK_CHANGED_MESSAGE);
     }
@@ -45,7 +45,7 @@ export async function removeItem(existing, actorUserId) {
 
     if (existing.stock !== item.stock) {
       await createStockMovement(
-        {
+        { sessionId,
           itemId: item.id,
           actorUserId,
           previousStock: existing.stock,

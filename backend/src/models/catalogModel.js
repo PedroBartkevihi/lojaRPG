@@ -1,5 +1,5 @@
 import { getPrisma } from '../database/connection.js';
-import { historyPage } from '../utils/historyPagination.js';
+import { historyPage, sessionWhere } from '../utils/historyPagination.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const FALLBACK_CATEGORY_NAME = 'Sem categoria';
@@ -201,6 +201,7 @@ export async function deleteRarity(campaignId, id, prisma = getPrisma()) {
 export async function listStockMovements(filters, prisma = getPrisma()) {
   return historyPage(prisma.stockMovement, {
     where: {
+      ...sessionWhere(filters.sessionId),
       item: { campaignId: Number(filters.campaignId) },
       ...(filters.itemId ? { itemId: Number(filters.itemId) } : {})
     },
@@ -210,6 +211,7 @@ export async function listStockMovements(filters, prisma = getPrisma()) {
     }
   }, filters, (movement) => ({
     id: movement.id,
+    sessionId: movement.sessionId,
     itemId: movement.itemId,
     itemName: movement.item?.name,
     actorUserId: movement.actorUserId,
@@ -225,6 +227,7 @@ export async function listStockMovements(filters, prisma = getPrisma()) {
 export async function createStockMovement(data, prisma = getPrisma()) {
   return prisma.stockMovement.create({
     data: {
+      sessionId: data.sessionId ?? null,
       itemId: Number(data.itemId),
       actorUserId: data.actorUserId ? Number(data.actorUserId) : null,
       previousStock: Number(data.previousStock),

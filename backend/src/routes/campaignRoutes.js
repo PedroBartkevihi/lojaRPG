@@ -11,6 +11,7 @@ import { inventoryRoutes } from './inventoryRoutes.js';
 import { itemRoutes } from './itemRoutes.js';
 import { purchaseRoutes } from './purchaseRoutes.js';
 import { rewardRoutes } from './rewardRoutes.js';
+import { sessionRoutes } from './sessionRoutes.js';
 
 export const campaignRoutes = Router();
 
@@ -32,3 +33,4 @@ campaignRoutes.use('/:campaignId/catalog', catalogRoutes);
 campaignRoutes.use('/:campaignId/inventory', inventoryRoutes);
 campaignRoutes.use('/:campaignId/purchases', purchaseRoutes);
 campaignRoutes.use('/:campaignId/rewards', rewardRoutes);
+campaignRoutes.use('/:campaignId/sessions', sessionRoutes);

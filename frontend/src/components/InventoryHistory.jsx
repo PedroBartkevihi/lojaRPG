@@ -5,11 +5,11 @@ import InventoryLogList from './InventoryLogList.jsx';
 import HistoryPagination from './HistoryPagination.jsx';
 import { SkeletonRows } from './Skeleton.jsx';
 
-export default function InventoryHistory({ api, characterId, refreshKey }) {
+export default function InventoryHistory({ api, characterId, refreshKey, sessionId }) {
   const loadPage = useCallback(async (params) => {
-    const data = await api.characterInventoryLogs(characterId, params);
+    const data = await api.characterInventoryLogs(characterId, { ...params, ...(sessionId ? { sessionId } : {}) });
     return { entries: data.logs, pagination: data.pagination };
-  }, [api, characterId]);
+  }, [api, characterId, sessionId]);
   const page = usePagedHistory(loadPage, refreshKey, Boolean(characterId));
   return (
     <div className="surface-panel inventory-history">

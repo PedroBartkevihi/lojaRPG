@@ -1,4 +1,4 @@
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { createStockMovement } from '../models/catalogModel.js';
 import { creditCharacterGold, findCharacterById } from '../models/characterModel.js';
 import { createInventoryLog, removeInventoryItem } from '../models/inventoryModel.js';
@@ -40,7 +40,7 @@ async function findCampaignItem(campaignId, itemId, prisma) {
 // do mesmo personagem ao mesmo tempo esperavam uma pela outra (deadlock) e o
 // banco abortava uma delas.
 export async function sellItem({ user, campaignId, characterId, itemId, quantity }) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     await ensureShopOpen(campaignId, prisma);
     const character = await findOwnCharacter(user, campaignId, characterId, 'vender', prisma);
     const item = await findCampaignItem(campaignId, itemId, prisma);
@@ -58,7 +58,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
 
     const newStock = await incrementItemStock(item.id, quantity, prisma);
     await createStockMovement(
-      {
+      { sessionId,
         itemId: item.id,
         actorUserId: user.id,
         previousStock: newStock - quantity,
@@ -69,7 +69,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
     );
 
     await createInventoryLog(
-      {
+      { sessionId,
         characterId: character.id,
         itemId: item.id,
         actorUserId: user.id,
@@ -88,7 +88,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
 }
 
 export async function useItem({ user, campaignId, characterId, itemId, quantity, reason }) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const character = await findOwnCharacter(user, campaignId, characterId, 'usar', prisma);
     const item = await findCampaignItem(campaignId, itemId, prisma);
 
@@ -97,7 +97,7 @@ export async function useItem({ user, campaignId, characterId, itemId, quantity,
     }
 
     await createInventoryLog(
-      {
+      { sessionId,
         characterId: character.id,
         itemId: item.id,
         actorUserId: user.id,

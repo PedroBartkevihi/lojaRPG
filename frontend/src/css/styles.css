@@ -1331,6 +1331,9 @@ a.primary-action {
   }
 }
 
+.session-filter { margin: 1rem 0; }
+.session-filter select { max-width: 24rem; }
+.session-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
 .history-pagination {
   display: flex;
   flex-wrap: wrap;

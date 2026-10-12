@@ -1,5 +1,5 @@
 import { getPrisma } from '../database/connection.js';
-import { historyPage } from '../utils/historyPagination.js';
+import { historyPage, sessionWhere } from '../utils/historyPagination.js';
 import { effectiveSellPrice } from './itemModel.js';
 
 function mapInventoryItem(entry) {
@@ -82,6 +82,7 @@ export async function removeInventoryItem(characterId, itemId, quantity, prisma 
 function mapInventoryLog(log) {
   return {
     id: log.id,
+    sessionId: log.sessionId,
     type: log.type,
     characterId: log.characterId,
     characterName: log.character?.name,
@@ -100,6 +101,7 @@ function mapInventoryLog(log) {
 export async function createInventoryLog(data, prisma = getPrisma()) {
   await prisma.inventoryLog.create({
     data: {
+      sessionId: data.sessionId ?? null,
       characterId: Number(data.characterId),
       itemId: Number(data.itemId),
       actorUserId: data.actorUserId ? Number(data.actorUserId) : null,
@@ -114,6 +116,7 @@ export async function createInventoryLog(data, prisma = getPrisma()) {
 export async function listInventoryLogs(filters, prisma = getPrisma()) {
   return historyPage(prisma.inventoryLog, {
     where: {
+      ...sessionWhere(filters.sessionId),
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },

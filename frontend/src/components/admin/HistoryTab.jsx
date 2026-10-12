@@ -1,29 +1,33 @@
 import { Coins, Gift, PackagePlus } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { usePagedHistory } from '../../js/usePagedHistory.js';
 import HistoryPagination from '../HistoryPagination.jsx';
 import InventoryLogList from '../InventoryLogList.jsx';
 import PurchaseHistory from '../PurchaseHistory.jsx';
 import { SkeletonRows } from '../Skeleton.jsx';
+import SessionFilter from '../SessionFilter.jsx';
 
 export default function HistoryTab({ api, refreshKey }) {
+  const [sessionId, setSessionId] = useState('');
   const loadInventory = useCallback(async (params) => {
-    const data = await api.listInventoryLogs(params);
+    const data = await api.listInventoryLogs({ ...params, ...(sessionId ? { sessionId } : {}) });
     return { entries: data.logs, pagination: data.pagination };
-  }, [api]);
+  }, [api, sessionId]);
   const loadGold = useCallback(async (params) => {
-    const data = await api.listGoldAudit(params);
+    const data = await api.listGoldAudit({ ...params, ...(sessionId ? { sessionId } : {}) });
     return { entries: data.logs, pagination: data.pagination };
-  }, [api]);
+  }, [api, sessionId]);
   const loadStock = useCallback(async (params) => {
-    const data = await api.listStockMovements(params);
+    const data = await api.listStockMovements({ ...params, ...(sessionId ? { sessionId } : {}) });
     return { entries: data.movements, pagination: data.pagination };
-  }, [api]);
+  }, [api, sessionId]);
   const inventory = usePagedHistory(loadInventory, refreshKey);
   const gold = usePagedHistory(loadGold, refreshKey);
   const stock = usePagedHistory(loadStock, refreshKey);
   return (
-    <div className="panel-grid admin-tab">
+    <div className="admin-tab">
+      <SessionFilter api={api} value={sessionId} onChange={setSessionId} refreshKey={refreshKey} />
+      <div className="panel-grid">
       <div className="surface-panel">
         <div className="panel-title">
           <Gift size={20} />
@@ -87,7 +91,8 @@ export default function HistoryTab({ api, refreshKey }) {
         <HistoryPagination page={stock} label="estoque" />
       </div>
 
-      <PurchaseHistory api={api} isMaster refreshKey={refreshKey} embedded />
+      <PurchaseHistory api={api} isMaster refreshKey={refreshKey} embedded sessionId={sessionId} />
+      </div>
     </div>
   );
 }

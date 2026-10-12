@@ -47,6 +47,15 @@ intermediária do Mestre. `POST /campaigns/:id/inventory/:characterId/give` exig
 Repetir a mesma chave não transfere duas vezes. O histórico pessoal de ouro está em
 `GET /campaigns/:id/inventory/:characterId/gold-logs`, com a mesma paginação dos demais.
 
+O **Diário** permite ao Mestre iniciar e encerrar sessões numeradas com notas.
+Compras, vendas, usos, transferências, recompensas e ajustes registram a sessão
+aberta na própria transação. Só uma sessão pode estar aberta por mesa. Eventos
+anteriores ou entre sessões permanecem sem sessão; nenhuma data é inferida.
+Todos os membros consultam o resumo de gastos e movimentações. Históricos aceitam
+`sessionId=<id>` ou `sessionId=none`; o filtro não altera as permissões de personagem.
+Rotas: `GET/POST /campaigns/:id/sessions`, `GET .../sessions/:sessionId/summary`
+e `POST .../sessions/:sessionId/close` (início e encerramento exclusivos do Mestre).
+
 **Mesas**
 
 - Qualquer conta cria uma mesa e é o Mestre dela; a mesma conta pode ser

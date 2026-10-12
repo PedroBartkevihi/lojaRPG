@@ -1,10 +1,10 @@
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { findCharacterById, replaceCharacterGold } from '../models/characterModel.js';
 import { createGoldAuditLog } from '../models/goldAuditModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export async function changeCharacterGold({ campaignId, actorUserId, characterId, mode, value, reason }) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const character = await findCharacterById(characterId, campaignId, prisma);
 
     if (!character) {
@@ -24,7 +24,7 @@ export async function changeCharacterGold({ campaignId, actorUserId, characterId
     }
 
     const auditLog = await createGoldAuditLog(
-      {
+      { sessionId,
         actorUserId,
         characterId: character.id,
         previousGold: character.gold,

@@ -37,7 +37,7 @@ describe('InventoryPanel', () => {
   it('vende a quantidade escolhida pelo preço da loja e atualiza a sessão', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const api = {
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }),
       getCampaign: vi.fn().mockResolvedValue({ members: [] }),
       characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
       characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }),
@@ -68,7 +68,7 @@ describe('InventoryPanel', () => {
   it('não usa o item quando o jogador cancela a confirmação', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const api = { getCampaign: vi.fn().mockResolvedValue({ members: [] }), characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), getCampaign: vi.fn().mockResolvedValue({ members: [] }), characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
       myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn(),
       characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }) };
 
@@ -81,7 +81,7 @@ describe('InventoryPanel', () => {
   });
 
   it('manda criar o personagem em vez de mostrar erro para quem ainda não tem um', () => {
-    const api = { myInventory: vi.fn() };
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), myInventory: vi.fn() };
     const showNotice = vi.fn();
 
     render(
