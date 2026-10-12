@@ -10,20 +10,25 @@ export default function SessionDiary({ api, isMaster, liveKey, showNotice }) {
   const [details, setDetails] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const pending = useRef(false);
   const load = useCallback(async (params) => {
     const data = await api.listSessions(params);
     setActive(data.active);
+    setSessionsLoaded(true);
     return { entries: data.sessions, pagination: data.pagination };
   }, [api]);
   const page = usePagedHistory(load, liveKey);
+  // A batida de 10 s so troca o resumo quando o novo chega; limpar antes fazia
+  // o painel piscar. Ao escolher outra sessao, o resumo antigo nao aparece
+  // porque `shownDetails` confere o id.
   useEffect(() => {
     let current = true;
-    setDetails(null);
     if (selected) api.sessionSummary(selected).then((data) => { if (current) { setDetails(data); setError(''); } })
       .catch((err) => { if (current) setError(err.message); });
     return () => { current = false; };
   }, [api, selected, liveKey]);
+  const shownDetails = details?.session.id === selected ? details : null;
   async function changeSession() {
     if (pending.current) return;
     if (active && !window.confirm(`Encerrar a sessão ${active.number}?`)) return;
@@ -43,7 +48,7 @@ export default function SessionDiary({ api, isMaster, liveKey, showNotice }) {
     <div className="surface-panel">
       <p role="status">{active ? `Sessão ${active.number} em andamento` : 'Nenhuma sessão aberta'}</p>
       {isMaster && <><label>Notas da sessão<textarea maxLength={3000} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} placeholder={active?.notes || 'Acontecimentos e lembretes para o grupo'} /></label>
-        <button className="primary-action" disabled={busy || page.loading} onClick={changeSession}>{busy ? 'Salvando...' : active ? 'Encerrar sessão' : 'Iniciar sessão'}</button></>}
+        <button className="primary-action" disabled={busy || !sessionsLoaded} onClick={changeSession}>{busy ? 'Salvando...' : active ? 'Encerrar sessão' : 'Iniciar sessão'}</button></>}
       {error && <p className="form-error" role="alert">{error}</p>}
     </div>
     <div className="panel-grid">
@@ -55,11 +60,11 @@ export default function SessionDiary({ api, isMaster, liveKey, showNotice }) {
         {!page.loading && !page.entries.length && <p>Nenhuma sessão registrada.</p>}
         <HistoryPagination page={page} label="sessões" />
       </div>
-      <div className="surface-panel"><h3>Resumo{details ? ` da sessão ${details.session.number}` : ''}</h3>
-        {details ? <><p className="session-notes">{details.session.notes || 'Sem notas.'}</p>
-          <p>{details.summary.purchaseCount} compras; o grupo gastou {formatMoney(details.summary.spent)}.</p>
-          <p>Variação líquida nos ajustes de saldo: {formatMoney(details.summary.goldChange)}.</p>
-          <ul>{details.summary.movements.map((entry, index) => <li key={index}>{entry.characterName}: {entry.type.toLowerCase()} de {entry.quantity}x {entry.itemName}{entry.type === 'VENDA' ? ` por ${formatMoney(entry.value)}` : ''}</li>)}</ul>
+      <div className="surface-panel"><h3>Resumo{shownDetails ? ` da sessão ${shownDetails.session.number}` : ''}</h3>
+        {shownDetails ? <><p className="session-notes">{shownDetails.session.notes || 'Sem notas.'}</p>
+          <p>{shownDetails.summary.purchaseCount} compras; o grupo gastou {formatMoney(shownDetails.summary.spent)}.</p>
+          <p>Variação líquida nos ajustes de saldo: {formatMoney(shownDetails.summary.goldChange)}.</p>
+          <ul>{shownDetails.summary.movements.map((entry, index) => <li key={index}>{entry.characterName}: {entry.type.toLowerCase()} de {entry.quantity}x {entry.itemName}{entry.type === 'VENDA' ? ` por ${formatMoney(entry.value)}` : ''}</li>)}</ul>
         </> : <p>Escolha uma sessão para consultar compras, usos, vendas e recompensas.</p>}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import SessionDiary from './SessionDiary.jsx';
@@ -26,6 +26,33 @@ it('o Mestre inicia e encerra a sessão; jogadores consultam o resumo', async ()
   await waitFor(() => expect(api.closeSession).toHaveBeenCalledWith(3, {}));
   rerender(<SessionDiary api={api} isMaster={false} showNotice={vi.fn()} />);
   expect(screen.queryByRole('button', { name: 'Iniciar sessão' })).not.toBeInTheDocument();
+});
+
+it('a atualização automática mantém o resumo e o botão do Mestre até os dados novos chegarem', async () => {
+  const user = userEvent.setup();
+  const session = { id: 3, number: 1, notes: 'Cripta', startedAt: '2026-10-11T10:00:00Z', endedAt: null };
+  let finishSummary;
+  const api = {
+    // A primeira lista chega; a da batida seguinte fica pendente.
+    listSessions: vi.fn()
+      .mockResolvedValueOnce({ sessions: [session], active: session })
+      .mockImplementation(() => new Promise(() => {})),
+    sessionSummary: vi.fn()
+      .mockResolvedValueOnce({ session, summary: { spent: 100, purchaseCount: 2, goldChange: 0, movements: [] } })
+      .mockImplementationOnce(() => new Promise((resolve) => { finishSummary = resolve; }))
+  };
+  const diary = (liveKey) => <SessionDiary api={api} isMaster liveKey={liveKey} showNotice={vi.fn()} />;
+  const { rerender } = render(diary(0));
+  await user.click(await screen.findByRole('button', { name: 'Ver sessão 1' }));
+  expect(await screen.findByText(/o grupo gastou 1 PO/)).toBeInTheDocument();
+
+  rerender(diary(1));
+  await waitFor(() => expect(api.sessionSummary).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(/o grupo gastou 1 PO/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Encerrar sessão' })).toBeEnabled();
+
+  await act(async () => finishSummary({ session, summary: { spent: 300, purchaseCount: 3, goldChange: 0, movements: [] } }));
+  expect(screen.getByText(/o grupo gastou 3 PO/)).toBeInTheDocument();
 });
 
 it('envia o filtro de sessão ao histórico e retorna à primeira página', async () => {
