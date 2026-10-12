@@ -26,6 +26,7 @@ it('o Mestre inicia e encerra a sessão; jogadores consultam o resumo', async ()
   await waitFor(() => expect(api.closeSession).toHaveBeenCalledWith(3, {}));
   rerender(<SessionDiary api={api} isMaster={false} showNotice={vi.fn()} />);
   expect(screen.queryByRole('button', { name: 'Iniciar sessão' })).not.toBeInTheDocument();
+  expect(screen.getByText(/visível para toda a mesa/i)).toBeInTheDocument();
 });
 
 it('a atualização automática mantém o resumo e o botão do Mestre até os dados novos chegarem', async () => {

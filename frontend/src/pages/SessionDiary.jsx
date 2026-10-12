@@ -61,6 +61,7 @@ export default function SessionDiary({ api, isMaster, liveKey, showNotice }) {
         <HistoryPagination page={page} label="sessões" />
       </div>
       <div className="surface-panel"><h3>Resumo{shownDetails ? ` da sessão ${shownDetails.session.number}` : ''}</h3>
+        <p className="form-hint">Visível para toda a mesa: o total das compras e as vendas, usos, entregas e recompensas de cada personagem.</p>
         {shownDetails ? <><p className="session-notes">{shownDetails.session.notes || 'Sem notas.'}</p>
           <p>{shownDetails.summary.purchaseCount} compras; o grupo gastou {formatMoney(shownDetails.summary.spent)}.</p>
           <p>Variação líquida nos ajustes de saldo: {formatMoney(shownDetails.summary.goldChange)}.</p>
