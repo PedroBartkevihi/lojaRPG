@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Coins, Search, ShoppingCart } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
@@ -16,6 +17,8 @@ export default function ShopPage({
   onRefreshSession,
   showNotice
 }) {
+  const [shops, setShops] = useState([]);
+  const [shopId, setShopId] = useState('');
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
@@ -29,10 +32,13 @@ export default function ShopPage({
   // Trava sincrona: dois cliques seguidos chegam antes de o botao redesenhar
   // desativado, e cada um faria uma compra.
   const checkoutLock = useRef(false);
+  const checkoutIntent = useRef(null);
   // Numero da busca mais recente: com a rede lenta, uma resposta antiga pode
   // chegar depois da atual e nao deve substitui-la.
   const latestItemsRequest = useRef(0);
 
+  const selectedShop = shops.find((shop) => shop.id === Number(shopId));
+  const cartOpen = cart.every((entry) => shops.some((shop) => shop.id === entry.item.shopId && shop.isOpen));
   const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
   const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
 
@@ -45,7 +51,7 @@ export default function ShopPage({
     setError('');
 
     try {
-      const data = await api.listItems({ search: searchTerm, category });
+      const data = await api.listItems({ search: searchTerm, category, shopId });
 
       if (!isLatest()) {
         return;
@@ -65,7 +71,7 @@ export default function ShopPage({
         setLoading(false);
       }
     }
-  }, [api, searchTerm, category]);
+  }, [api, searchTerm, category, shopId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(search), 300);
@@ -78,12 +84,20 @@ export default function ShopPage({
 
   useEffect(() => {
     api
-      .listItems()
-      .then((data) => setCategories([...new Set(data.items.map((item) => item.category))].sort()))
+      .listCategories()
+      .then((data) => setCategories(data.categories.map((entry) => entry.name).sort()))
       .catch((requestError) => setError(requestError.message));
   }, [api, liveKey]);
 
+  useEffect(() => {
+    let current = true;
+    api.listShops().then((data) => { if (current) setShops(data.shops); })
+      .catch((err) => { if (current) setError(err.message); });
+    return () => { current = false; };
+  }, [api, liveKey]);
+
   function addToCart(item) {
+    if (!shops.some((shop) => shop.id === item.shopId && shop.isOpen)) return;
     if (isMaster) {
       showNotice('Mestre gerencia a loja pelo painel administrativo.');
       return;
@@ -114,7 +128,7 @@ export default function ShopPage({
   }
 
   async function checkout() {
-    if (checkoutLock.current) {
+    if (!cartOpen || checkoutLock.current) {
       return;
     }
 
@@ -129,7 +143,13 @@ export default function ShopPage({
           quantity: entry.quantity
         }))
       };
+      const fingerprint = JSON.stringify(payload);
+      if (checkoutIntent.current?.fingerprint !== fingerprint) {
+        checkoutIntent.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      payload.idempotencyKey = checkoutIntent.current.key;
       const data = await api.createPurchase(payload);
+      checkoutIntent.current = null;
       setCart([]);
       await loadItems();
       await onRefreshSession();
@@ -153,12 +173,15 @@ export default function ShopPage({
           {!isMaster && character && (
             <span className="gold-badge">
               <Coins size={18} />
-              {character.gold} ouro
+              {formatMoney(character.gold)}
             </span>
           )}
         </div>
 
         <div className="toolbar">
+          <select aria-label="Filtrar por vendedor" value={shopId} onChange={(e) => setShopId(e.target.value)}>
+            <option value="">Todos vendedores</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}{shop.isOpen ? '' : ' (fechado)'}</option>)}
+          </select>
           <label className="search-field">
             <Search size={18} />
             <input
@@ -181,13 +204,15 @@ export default function ShopPage({
           </select>
         </div>
 
+        {selectedShop && <p className="surface-panel" role="status">{selectedShop.name}: {selectedShop.isOpen ? 'aberto' : 'fechado para compras e vendas'}. {selectedShop.hours || 'Horário não informado'}</p>}
+        {!cartOpen && <p role="status">Há um vendedor fechado no carrinho. Remova seus itens ou aguarde a reabertura.</p>}
         {error && <p className="form-error">{error}</p>}
         {loading ? (
           <SkeletonCards count={6} />
         ) : (
           <div className="items-grid">
             {items.map((item) => (
-              <ItemCard key={item.id} item={item} onAdd={() => addToCart(item)} disabled={isMaster} />
+              <ItemCard key={item.id} item={item} onAdd={() => addToCart(item)} readOnly={isMaster} disabled={!shops.some((shop) => shop.id === item.shopId && shop.isOpen)} />
             ))}
             {items.length === 0 && <p className="empty-state">Nenhum item encontrado.</p>}
           </div>
@@ -213,13 +238,14 @@ export default function ShopPage({
                 character={character}
                 onCheckout={checkout}
                 submitting={checkingOut}
+                shopOpen={cartOpen}
               />
             </div>
           </>
         ) : (
           <div className="surface-panel">
             <ShoppingCart size={20} />
-            <p>Mestres podem criar itens, ajustar ouro e ver compras no painel Mestre.</p>
+            <p>Mestres podem criar itens, ajustar saldo e ver compras no painel Mestre.</p>
           </div>
         )}
       </aside>
@@ -228,7 +254,7 @@ export default function ShopPage({
       {!isMaster && cartCount > 0 && (
         <div className="mobile-cart-bar">
           <span>
-            {cartCount} {cartCount === 1 ? 'item' : 'itens'} - {cartTotal} ouro
+            {cartCount} {cartCount === 1 ? 'item' : 'itens'} - {formatMoney(cartTotal)}
           </span>
           <button
             className="primary-action"

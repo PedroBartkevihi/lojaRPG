@@ -29,6 +29,7 @@ async function generateUniqueInviteCode(prisma) {
 }
 
 async function copyStarterCatalog(campaignId, actorUserId, prisma) {
+  const shop = await prisma.shop.create({ data: { campaignId, name: 'Geral', isDefault: true } });
   await prisma.category.createMany({
     data: STARTER_CATEGORIES.map((name) => ({ campaignId, name }))
   });
@@ -44,6 +45,9 @@ async function copyStarterCatalog(campaignId, actorUserId, prisma) {
   await prisma.item.createMany({
     data: STARTER_ITEMS.map(({ category, rarity, ...item }) => ({
       ...item,
+      price: item.price * 100,
+      sellPrice: item.sellPrice == null ? null : item.sellPrice * 100,
+      shopId: shop.id,
       campaignId,
       categoryId: categoryIds.get(category),
       rarityId: rarityIds.get(rarity),
@@ -85,6 +89,10 @@ export async function joinCampaign(user, inviteCode) {
 
     if (!campaign) {
       throw new ApiError(404, 'Código de convite inválido.');
+    }
+
+    if (!campaign.isDemo) {
+      rejectDemoAccount(user, 'entrar em outras mesas');
     }
 
     const existing = await findMembership(campaign.id, user.id, prisma);

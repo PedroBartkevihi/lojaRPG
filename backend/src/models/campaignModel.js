@@ -12,6 +12,8 @@ export function mapCampaign(campaign, role) {
     name: campaign.name,
     role,
     inviteCode: role === ROLES.GAME_MASTER ? campaign.inviteCode : undefined,
+    isDemo: campaign.isDemo,
+    shopOpen: campaign.shops?.[0]?.isOpen ?? true, // Compatibilidade: estado do vendedor padrão.
     memberCount: campaign._count?.members,
     createdAt: campaign.createdAt
   };
@@ -31,7 +33,7 @@ function mapMembership(membership) {
   };
 }
 
-const withMemberCount = { _count: { select: { members: true } } };
+const withMemberCount = { shops: { where: { isDefault: true }, select: { isOpen: true } }, _count: { select: { members: true } } };
 
 export async function listCampaignsByUserId(userId, prisma = getPrisma()) {
   const memberships = await prisma.campaignMember.findMany({

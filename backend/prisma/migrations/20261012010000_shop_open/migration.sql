@@ -1,0 +1,1 @@
+ALTER TABLE "campaigns" ADD COLUMN "shop_open" BOOLEAN NOT NULL DEFAULT true;

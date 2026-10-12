@@ -127,6 +127,95 @@ banco para uma "Mesa principal", com cada conta no papel que tinha antes; na
 demonstração, o reset seguinte troca essa mesa pela Mesa de demonstração.
 Dados de um banco SQLite das versões antigas não são migrados.
 
+## Atualização para vendedores, sessões e moedas em cobre
+
+Esta versão troca a unidade do dinheiro: preços, saldos e históricos passam
+de PO inteiras para PC (peças de cobre). A migration
+`20261012050000_copper_currency` multiplica os valores por 100, amplia as
+colunas para `BIGINT` e converte também as respostas guardadas das compras. A
+migration dos vendedores cria o **Geral** em cada mesa, aberto ou fechado como
+a loja estava, e liga a ele todos os itens existentes. Os eventos antigos ficam
+fora de qualquer sessão.
+
+1. Faça o backup do banco (veja "Backup do PostgreSQL") e confira a mesa de
+   demonstração (próxima seção).
+2. Evite escritas durante a troca: a API antiga não pode gravar valores em PO
+   num banco já convertido. No Render, publique num horário sem uso.
+3. Publique a API e o front-end da mesma revisão. No Render e no Docker, o
+   início da API aplica as migrations; em outra hospedagem, rode
+   `npm run db:init` e `npm run prisma:generate` antes de subir a API.
+4. Peça para recarregar as abas abertas. Uma aba antiga recebe 428 ao gravar
+   dinheiro, porque não envia o cabeçalho `X-Currency-Unit: PC`.
+5. Confira um saldo conhecido (250 PO continuam 250 PO na tela e valem 25000
+   na API), uma compra antiga, um vendedor fechado e uma compra de 1 PC.
+
+Metade do preço e divisões de recompensa passam a arredondar em cobre: metade
+de 75 PO é 37 PO e 5 PP. Vendas antigas mantêm o valor registrado. Uma chave
+de entrega gravada antes da conversão recebe 409 em vez de repetir a entrega,
+porque foi calculada em PO.
+
+Não use `db:reset` nem o seed para atualizar um banco real. Para voltar à
+versão em PO depois de novas operações, restaure o backup com a API parada;
+voltar só o código não basta. Se o `migrate deploy` falhar, resolva o estado da
+migration antes de rodar de novo, sem aplicar a multiplicação por 100 à mão.
+
+## Contas de demonstração com dados antigos
+
+A mesa de demonstração tem a marca `campaigns.is_demo`, que não muda quando o
+convite é regenerado. A migration marca só a mesa com o convite reservado
+`MESADEMO`: ela não presume que a mesa de id 1 seja a demonstração, porque a
+migration das mesas também usou esse id para a "Mesa principal".
+
+Antes de publicar, confira o convite da mesa 1:
+
+```sql
+SELECT id, name, invite_code FROM campaigns WHERE id = 1;
+```
+
+Na versão anterior, qualquer visitante logado como Mestre da demonstração pode
+regenerar o convite. Se a mesa 1 for a Mesa de demonstração e o convite não
+for `MESADEMO`, devolva o código antes do deploy (ou reinicie a API antiga,
+cujo reset faz o mesmo):
+
+```sql
+UPDATE campaigns SET invite_code = 'MESADEMO'
+WHERE id = 1 AND name = 'Mesa de demonstração';
+```
+
+Sem isso, a migration não marca a mesa, o reset da versão nova para e a API
+não sobe.
+
+Se uma conta pública tiver vínculos, personagens ou registros em uma mesa real,
+o reset também para **antes de excluir dados**, e o acesso dessas contas a
+mesas reais é bloqueado, mesmo com um vínculo antigo. Com
+`DEMO_RESET_ON_START=true`, esse bloqueio impede a API de subir, preservando os
+dados; para publicar enquanto revisa, use `DEMO_RESET_ON_START=false` (as
+migrations continuam obrigatórias). Para encontrar esses vínculos:
+
+```sql
+SELECT u.id AS user_id, u.email, c.id AS campaign_id, c.name, m.role
+FROM users u
+JOIN campaign_members m ON m.user_id = u.id
+JOIN campaigns c ON c.id = m.campaign_id
+WHERE NOT c.is_demo
+  AND u.email IN ('mestre@lojarpg.local', 'aria@lojarpg.local',
+                  'borin@lojarpg.local', 'lia@lojarpg.local');
+
+SELECT ch.id, ch.name, ch.user_id, ch.campaign_id
+FROM characters ch JOIN users u ON u.id = ch.user_id
+JOIN campaigns c ON c.id = ch.campaign_id
+WHERE NOT c.is_demo
+  AND u.email IN ('mestre@lojarpg.local', 'aria@lojarpg.local',
+                  'borin@lojarpg.local', 'lia@lojarpg.local');
+```
+
+Essas consultas não cobrem a autoria de itens nem as auditorias. Antes de mover
+qualquer dado, confirme com o responsável pela mesa qual conta deve recebê-lo e
+faça a transferência de propriedade numa transação, preservando personagens,
+compras e históricos. Não apague personagens para liberar o reset, e não marque
+uma mesa como demonstração só pelo nome ou pelo id. A API nunca transfere dados
+para uma conta presumida.
+
 ## Backup do PostgreSQL
 
 Banco do Docker:

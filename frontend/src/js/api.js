@@ -72,6 +72,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
   async function request(path, options = {}) {
     const retry = options.retry !== false;
     const headers = {
+      'X-Currency-Unit': 'PC',
       ...(options.headers || {})
     };
 
@@ -128,6 +129,14 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     createCampaign: (body) => request('/campaigns', { method: 'POST', body }),
     joinCampaign: (body) => request('/campaigns/join', { method: 'POST', body }),
     getCampaign: () => request(campaignPath()),
+    setShopState: (body) => request(campaignPath('/shop'), { method: 'PATCH', body }),
+    listShops: () => request(campaignPath('/shops')),
+    createShop: (body) => request(campaignPath('/shops'), { method: 'POST', body }),
+    updateShop: (id, body) => request(campaignPath(`/shops/${id}`), { method: 'PATCH', body }),
+    listSessions: (params = {}) => request(withQuery(campaignPath('/sessions'), params)),
+    startSession: (body) => request(campaignPath('/sessions'), { method: 'POST', body }),
+    closeSession: (id, body) => request(campaignPath(`/sessions/${id}/close`), { method: 'POST', body }),
+    sessionSummary: (id) => request(campaignPath(`/sessions/${id}/summary`)),
     deleteCampaign: () => request(campaignPath(), { method: 'DELETE' }),
     regenerateInviteCode: () => request(campaignPath('/invite-code'), { method: 'POST' }),
     removeMember: (userId) => request(campaignPath(`/members/${userId}`), { method: 'DELETE' }),
@@ -154,11 +163,14 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     myInventory: (params = {}) => request(withQuery(campaignPath('/inventory/me'), params)),
     sellItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/sell`), { method: 'POST', body }),
     useItem: (characterId, body) => request(campaignPath(`/inventory/${characterId}/use`), { method: 'POST', body }),
-    listInventoryLogs: () => request(campaignPath('/inventory/logs')),
+    transfer: (characterId, body) => request(campaignPath(`/inventory/${characterId}/give`), { method: 'POST', body }),
+    characterGoldLogs: (id, params = {}) => request(withQuery(campaignPath(`/inventory/${id}/gold-logs`), params)),
+    listInventoryLogs: (params = {}) => request(withQuery(campaignPath('/inventory/logs'), params)),
+    characterInventoryLogs: (id, params = {}) => request(withQuery(campaignPath(`/inventory/${id}/logs`), params)),
     giveGold: (body) => request(campaignPath('/rewards/gold'), { method: 'POST', body }),
     giveItem: (body) => request(campaignPath('/rewards/items'), { method: 'POST', body }),
     createPurchase: (body) => request(campaignPath('/purchases'), { method: 'POST', body }),
     myPurchases: (params = {}) => request(withQuery(campaignPath('/purchases/me'), params)),
-    listPurchases: () => request(campaignPath('/purchases'))
+    listPurchases: (params = {}) => request(withQuery(campaignPath('/purchases'), params))
   };
 }

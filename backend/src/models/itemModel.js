@@ -8,7 +8,7 @@ export function effectiveSellPrice(item) {
     return null;
   }
 
-  return item.sellPrice ?? Math.floor(item.price / 2);
+  return item.sellPrice == null ? Math.floor(Number(item.price) / 2) : Number(item.sellPrice);
 }
 
 function mapItem(item) {
@@ -19,12 +19,15 @@ function mapItem(item) {
   return {
     id: item.id,
     campaignId: item.campaignId,
+    shopId: item.shopId,
+    shopName: item.shop?.name,
+    shopOpen: item.shop?.isOpen,
     name: item.name,
     categoryId: item.categoryId,
     category: item.category?.name,
     description: item.description,
-    price: item.price,
-    sellPrice: item.sellPrice,
+    price: Number(item.price),
+    sellPrice: item.sellPrice === null ? null : Number(item.sellPrice),
     isSellable: item.isSellable,
     effectiveSellPrice: effectiveSellPrice(item),
     rarityId: item.rarityId,
@@ -41,6 +44,7 @@ function mapItem(item) {
 }
 
 const includeRelations = {
+  shop: true,
   category: true,
   rarity: true,
   creator: {
@@ -107,6 +111,8 @@ function normalizeSearch(value) {
 export async function listItems(filters, prisma = getPrisma()) {
   const where = { campaignId: Number(filters.campaignId) };
 
+  if (filters.shopId) where.shopId = filters.shopId;
+
   if (!filters.includeInactive) {
     where.isActive = true;
   } else if (filters.status === 'active') {
@@ -123,10 +129,10 @@ export async function listItems(filters, prisma = getPrisma()) {
     where.rarity = { name: filters.rarity };
   }
 
-  if (filters.minPrice || filters.maxPrice) {
+  if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
     where.price = {};
-    if (filters.minPrice) where.price.gte = Number(filters.minPrice);
-    if (filters.maxPrice) where.price.lte = Number(filters.maxPrice);
+    if (filters.minPrice !== undefined) where.price.gte = Number(filters.minPrice);
+    if (filters.maxPrice !== undefined) where.price.lte = Number(filters.maxPrice);
   }
 
   const items = await prisma.item.findMany({
@@ -168,9 +174,12 @@ export async function createItem(data, prisma = getPrisma()) {
   const campaignId = Number(data.campaignId);
   const categoryId = await resolveCategoryId(campaignId, data.categoryId || data.category, prisma);
   const rarityId = await resolveRarityId(campaignId, data.rarityId || data.rarity, prisma);
+  const shop = await prisma.shop.findFirst({ where: { campaignId, ...(data.shopId ? { id: data.shopId } : { isDefault: true }) } });
+  if (!shop) throw new ApiError(400, 'Vendedor inválido para esta mesa.');
   const item = await prisma.item.create({
     data: {
       campaignId,
+      shopId: shop.id,
       name: data.name,
       categoryId,
       rarityId,

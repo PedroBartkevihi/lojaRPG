@@ -20,6 +20,8 @@ model User {
   goldAuditLogs  GoldAuditLog[]   @relation("GoldAuditActor")
   stockMovements StockMovement[]  @relation("StockMovementActor")
   inventoryLogs  InventoryLog[]   @relation("InventoryLogActor")
+  checkoutRequests CheckoutRequest[]
+  transferRequests TransferRequest[]
 
   @@map("users")
 }
@@ -30,12 +32,17 @@ model Campaign {
   id         Int              @id @default(autoincrement())
   name       String
   inviteCode String           @unique @map("invite_code")
+  isDemo     Boolean          @default(false) @map("is_demo")
+  shops      Shop[]
   createdAt  DateTime         @default(now()) @map("created_at")
+  sessions   CampaignSession[]
   members    CampaignMember[]
   characters Character[]
   categories Category[]
   rarities   Rarity[]
   items      Item[]
+  checkoutRequests CheckoutRequest[]
+  transferRequests TransferRequest[]
 
   @@map("campaigns")
 }
@@ -62,7 +69,7 @@ model Character {
   className     String         @map("class")
   race          String
   level         Int            @default(1)
-  gold          Int            @default(0)
+  gold          BigInt            @default(0)
   createdAt     DateTime       @default(now()) @map("created_at")
   campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -105,17 +112,33 @@ model Rarity {
   @@map("rarities")
 }
 
+model Shop {
+  id Int @id @default(autoincrement())
+  campaignId Int @map("campaign_id")
+  name String
+  hours String @default("")
+  isOpen Boolean @default(true) @map("is_open")
+  isDefault Boolean @default(false) @map("is_default")
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  items Item[]
+  @@unique([campaignId, name])
+  @@unique([id, campaignId])
+  @@map("shops")
+}
+
 model Item {
   id             Int             @id @default(autoincrement())
   campaignId     Int             @map("campaign_id")
+  shopId         Int             @map("shop_id")
+  shop           Shop            @relation(fields: [shopId, campaignId], references: [id, campaignId], onDelete: Restrict)
   name           String
   categoryId     Int             @map("category_id")
   rarityId       Int             @map("rarity_id")
   description    String          @default("")
-  price          Int
+  price          BigInt
   // Quanto a loja paga ao comprar o item de um jogador. Vazio segue a regra
   // do D&D 5e (metade do preco); isSellable falso faz a loja recusar o item.
-  sellPrice      Int?            @map("sell_price")
+  sellPrice      BigInt?            @map("sell_price")
   isSellable     Boolean         @default(true) @map("is_sellable")
   stock          Int             @default(0)
   imageUrl       String          @default("") @map("image_url")
@@ -133,6 +156,7 @@ model Item {
   stockMovements StockMovement[]
 
   @@index([campaignId])
+  @@index([shopId])
   @@index([categoryId])
   @@index([rarityId])
   @@index([name])
@@ -161,7 +185,7 @@ model InventoryLog {
   actorUserId Int?      @map("actor_user_id")
   type        String
   quantity    Int
-  unitPrice   Int       @default(0) @map("unit_price")
+  unitPrice   BigInt       @default(0) @map("unit_price")
   reason      String    @default("")
   createdAt   DateTime  @default(now()) @map("created_at")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
@@ -171,18 +195,43 @@ model InventoryLog {
   @@index([characterId])
   @@index([itemId])
   @@map("inventory_logs")
+  @@index([createdAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
 }
 
 model Purchase {
   id          Int            @id @default(autoincrement())
   characterId Int            @map("character_id")
-  totalValue  Int            @map("total_value")
+  totalValue  BigInt            @map("total_value")
   purchasedAt DateTime       @default(now()) @map("purchased_at")
   character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
   items       PurchaseItem[]
 
   @@index([characterId])
   @@map("purchases")
+  @@index([purchasedAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
+}
+
+// A reserva e o resultado sao gravados na mesma transacao da compra.
+model CheckoutRequest {
+  userId      Int      @map("user_id")
+  campaignId  Int      @map("campaign_id")
+  key         String   @db.VarChar(36)
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  response    Json?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId, key])
+  @@index([campaignId])
+  @@map("checkout_requests")
 }
 
 model PurchaseItem {
@@ -190,7 +239,7 @@ model PurchaseItem {
   purchaseId Int      @map("purchase_id")
   itemId     Int      @map("item_id")
   quantity   Int
-  unitPrice  Int      @map("unit_price")
+  unitPrice  BigInt      @map("unit_price")
   purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   item       Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
@@ -201,9 +250,9 @@ model GoldAuditLog {
   id           Int       @id @default(autoincrement())
   actorUserId  Int       @map("actor_user_id")
   characterId  Int       @map("character_id")
-  previousGold Int       @map("previous_gold")
-  newGold      Int       @map("new_gold")
-  delta        Int
+  previousGold BigInt       @map("previous_gold")
+  newGold      BigInt       @map("new_gold")
+  delta        BigInt
   reason       String
   createdAt    DateTime  @default(now()) @map("created_at")
   actor        User      @relation("GoldAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
@@ -212,6 +261,11 @@ model GoldAuditLog {
   @@index([actorUserId])
   @@index([characterId])
   @@map("gold_audit_logs")
+  @@index([createdAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
 }
 
 model RefreshToken {
@@ -242,4 +296,41 @@ model StockMovement {
   @@index([itemId])
   @@index([actorUserId])
   @@map("stock_movements")
+  @@index([createdAt, id])
+  sessionId Int? @map("session_id")
+  session CampaignSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  @@index([sessionId])
+
+}
+
+model TransferRequest {
+  userId      Int      @map("user_id")
+  campaignId  Int      @map("campaign_id")
+  key         String   @db.VarChar(36)
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  currencyVersion Int @default(2) @map("currency_version")
+  response    Json?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([userId, campaignId, key])
+  @@index([campaignId])
+  @@map("transfer_requests")
+}
+
+model CampaignSession {
+  id Int @id @default(autoincrement())
+  campaignId Int @map("campaign_id")
+  number Int
+  startedAt DateTime @default(now()) @map("started_at")
+  endedAt DateTime? @map("ended_at")
+  notes String @default("")
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  purchases Purchase[]
+  inventoryLogs InventoryLog[]
+  goldAuditLogs GoldAuditLog[]
+  stockMovements StockMovement[]
+  @@unique([campaignId, number])
+  @@index([campaignId, startedAt, id])
+  @@map("campaign_sessions")
 }

@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,11 +53,12 @@ async function login(email, password = 'jogador123') {
 
 function as(token) {
   return {
-    get: (url) => request(app).get(url).set('Authorization', `Bearer ${token}`),
-    post: (url, body) => request(app).post(url).set('Authorization', `Bearer ${token}`).send(body),
-    put: (url, body) => request(app).put(url).set('Authorization', `Bearer ${token}`).send(body),
-    patch: (url, body) => request(app).patch(url).set('Authorization', `Bearer ${token}`).send(body),
-    delete: (url) => request(app).delete(url).set('Authorization', `Bearer ${token}`)
+    get: (url) => request(app).get(url).set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC'),
+    post: (url, body) => request(app).post(url).set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC')
+      .send(url.endsWith('/purchases') ? { idempotencyKey: randomUUID(), ...body } : body),
+    put: (url, body) => request(app).put(url).set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC').send(body),
+    patch: (url, body) => request(app).patch(url).set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC').send(body),
+    delete: (url) => request(app).delete(url).set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC')
   };
 }
 
@@ -98,6 +100,209 @@ afterAll(async () => {
 });
 
 describe('validação das entradas', () => {
+  it('mantém precisão de um cobre em compras, vendas, recompensas e trocas', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const coinItem = await master.post(`${DEMO}/items`, { name: 'Tocha', category: 'Equipamentos', rarity: 'Comum', price: 1, sellPrice: 1, stock: 3 });
+    expect(coinItem.status).toBe(201);
+    const itemId = coinItem.body.item.id;
+    const purchase = await aria.post(`${DEMO}/purchases`, { items: [{ itemId, quantity: 1 }] });
+    expect(purchase.body.character.gold).toBe(24999);
+    expect(purchase.body.purchase.totalValue).toBe(1);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId, quantity: 1 })).body.character.gold).toBe(25000);
+    const reward = await master.post(`${DEMO}/rewards/gold`, { characterIds: [1, 2], total: 3, mode: 'split', reason: 'Moedas de cobre' });
+    expect(reward.body).toMatchObject({ share: 1, remainder: 1 });
+    const key = randomUUID();
+    const body = { targetCharacterId: 2, gold: 1, idempotencyKey: key };
+    expect((await aria.post(`${DEMO}/inventory/1/give`, body)).body.character.gold).toBe(25000);
+    await getPrisma().transferRequest.updateMany({ where: { key }, data: { currencyVersion: 1 } });
+    expect((await aria.post(`${DEMO}/inventory/1/give`, body)).status).toBe(409);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(25000n);
+    expect((await master.put(`${DEMO}/items/${itemId}`, { price: 0.5 })).status).toBe(400);
+  });
+
+  it('preserva saldos acima de int32 e recusa overflow sem débito parcial', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    await getPrisma().character.update({ where: { id: 1 }, data: { gold: 214748364700n } });
+    const adjusted = await master.patch(`${DEMO}/characters/1/gold`, { amount: 1, mode: 'adjust', reason: 'Um cobre' });
+    expect(adjusted.body.character.gold).toBe(214748364701);
+    await getPrisma().character.update({ where: { id: 2 }, data: { gold: BigInt(Number.MAX_SAFE_INTEGER) } });
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, gold: 1, idempotencyKey: randomUUID() })).status).toBe(400);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(214748364701n);
+    expect((await master.post(`${DEMO}/rewards/gold`, { characterIds: [2], total: 1, mode: 'each', reason: 'Limite' })).status).toBe(400);
+    await expect(getPrisma().character.update({ where: { id: 2 }, data: { gold: 9007199254740992n } })).rejects.toThrow();
+  });
+
+  it('exige confirmação da unidade na API para impedir valores de uma interface antiga', async () => {
+    const response = await request(app).post(`${DEMO}/purchases`).set('Authorization', `Bearer ${await login('aria@lojarpg.local')}`)
+      .send({ items: [{ itemId: 6, quantity: 1 }], idempotencyKey: randomUUID() });
+    expect(response.status).toBe(428);
+    expect(response.body.message).toContain('Recarregue');
+    expect(await getPrisma().purchase.count()).toBe(0);
+  });
+
+  it('isola catálogo, preços, estoque e abertura por vendedor', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const general = (await aria.get(`${DEMO}/shops`)).body.shops[0];
+    expect(general).toMatchObject({ name: 'Geral', isDefault: true, isOpen: true });
+    const created = await master.post(`${DEMO}/shops`, { name: 'Alquimista', hours: 'Até o anoitecer' });
+    expect(created.status).toBe(201);
+    const shopId = created.body.shop.id;
+    expect((await master.post(`${DEMO}/shops`, { name: 'Alquimista' })).status).toBe(409);
+    const original = (await aria.get(`${DEMO}/items/6`)).body.item;
+    const offer = await master.post(`${DEMO}/items`, { ...original, shopId, price: 1500, stock: 3 });
+    expect(offer.status).toBe(201);
+    const itemId = offer.body.item.id;
+    expect((await aria.get(`${DEMO}/items?shopId=${shopId}`)).body.items.map((i) => i.id)).toEqual([itemId]);
+    expect((await master.patch(`${DEMO}/shops/${general.id}`, { isOpen: false })).status).toBe(200);
+    const mixed = await aria.post(`${DEMO}/purchases`, { items: [{ itemId, quantity: 1 }, { itemId: 6, quantity: 1 }] });
+    expect(mixed.status).toBe(409);
+    expect((await aria.post(`${DEMO}/purchases`, { items: [{ itemId, quantity: 1 }] })).status).toBe(201);
+    expect((await aria.get(`${DEMO}/items/6`)).body.item.stock).toBe(original.stock);
+    expect((await aria.get(`${DEMO}/items/${itemId}`)).body.item.stock).toBe(2);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId, quantity: 1 })).status).toBe(200);
+    expect((await aria.get(`${DEMO}/items/${itemId}`)).body.item.stock).toBe(3);
+    expect((await master.put(`${DEMO}/items/${itemId}`, { shopId: general.id })).status).toBe(400);
+  });
+
+  it('protege vendedores e recusa atribuição de outra mesa', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const general = (await aria.get(`${DEMO}/shops`)).body.shops[0];
+    expect((await aria.post(`${DEMO}/shops`, { name: 'Intruso' })).status).toBe(403);
+    expect((await aria.patch(`${DEMO}/shops/${general.id}`, { isOpen: false })).status).toBe(403);
+    expect((await master.patch(`${DEMO}/shops/${general.id}`, { isOpen: 'false' })).status).toBe(400);
+    expect((await aria.get(`${DEMO}/items?shopId=abc`)).status).toBe(400);
+    const other = await newAccount('OutroVendedor');
+    const campaign = await createCampaign(other.token);
+    const foreign = (await as(other.token).get(`/campaigns/${campaign.id}/shops`)).body.shops[0];
+    expect((await master.patch(`${DEMO}/shops/${foreign.id}`, { isOpen: false })).status).toBe(404);
+    const item = (await aria.get(`${DEMO}/items/6`)).body.item;
+    expect((await master.post(`${DEMO}/items`, { ...item, shopId: foreign.id })).status).toBe(400);
+    expect((await aria.get(`${DEMO}/items?shopId=${foreign.id}`)).body.items).toEqual([]);
+  });
+
+  it('agrupa compras, vendas, usos, recompensas e trocas na sessão e mantém eventos externos separados', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    expect((await aria.post(`${DEMO}/sessions`, {})).status).toBe(403);
+    const started = await master.post(`${DEMO}/sessions`, { notes: 'Exploração da cripta' });
+    expect(started.status).toBe(201);
+    const sessionId = started.body.session.id;
+    const buy = { items: [{ itemId: 6, quantity: 2 }], idempotencyKey: randomUUID() };
+    const bought = await aria.post(`${DEMO}/purchases`, buy);
+    expect(bought.body.purchase.sessionId).toBe(sessionId);
+    expect((await aria.post(`${DEMO}/inventory/1/use`, { itemId: 6, quantity: 1 })).status).toBe(200);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 })).status).toBe(200);
+    expect((await master.post(`${DEMO}/rewards/gold`, { characterIds: [1], total: 1000, mode: 'each', reason: 'Tesouro' })).status).toBe(200);
+    expect((await master.post(`${DEMO}/rewards/items`, { characterId: 1, itemId: 6, quantity: 1, reason: 'Baú' })).status).toBe(200);
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, itemId: 6, quantity: 1, gold: 200, idempotencyKey: randomUUID() })).status).toBe(200);
+    const summary = await aria.get(`${DEMO}/sessions/${sessionId}/summary`);
+    expect(summary.body.summary).toMatchObject({ spent: 10000, purchaseCount: 1, goldChange: 1000 });
+    expect(summary.body.summary.movements.map((m) => m.type)).toEqual(expect.arrayContaining(['USO', 'VENDA', 'RECOMPENSA', 'TROCA']));
+    expect((await aria.post(`${DEMO}/sessions/${sessionId}/close`, {})).status).toBe(403);
+    expect((await master.post(`${DEMO}/sessions/${sessionId}/close`, { notes: 'Cripta concluída' })).status).toBe(200);
+    expect((await master.post(`${DEMO}/sessions/${sessionId}/close`, {})).status).toBe(409);
+    await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] });
+    const filtered = await aria.get(`${DEMO}/purchases/me?sessionId=${sessionId}`);
+    expect(filtered.body.purchases.map((p) => p.id)).toEqual([bought.body.purchase.id]);
+    expect((await aria.get(`${DEMO}/purchases/me?sessionId=none`)).body.purchases).toHaveLength(1);
+    expect((await aria.get(`${DEMO}/inventory/1/logs?sessionId=${sessionId}`)).body.logs.every((log) => log.sessionId === sessionId)).toBe(true);
+    expect((await master.get(`${DEMO}/catalog/stock-movements?sessionId=${sessionId}`)).body.movements).toHaveLength(2);
+    const next = await master.post(`${DEMO}/sessions`, {});
+    expect(next.body.session.number).toBe(2);
+    expect((await aria.post(`${DEMO}/purchases`, buy)).body.purchase.sessionId).toBe(sessionId);
+    expect((await aria.get(`${DEMO}/sessions/${next.body.session.id}/summary`)).body.summary.purchaseCount).toBe(0);
+  });
+
+  it('permite só uma sessão aberta, valida filtros e isola o diário por mesa', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const results = await Promise.all([master.post(`${DEMO}/sessions`, {}), master.post(`${DEMO}/sessions`, {})]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect((await master.get(`${DEMO}/sessions`)).body.sessions).toHaveLength(1);
+    const outsider = await newAccount('DiarioExterno');
+    const own = await createCampaign(outsider.token);
+    const sid = results.find((r) => r.status === 201).body.session.id;
+    expect((await as(outsider.token).get(`/campaigns/${own.id}/sessions/${sid}/summary`)).status).toBe(404);
+    expect((await as(outsider.token).post(`/campaigns/${own.id}/sessions/${sid}/close`, {})).status).toBe(404);
+    expect((await master.get(`${DEMO}/purchases?sessionId=abc`)).status).toBe(400);
+  });
+
+  it('entrega item e ouro atomicamente, audita ambos os lados e não duplica reenvios', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 2 }] });
+    const stock = (await getPrisma().item.findUnique({ where: { id: 6 } })).stock;
+    const targetQuantity = (await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 2, itemId: 6 } } })).quantity;
+    const body = { targetCharacterId: 2, itemId: 6, quantity: 1, gold: 2000, idempotencyKey: randomUUID() };
+    const results = await Promise.all([aria.post(`${DEMO}/inventory/1/give`, body), aria.post(`${DEMO}/inventory/1/give`, body)]);
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    expect(Number((await getPrisma().character.findUnique({ where: { id: 1 } })).gold)).toBe(13000);
+    expect(Number((await getPrisma().character.findUnique({ where: { id: 2 } })).gold)).toBe(34000);
+    expect((await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 2, itemId: 6 } } })).quantity).toBe(targetQuantity + 1);
+    expect((await getPrisma().item.findUnique({ where: { id: 6 } })).stock).toBe(stock);
+    expect(await getPrisma().inventoryLog.count({ where: { type: 'TROCA' } })).toBe(2);
+    expect((await aria.get(`${DEMO}/inventory/1/gold-logs`)).body.logs[0].delta).toBe(-2000);
+    expect((await aria.get(`${DEMO}/inventory/2/gold-logs`)).status).toBe(403);
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { ...body, gold: 2100 })).status).toBe(409);
+    const failed = await aria.post(`${DEMO}/inventory/1/give`, { ...body, quantity: 9, idempotencyKey: randomUUID() });
+    expect(failed.status).toBe(400);
+    expect(Number((await getPrisma().character.findUnique({ where: { id: 1 } })).gold)).toBe(13000);
+  });
+
+  it('recusa origem alheia, mesma origem, destinatário de outra mesa ou removido e dados inválidos', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const key = () => randomUUID();
+    expect((await aria.post(`${DEMO}/inventory/2/give`, { targetCharacterId: 1, gold: 100, idempotencyKey: key() })).status).toBe(403);
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 1, gold: 100, idempotencyKey: key() })).status).toBe(400);
+    for (const payload of [{}, { gold: -100 }, { itemId: 6 }, { quantity: 1 }, { gold: 0 }]) {
+      expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, idempotencyKey: key(), ...payload })).status).toBe(400);
+    }
+    const other = await newAccount('DestinoExterno');
+    const otherCampaign = await createCampaign(other.token);
+    const foreign = await getPrisma().character.create({ data: { campaignId: otherCampaign.id, userId: other.user.id, name: 'Outro', className: 'Mago', race: 'Elfo' } });
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: foreign.id, gold: 100, idempotencyKey: key() })).status).toBe(404);
+    const borin = await getPrisma().character.findUnique({ where: { id: 2 } });
+    await getPrisma().campaignMember.delete({ where: { campaignId_userId: { campaignId: 1, userId: borin.userId } } });
+    expect((await aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, gold: 100, idempotencyKey: key() })).status).toBe(404);
+  });
+
+  it('serializa transferências opostas e concorrentes sem criar dinheiro', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const opposite = await Promise.all([
+      aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId: 2, gold: 2000, idempotencyKey: randomUUID() }),
+      borin.post(`${DEMO}/inventory/2/give`, { targetCharacterId: 1, gold: 1000, idempotencyKey: randomUUID() })
+    ]);
+    expect(opposite.map((r) => r.status)).toEqual([200, 200]);
+    const attempts = await Promise.all([2, 3].map((targetCharacterId) => aria.post(`${DEMO}/inventory/1/give`, { targetCharacterId, gold: 20000, idempotencyKey: randomUUID() })));
+    expect(attempts.map((r) => r.status).sort()).toEqual([200, 400]);
+    const balances = await getPrisma().character.aggregate({ where: { campaignId: 1 }, _sum: { gold: true } });
+    expect(Number(balances._sum.gold)).toBe(75000);
+  });
+
+  it('somente o Mestre abre e fecha a loja; catálogo e uso continuam disponíveis', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const key = randomUUID();
+    const body = { idempotencyKey: key, characterId: 1, items: [{ itemId: 6, quantity: 2 }] };
+    const bought = await aria.post(`${DEMO}/purchases`, body);
+    expect(bought.status).toBe(201);
+    expect((await aria.patch(`${DEMO}/shop`, { shopOpen: false })).status).toBe(403);
+    expect((await master.patch(`${DEMO}/shop`, { shopOpen: 'false' })).status).toBe(400);
+    expect((await master.patch(`${DEMO}/shop`, { shopOpen: false })).body.campaign.shopOpen).toBe(false);
+    expect((await aria.get(`${DEMO}/items`)).status).toBe(200);
+    expect((await aria.get(DEMO)).body.campaign.shopOpen).toBe(false);
+    expect((await aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }] })).status).toBe(409);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 })).status).toBe(409);
+    const replay = await aria.post(`${DEMO}/purchases`, body);
+    expect(replay.body.purchase.id).toBe(bought.body.purchase.id);
+    expect((await aria.post(`${DEMO}/inventory/1/use`, { itemId: 6, quantity: 1 })).status).toBe(200);
+    expect((await master.patch(`${DEMO}/shop`, { shopOpen: true })).status).toBe(200);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 6, quantity: 1 })).status).toBe(200);
+  });
+
   it('filtros e ids inválidos na URL recebem 400, não 500', async () => {
     const aria = as(await login('aria@lojarpg.local'));
 
@@ -111,7 +316,28 @@ describe('validação das entradas', () => {
       expect(response.status, url).toBe(400);
     }
 
-    expect((await aria.get(`${DEMO}/items?minPrice=10&maxPrice=60`)).status).toBe(200);
+    expect((await aria.get(`${DEMO}/items?minPrice=1000&maxPrice=600000`)).status).toBe(200);
+  });
+
+  it('respeita preço máximo zero e mantém os limites inclusivos', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const created = await master.post(`${DEMO}/items`, {
+      name: 'Mapa gratuito', category: 'Equipamentos', rarity: 'Comum', price: 0, stock: 1
+    });
+    expect(created.status).toBe(201);
+    const aria = as(await login('aria@lojarpg.local'));
+
+    for (const query of ['maxPrice=0', 'minPrice=0&maxPrice=0']) {
+      const response = await aria.get(`${DEMO}/items?${query}`);
+      expect(response.status).toBe(200);
+      expect(response.body.items.map((item) => item.id)).toEqual([created.body.item.id]);
+    }
+
+    const range = await aria.get(`${DEMO}/items?minPrice=0&maxPrice=6000`);
+    expect(range.status).toBe(200);
+    expect(range.body.items.some((item) => item.price === 0)).toBe(true);
+    expect(range.body.items.some((item) => item.price === 6000)).toBe(true);
+    expect(range.body.items.every((item) => item.price <= 6000)).toBe(true);
   });
 
   it('categoria e raridade com nome de número são tratadas como nome', async () => {
@@ -121,7 +347,7 @@ describe('validação das entradas', () => {
     const created = await master.post(`${DEMO}/items`, {
       name: 'Calendário Arcano',
       category: '2026',
-      price: 10,
+      price: 1000,
       rarity: 'Comum',
       stock: 1
     });
@@ -164,16 +390,16 @@ describe('validação das entradas', () => {
 
     const emptyCart = await request(app)
       .post(`${DEMO}/purchases`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [] });
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+      .send({ idempotencyKey: randomUUID(), items: [] });
 
     expect(emptyCart.status).toBe(400);
     expect(emptyCart.body.message).toBe('Carrinho vazio.');
 
     const zeroQuantity = await request(app)
       .post(`${DEMO}/purchases`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 6, quantity: 0 }] });
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 0 }] });
 
     expect(zeroQuantity.status).toBe(400);
     expect(zeroQuantity.body.message).toBe('Itens do carrinho inválidos.');
@@ -184,7 +410,7 @@ describe('validação das entradas', () => {
 
     const response = await request(app)
       .get(`${DEMO}/purchases/me?characterId=abc`)
-      .set('Authorization', `Bearer ${playerToken}`);
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC');
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain('Id do personagem');
@@ -195,24 +421,24 @@ describe('validação das entradas', () => {
 
     const partialUpdate = await request(app)
       .put(`${DEMO}/items/1`)
-      .set('Authorization', `Bearer ${masterToken}`)
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
       .send({ description: 'Forjada por anões.' });
 
     expect(partialUpdate.status).toBe(200);
     expect(partialUpdate.body.item).toMatchObject({
       name: 'Espada Longa',
-      price: 75,
+      price: 7500,
       stock: 5,
       description: 'Forjada por anões.'
     });
 
     const invalidPrice = await request(app)
       .put(`${DEMO}/items/1`)
-      .set('Authorization', `Bearer ${masterToken}`)
-      .send({ price: -10 });
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
+      .send({ price: -1000 });
 
     expect(invalidPrice.status).toBe(400);
-    expect(invalidPrice.body.message).toBe('Preço deve ser um número inteiro entre 0 e 1000000.');
+    expect(invalidPrice.body.message).toBe('Preço deve ser um número inteiro entre 0 e 100000000.');
   });
 });
 
@@ -220,7 +446,7 @@ describe('integridade do banco', () => {
   it('recusa ouro, estoque e nível inválidos mesmo fora da API', async () => {
     const prisma = getPrisma();
 
-    await expect(prisma.character.update({ where: { id: 1 }, data: { gold: -1 } })).rejects.toThrow(
+    await expect(prisma.character.update({ where: { id: 1 }, data: { gold: -100 } })).rejects.toThrow(
       /violates check constraint/
     );
     await expect(prisma.character.update({ where: { id: 1 }, data: { level: 21 } })).rejects.toThrow(
@@ -333,12 +559,12 @@ describe('autenticação e autorização', () => {
 
     const response = await request(app)
       .post(`${DEMO}/items`)
-      .set('Authorization', `Bearer ${playerToken}`)
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
       .send({
         name: 'Tocha Azul',
         category: 'Equipamentos',
         description: 'Queima com chama fria.',
-        price: 15,
+        price: 1500,
         rarity: 'Comum',
         stock: 5
       });
@@ -351,8 +577,8 @@ describe('autenticação e autorização', () => {
 
     const response = await request(app)
       .patch(`${DEMO}/characters/1/gold`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ amount: 100, mode: 'adjust', reason: 'Teste indevido' });
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+      .send({ amount: 10000, mode: 'adjust', reason: 'Teste indevido' });
 
     expect(response.status).toBe(403);
   });
@@ -362,21 +588,21 @@ describe('autenticação e autorização', () => {
 
     const response = await request(app)
       .patch(`${DEMO}/characters/1/gold`)
-      .set('Authorization', `Bearer ${masterToken}`)
-      .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessão' });
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
+      .send({ amount: 2500, mode: 'adjust', reason: 'Recompensa de sessão' });
 
     expect(response.status).toBe(200);
-    expect(response.body.character.gold).toBe(275);
+    expect(Number(response.body.character.gold)).toBe(27500);
     expect(response.body.auditLog).toMatchObject({
-      previousGold: 250,
-      newGold: 275,
-      delta: 25,
+      previousGold: 25000,
+      newGold: 27500,
+      delta: 2500,
       reason: 'Recompensa de sessão'
     });
 
     const auditResponse = await request(app)
       .get(`${DEMO}/characters/gold-audit`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
 
     expect(auditResponse.status).toBe(200);
     expect(auditResponse.body.logs).toHaveLength(1);
@@ -394,6 +620,12 @@ describe('itens', () => {
     // O formulario envia o estoque que o Mestre viu: a compra no meio gera 409.
     const stale = await master.put(`${DEMO}/items/6`, { ...opened, name: 'Poção de Cura Maior', expectedStock: opened.stock });
     expect(stale.status).toBe(409);
+
+    // Um cliente antigo nao pode contornar a pre-condicao omitindo-a.
+    const unguarded = await master.put(`${DEMO}/items/6`, { ...opened, name: 'Snapshot antigo' });
+    expect(unguarded.status).toBe(400);
+    expect(unguarded.body.message).toContain('expectedStock');
+    expect((await getPrisma().item.findUnique({ where: { id: 6 } })).stock).toBe(opened.stock - 1);
 
     // Sem mexer no estoque, so o nome muda e a venda continua contada.
     const renamed = await master.put(`${DEMO}/items/6`, { name: 'Poção de Cura Maior' });
@@ -418,12 +650,12 @@ describe('itens', () => {
 
     const createResponse = await request(app)
       .post(`${DEMO}/items`)
-      .set('Authorization', `Bearer ${masterToken}`)
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
       .send({
         name: 'Mapa do Tesouro',
         category: 'Equipamentos',
         description: 'Mostra uma trilha antiga.',
-        price: 40,
+        price: 4000,
         rarity: 'Incomum',
         stock: 2
       });
@@ -433,15 +665,15 @@ describe('itens', () => {
 
     const updateResponse = await request(app)
       .put(`${DEMO}/items/${itemId}`)
-      .set('Authorization', `Bearer ${masterToken}`)
-      .send({ price: 55, stock: 3 });
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
+      .send({ price: 5500, stock: 3, expectedStock: 2 });
 
     expect(updateResponse.status).toBe(200);
-    expect(updateResponse.body.item).toMatchObject({ price: 55, stock: 3 });
+    expect(updateResponse.body.item).toMatchObject({ price: 5500, stock: 3 });
 
     const deleteResponse = await request(app)
       .delete(`${DEMO}/items/${itemId}`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
 
     expect(deleteResponse.status).toBe(200);
     expect(deleteResponse.body.item.isActive).toBe(false);
@@ -454,14 +686,14 @@ describe('catálogo', () => {
 
     const categoriesResponse = await request(app)
       .get(`${DEMO}/catalog/categories`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
     const weaponsCategory = categoriesResponse.body.categories.find((category) => category.name === 'Armas');
 
     expect(weaponsCategory.itemCount).toBeGreaterThan(0);
 
     const deleteResponse = await request(app)
       .delete(`${DEMO}/catalog/categories/${weaponsCategory.id}`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
 
     expect(deleteResponse.status).toBe(200);
     expect(deleteResponse.body.message).toContain('Sem categoria');
@@ -469,7 +701,7 @@ describe('catálogo', () => {
 
     const itemsResponse = await request(app)
       .get(`${DEMO}/items?includeInactive=true`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
     const sword = itemsResponse.body.items.find((item) => item.name === 'Espada Longa');
 
     expect(sword.category).toBe('Sem categoria');
@@ -480,14 +712,14 @@ describe('catálogo', () => {
 
     const raritiesResponse = await request(app)
       .get(`${DEMO}/catalog/rarities`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
     const rareRarity = raritiesResponse.body.rarities.find((rarity) => rarity.name === 'Raro');
 
     expect(rareRarity.itemCount).toBeGreaterThan(0);
 
     const deleteResponse = await request(app)
       .delete(`${DEMO}/catalog/rarities/${rareRarity.id}`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
 
     expect(deleteResponse.status).toBe(200);
     expect(deleteResponse.body.message).toContain('Comum');
@@ -495,7 +727,7 @@ describe('catálogo', () => {
 
     const itemsResponse = await request(app)
       .get(`${DEMO}/items?includeInactive=true`)
-      .set('Authorization', `Bearer ${masterToken}`);
+      .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC');
     const invisibilityPotion = itemsResponse.body.items.find((item) => item.name === 'Poção de Invisibilidade');
 
     expect(invisibilityPotion.rarity).toBe('Comum');
@@ -503,13 +735,134 @@ describe('catálogo', () => {
 });
 
 describe('compras e inventário', () => {
+  it('conclui carrinhos invertidos de dois personagens sem deadlock ou perda de estoque', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const prisma = getPrisma();
+    const initialItems = await prisma.item.findMany({ where: { id: { in: [6, 10] } } });
+    const total = initialItems.reduce((sum, item) => sum + Number(item.price), 0);
+    const originalTransaction = prisma.$transaction.bind(prisma);
+    let transactionNumber = 0;
+    let lockedItem;
+    let firstLocked;
+    let secondReady;
+    const firstLock = new Promise((resolve) => { firstLocked = resolve; });
+    const secondLock = new Promise((resolve) => { secondReady = resolve; });
+    prisma.$transaction = (callback, options) => {
+      const number = transactionNumber++;
+      return originalTransaction(async (tx) => {
+        let firstStockWrite = true;
+        return callback(new Proxy(tx, { get(target, model) {
+          const delegate = Reflect.get(target, model);
+          if (model !== 'item') return delegate;
+          return new Proxy(delegate, { get(modelTarget, action) {
+            const method = Reflect.get(modelTarget, action);
+            if (action !== 'updateMany') return method;
+            return async (args) => {
+              if (!firstStockWrite || args.data?.stock?.decrement === undefined) return method.call(modelTarget, args);
+              firstStockWrite = false;
+              if (number === 0) {
+                const result = await method.call(modelTarget, args);
+                lockedItem = args.where.id;
+                firstLocked();
+                await secondLock;
+                return result;
+              }
+              await firstLock;
+              // Se ambas comecam pelo mesmo item, liberar a primeira antes
+              // de esperar seu lock. Ordens opostas seguram dois locks.
+              if (args.where.id === lockedItem) secondReady();
+              const result = await method.call(modelTarget, args);
+              secondReady();
+              return result;
+            };
+          } });
+        } }));
+      }, options);
+    };
+    try {
+      const responses = await Promise.all([
+        aria.post(`${DEMO}/purchases`, { items: [{ itemId: 6, quantity: 1 }, { itemId: 10, quantity: 1 }] }),
+        borin.post(`${DEMO}/purchases`, { items: [{ itemId: 10, quantity: 1 }, { itemId: 6, quantity: 1 }] })
+      ]);
+      expect(responses.map((response) => response.status)).toEqual([201, 201]);
+      expect(await prisma.purchase.count()).toBe(2);
+      for (const item of initialItems) {
+        expect((await prisma.item.findUnique({ where: { id: item.id } })).stock).toBe(item.stock - 2);
+      }
+      expect(Number((await prisma.character.findUnique({ where: { id: 1 } })).gold)).toBe(25000 - total);
+      expect(Number((await prisma.character.findUnique({ where: { id: 2 } })).gold)).toBe(32000 - total);
+    } finally {
+      firstLocked(); secondReady();
+      prisma.$transaction = originalTransaction;
+    }
+  });
+
+  it('exige uma chave de compra valida', async () => {
+    const token = await login('aria@lojarpg.local');
+    for (const idempotencyKey of [undefined, '', 'chave-invalida', ['nao-e-texto']]) {
+      const response = await request(app).post(`${DEMO}/purchases`).set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC')
+        .send({ idempotencyKey, items: [{ itemId: 6, quantity: 1 }] });
+      expect(response.status).toBe(400);
+    }
+    expect(await getPrisma().purchase.count()).toBe(0);
+  });
+
+  it('a mesma intencao concorrente ou reenviada compra e desconta uma unica vez', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), characterId: 1, items: [{ itemId: 6, quantity: 1 }] };
+    const [first, simultaneous] = await Promise.all([
+      aria.post(`${DEMO}/purchases`, payload), aria.post(`${DEMO}/purchases`, payload)
+    ]);
+    const retry = await aria.post(`${DEMO}/purchases`, payload);
+    expect([first.status, simultaneous.status, retry.status]).toEqual([201, 201, 201]);
+    expect(simultaneous.body).toEqual(first.body);
+    expect(retry.body).toEqual(first.body);
+    expect(await getPrisma().purchase.count()).toBe(1);
+    expect(Number((await getPrisma().character.findUnique({ where: { id: 1 } })).gold)).toBe(20000);
+    expect((await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 1, itemId: 6 } } })).quantity).toBe(1);
+  });
+
+  it('recusa reutilizar a chave com outro payload mas permite uma nova intencao igual', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] };
+    expect((await aria.post(`${DEMO}/purchases`, payload)).status).toBe(201);
+    expect((await aria.post(`${DEMO}/purchases`, { ...payload, items: [{ itemId: 6, quantity: 2 }] })).status).toBe(409);
+    expect((await aria.post(`${DEMO}/purchases`, { ...payload, idempotencyKey: randomUUID() })).status).toBe(201);
+    expect(await getPrisma().purchase.count()).toBe(2);
+  });
+
+  it('uma compra abortada nao consome a chave nem reserva estoque', async () => {
+    const prisma = getPrisma();
+    const aria = as(await login('aria@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] };
+    await prisma.character.update({ where: { id: 1 }, data: { gold: 0 } });
+    expect((await aria.post(`${DEMO}/purchases`, payload)).status).toBe(400);
+    expect(await prisma.checkoutRequest.count()).toBe(0);
+    await prisma.character.update({ where: { id: 1 }, data: { gold: 10000 } });
+    expect((await aria.post(`${DEMO}/purchases`, payload)).status).toBe(201);
+    expect(Number((await prisma.character.findUnique({ where: { id: 1 } })).gold)).toBe(5000);
+  });
+
+  it('a chave de outro usuario nao revela nem reutiliza a compra dele', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const payload = { idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] };
+    const first = await aria.post(`${DEMO}/purchases`, payload);
+    const second = await borin.post(`${DEMO}/purchases`, payload);
+    expect([first.status, second.status]).toEqual([201, 201]);
+    expect(first.body.purchase.characterId).toBe(1);
+    expect(second.body.purchase.characterId).toBe(2);
+    expect(second.body.purchase.id).not.toBe(first.body.purchase.id);
+  });
+
   it('recusa compra sem ouro suficiente', async () => {
     const playerToken = await login('aria@lojarpg.local');
 
     const response = await request(app)
       .post(`${DEMO}/purchases`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 7, quantity: 2 }] });
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 7, quantity: 2 }] });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain('Ouro insuficiente');
@@ -520,8 +873,8 @@ describe('compras e inventário', () => {
 
     const response = await request(app)
       .post(`${DEMO}/purchases`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 9, quantity: 2 }] });
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 9, quantity: 2 }] });
 
     expect(response.status).toBe(400);
     expect(response.body.message).toContain('Estoque insuficiente');
@@ -532,15 +885,15 @@ describe('compras e inventário', () => {
 
     const purchaseResponse = await request(app)
       .post(`${DEMO}/purchases`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ items: [{ itemId: 6, quantity: 1 }] });
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+      .send({ idempotencyKey: randomUUID(), items: [{ itemId: 6, quantity: 1 }] });
 
     expect(purchaseResponse.status).toBe(201);
-    expect(purchaseResponse.body.character.gold).toBe(200);
+    expect(Number(purchaseResponse.body.character.gold)).toBe(20000);
 
     const inventoryResponse = await request(app)
       .get(`${DEMO}/inventory/me`)
-      .set('Authorization', `Bearer ${playerToken}`);
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC');
 
     expect(inventoryResponse.status).toBe(200);
     expect(inventoryResponse.body.inventory).toEqual(
@@ -554,7 +907,7 @@ describe('compras e inventário', () => {
 
     const historyResponse = await request(app)
       .get(`${DEMO}/purchases/me`)
-      .set('Authorization', `Bearer ${playerToken}`);
+      .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC');
 
     expect(historyResponse.status).toBe(200);
     expect(historyResponse.body.purchases).toHaveLength(1);
@@ -569,8 +922,8 @@ describe('compras e inventário', () => {
       tokens.map((token) =>
         request(app)
           .post(`${DEMO}/purchases`)
-          .set('Authorization', `Bearer ${token}`)
-          .send({ items: [{ itemId: 8, quantity: 1 }] })
+          .set('Authorization', `Bearer ${token}`).set('X-Currency-Unit', 'PC')
+          .send({ idempotencyKey: randomUUID(), items: [{ itemId: 8, quantity: 1 }] })
       )
     );
 
@@ -588,8 +941,8 @@ describe('compras e inventário', () => {
       [1, 2].map(() =>
         request(app)
           .post(`${DEMO}/purchases`)
-          .set('Authorization', `Bearer ${playerToken}`)
-          .send({ items: [{ itemId: 7, quantity: 1 }] })
+          .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+          .send({ idempotencyKey: randomUUID(), items: [{ itemId: 7, quantity: 1 }] })
       )
     );
 
@@ -597,7 +950,7 @@ describe('compras e inventário', () => {
     expect(responses.find((response) => response.status === 400).body.message).toContain('Ouro insuficiente');
 
     const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
-    expect(aria.gold).toBe(30);
+    expect(Number(aria.gold)).toBe(3000);
   });
 
   it('não perde a compra quando o Mestre ajusta o ouro ao mesmo tempo', async () => {
@@ -609,12 +962,12 @@ describe('compras e inventário', () => {
     const [purchaseResponse, goldResponse] = await Promise.all([
       request(app)
         .post(`${DEMO}/purchases`)
-        .set('Authorization', `Bearer ${playerToken}`)
-        .send({ items: [{ itemId: 7, quantity: 1 }] }),
+        .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+        .send({ idempotencyKey: randomUUID(), items: [{ itemId: 7, quantity: 1 }] }),
       request(app)
         .patch(`${DEMO}/characters/1/gold`)
-        .set('Authorization', `Bearer ${masterToken}`)
-        .send({ amount: 25, mode: 'adjust', reason: 'Recompensa de sessão' })
+        .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
+        .send({ amount: 2500, mode: 'adjust', reason: 'Recompensa de sessão' })
     ]);
 
     // O ajuste entra antes ou depois da compra, ou e recusado (409) porque o
@@ -625,10 +978,10 @@ describe('compras e inventário', () => {
     const aria = await getPrisma().character.findUnique({ where: { id: 1 } });
 
     if (goldResponse.status === 200) {
-      expect(goldResponse.body.auditLog.delta).toBe(25);
-      expect(aria.gold).toBe(250 - 220 + 25);
+      expect(goldResponse.body.auditLog.delta).toBe(2500);
+      expect(Number(aria.gold)).toBe(25000 - 22000 + 2500);
     } else {
-      expect(aria.gold).toBe(250 - 220);
+      expect(Number(aria.gold)).toBe(25000 - 22000);
     }
   });
 
@@ -641,12 +994,12 @@ describe('compras e inventário', () => {
     const [purchaseResponse, editResponse] = await Promise.all([
       request(app)
         .post(`${DEMO}/purchases`)
-        .set('Authorization', `Bearer ${playerToken}`)
-        .send({ items: [{ itemId: 8, quantity: 1 }] }),
+        .set('Authorization', `Bearer ${playerToken}`).set('X-Currency-Unit', 'PC')
+        .send({ idempotencyKey: randomUUID(), items: [{ itemId: 8, quantity: 1 }] }),
       request(app)
         .put(`${DEMO}/items/8`)
-        .set('Authorization', `Bearer ${masterToken}`)
-        .send({ price: 200 })
+        .set('Authorization', `Bearer ${masterToken}`).set('X-Currency-Unit', 'PC')
+        .send({ price: 20000 })
     ]);
 
     expect(purchaseResponse.status).toBe(201);
@@ -706,7 +1059,7 @@ describe('mesas', () => {
     const createAsPlayer = await as(borinToken).post(`/campaigns/${caioCampaign.id}/items`, {
       name: 'Tocha',
       category: 'Equipamentos',
-      price: 1,
+      price: 100,
       rarity: 'Comum',
       stock: 1
     });
@@ -715,7 +1068,7 @@ describe('mesas', () => {
     const createInOwn = await as(borinToken).post(`/campaigns/${campaign.id}/items`, {
       name: 'Tocha',
       category: 'Equipamentos',
-      price: 1,
+      price: 100,
       rarity: 'Comum',
       stock: 1
     });
@@ -785,13 +1138,13 @@ describe('mesas', () => {
     expect(outsider.body.message).toBe('Mesa não encontrada.');
 
     const foreignGold = await borin.patch(`/campaigns/${campaign.id}/characters/1/gold`, {
-      amount: 1000,
+      amount: 100000,
       mode: 'adjust',
       reason: 'Tentativa entre mesas'
     });
     expect(foreignGold.status).toBe(404);
 
-    const foreignItem = await borin.put(`/campaigns/${campaign.id}/items/1`, { price: 1 });
+    const foreignItem = await borin.put(`/campaigns/${campaign.id}/items/1`, { price: 100 });
     expect(foreignItem.status).toBe(404);
 
     const foreignCategory = await borin.delete(`/campaigns/${campaign.id}/catalog/categories/1`);
@@ -806,7 +1159,7 @@ describe('mesas', () => {
     const newItem = await borin.post(`/campaigns/${campaign.id}/items`, {
       name: 'Machado Rúnico',
       category: 'Armas',
-      price: 120,
+      price: 12000,
       rarity: 'Raro',
       stock: 1
     });
@@ -817,8 +1170,8 @@ describe('mesas', () => {
     expect(demoItems.body.items).toEqual([]);
 
     const prisma = getPrisma();
-    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 250 });
-    expect(await prisma.item.findUnique({ where: { id: 1 } })).toMatchObject({ price: 75 });
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 25000n });
+    expect(await prisma.item.findUnique({ where: { id: 1 } })).toMatchObject({ price: 7500n });
   });
 
   it('Mestre troca o código, remove jogador e ele volta com os personagens', async () => {
@@ -875,7 +1228,7 @@ describe('mesas', () => {
     const character = (
       await lia.post(`${base}/characters`, { name: 'Lia Sombra', className: 'Bruxa', race: 'Tiefling', level: 2 })
     ).body.character;
-    await borin.patch(`${base}/characters/${character.id}/gold`, { amount: 100, mode: 'adjust', reason: 'Início' });
+    await borin.patch(`${base}/characters/${character.id}/gold`, { amount: 10000, mode: 'adjust', reason: 'Início' });
     const potion = (await lia.get(`${base}/items?search=Cura`)).body.items[0];
 
     const purchase = await lia.post(`${base}/purchases`, {
@@ -923,6 +1276,53 @@ describe('mesas', () => {
     expect((await aria.get('/campaigns')).body.campaigns.map((campaign) => campaign.id)).toEqual([1]);
   });
 
+  it('bloqueia acesso demo e o reset quando ha dados legados fora da demonstracao', async () => {
+    const pedro = await newAccount('Pedro');
+    const campaign = await createCampaign(pedro.token);
+    const prisma = getPrisma();
+    await prisma.campaignMember.create({ data: { campaignId: campaign.id, userId: 2, role: 'JOGADOR' } });
+    const character = await prisma.character.create({
+      data: { campaignId: campaign.id, userId: 2, name: 'Legado', className: 'Mago', race: 'Elfo', gold: 10000 }
+    });
+    const purchase = await prisma.purchase.create({ data: { characterId: character.id, totalValue: 2500 } });
+    const aria = as(await login('aria@lojarpg.local'));
+    expect((await aria.get('/campaigns')).body.campaigns.map((entry) => entry.id)).toEqual([1]);
+    expect((await aria.post('/campaigns/join', { inviteCode: campaign.inviteCode })).status).toBe(403);
+    expect((await aria.get(`/campaigns/${campaign.id}`)).status).toBe(404);
+    expect((await aria.get(`/campaigns/${campaign.id}/characters/me`)).status).toBe(404);
+    expect((await aria.post(`/campaigns/${campaign.id}/purchases`, { characterId: character.id, items: [] })).status).toBe(404);
+    await expect(resetDemo(prisma)).rejects.toThrow('preservar dados legados');
+    expect(await prisma.character.findUnique({ where: { id: character.id } })).not.toBeNull();
+    expect(await prisma.purchase.findUnique({ where: { id: purchase.id } })).not.toBeNull();
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).not.toBeNull();
+
+    // Mesmo depois de sair da mesa, o personagem antigo precisa ser preservado.
+    await prisma.campaignMember.delete({ where: { campaignId_userId: { campaignId: campaign.id, userId: 2 } } });
+    await expect(resetDemo(prisma)).rejects.toThrow('preservar dados legados');
+  });
+
+  it('nao identifica como demo uma mesa antiga pelo id ou pelo Mestre publico', async () => {
+    const prisma = getPrisma();
+    await prisma.campaign.update({ where: { id: 1 }, data: { isDemo: false, name: 'Mesa principal', inviteCode: 'LEGADO23' } });
+    await expect(resetDemo(prisma)).rejects.toThrow('preservar dados legados');
+    expect(await prisma.character.count()).toBe(3);
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    expect((await master.get('/campaigns')).body.campaigns).toEqual([]);
+    expect((await master.delete(DEMO)).status).toBe(404);
+  });
+
+  it('mantem a identidade demo depois de regenerar o convite', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const renewed = await master.post(`${DEMO}/invite-code`);
+    expect(renewed.status).toBe(200);
+    expect(renewed.body.campaign.inviteCode).not.toBe('MESADEMO');
+    expect(renewed.body.campaign.isDemo).toBe(true);
+    const aria = as(await login('aria@lojarpg.local'));
+    expect((await aria.post('/campaigns/join', { inviteCode: renewed.body.campaign.inviteCode })).status).toBe(200);
+    await resetDemo(getPrisma());
+    expect((await master.get(DEMO)).body.campaign.inviteCode).toBe('MESADEMO');
+  });
+
   it('o reset da demonstração preserva as mesas reais e os personagens delas', async () => {
     const [pedro, caio] = [await newAccount('Pedro'), await newAccount('Caio')];
     const realCampaign = await createCampaign(pedro.token, 'Mesa do Pedro');
@@ -932,7 +1332,7 @@ describe('mesas', () => {
     const character = (
       await as(caio.token).post(`${base}/characters`, { name: 'Caio Ferro', className: 'Guerreiro', race: 'Anão', level: 1 })
     ).body.character;
-    await as(pedro.token).patch(`${base}/characters/${character.id}/gold`, { amount: 100, mode: 'adjust', reason: 'Início' });
+    await as(pedro.token).patch(`${base}/characters/${character.id}/gold`, { amount: 10000, mode: 'adjust', reason: 'Início' });
     const potion = (await as(caio.token).get(`${base}/items?search=Cura`)).body.items[0];
     await as(caio.token).post(`${base}/purchases`, { characterId: character.id, items: [{ itemId: potion.id, quantity: 1 }] });
 
@@ -949,13 +1349,87 @@ describe('mesas', () => {
     expect(await prisma.item.count({ where: { campaignId: realCampaign.id } })).toBe(10);
     expect(await prisma.character.findUnique({ where: { id: character.id } })).toMatchObject({ name: 'Caio Ferro' });
     expect(await prisma.purchase.count({ where: { characterId: character.id } })).toBe(1);
-    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 250 });
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 25000n });
     expect(await prisma.purchase.count({ where: { character: { campaignId: 1 } } })).toBe(0);
 
     const newUser = await prisma.user.create({
       data: { name: 'Depois do reset', email: 'depois@exemplo.com', passwordHash: 'x' }
     });
     expect(newUser.id).toBeGreaterThan(caio.user.id);
+  });
+});
+
+describe('historicos paginados', () => {
+  it('percorre mais de 50 registros com datas iguais sem repetir nem perder entradas', async () => {
+    const prisma = getPrisma();
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const at = new Date('2026-01-01T00:00:00Z');
+    await prisma.inventoryLog.createMany({ data: Array.from({ length: 65 }, () => ({
+      characterId: 1, itemId: 6, type: 'USO', quantity: 1, createdAt: at
+    })) });
+    await prisma.goldAuditLog.createMany({ data: Array.from({ length: 65 }, () => ({
+      characterId: 1, actorUserId: 1, previousGold: 0, newGold: 100, delta: 100, reason: 'Historico', createdAt: at
+    })) });
+    await prisma.stockMovement.createMany({ data: Array.from({ length: 65 }, () => ({
+      itemId: 6, previousStock: 0, newStock: 1, delta: 1, reason: 'Historico', createdAt: at
+    })) });
+    await prisma.purchase.createMany({ data: Array.from({ length: 65 }, () => ({ characterId: 1, totalValue: 100, purchasedAt: at })) });
+    for (const [path, field] of [
+      ['/inventory/logs', 'logs'], ['/characters/gold-audit', 'logs'],
+      ['/catalog/stock-movements', 'movements'], ['/purchases', 'purchases']
+    ]) {
+      const ids = [];
+      let cursor;
+      const sizes = [];
+      do {
+        const response = await master.get(`${DEMO}${path}?limit=25${cursor ? `&cursor=${cursor}` : ''}`);
+        expect(response.status).toBe(200);
+        ids.push(...response.body[field].map((entry) => entry.id));
+        sizes.push(response.body[field].length);
+        cursor = response.body.pagination.nextCursor;
+      } while (cursor);
+      expect(sizes).toEqual([25, 25, 15]);
+      expect(new Set(ids).size).toBe(65);
+      expect(ids).toEqual([...ids].sort((a, b) => b - a));
+    }
+  });
+
+  it('mantem o cursor valido com insercoes novas e exclusao da linha de fronteira', async () => {
+    const prisma = getPrisma();
+    const aria = as(await login('aria@lojarpg.local'));
+    await prisma.inventoryLog.createMany({ data: Array.from({ length: 4 }, () => ({
+      characterId: 1, itemId: 6, type: 'USO', quantity: 1, createdAt: new Date('2026-01-01T00:00:00Z')
+    })) });
+    const first = await aria.get(`${DEMO}/inventory/1/logs?limit=2`);
+    expect(first.status).toBe(200);
+    await prisma.inventoryLog.delete({ where: { id: first.body.logs[1].id } });
+    const newer = await prisma.inventoryLog.create({ data: { characterId: 1, itemId: 6, type: 'USO', quantity: 1 } });
+    const second = await aria.get(`${DEMO}/inventory/1/logs?limit=2&cursor=${first.body.pagination.nextCursor}`);
+    expect(second.status).toBe(200);
+    expect(second.body.logs).toHaveLength(2);
+    expect(second.body.logs.map((entry) => entry.id)).not.toContain(newer.id);
+    expect(second.body.pagination.hasMore).toBe(false);
+    expect((await aria.get(`${DEMO}/inventory/2/logs`)).status).toBe(403);
+    const foreign = await prisma.campaign.create({ data: { name: 'Outra mesa', inviteCode: 'PAGINADO' } });
+    const other = await prisma.character.create({ data: {
+      campaignId: foreign.id, userId: 2, name: 'Outro', className: 'Mago', race: 'Elfo'
+    } });
+    expect((await aria.get(`${DEMO}/inventory/${other.id}/logs`)).status).toBe(404);
+  });
+
+  it('valida limite e cursor e preserva filtros de personagem em compras', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    for (const query of ['limit=0', 'limit=101', 'limit=abc', 'limit=1&limit=2', 'cursor=abc', 'cursor=a&cursor=b']) {
+      expect((await master.get(`${DEMO}/purchases?${query}`)).status).toBe(400);
+    }
+    const prisma = getPrisma();
+    await prisma.purchase.createMany({ data: [{ characterId: 1, totalValue: 1000 }, { characterId: 2, totalValue: 2000 }] });
+    const own = await aria.get(`${DEMO}/purchases/me?characterId=1&limit=1`);
+    expect(own.body.purchases).toHaveLength(1);
+    expect(own.body.purchases[0].characterId).toBe(1);
+    expect(own.body.pagination.hasMore).toBe(false);
+    expect((await aria.get(`${DEMO}/purchases/me?characterId=2`)).status).toBe(403);
   });
 });
 
@@ -983,15 +1457,15 @@ describe('inventário e recompensas', () => {
     const sale = await borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 });
 
     expect(sale.status).toBe(200);
-    expect(sale.body.message).toBe('Venda concluída: 1x Poção de Cura por 25 ouro.');
-    expect(sale.body.character.gold).toBe(345);
+    expect(sale.body.message).toBe('Venda concluída: 1x Poção de Cura por 2500 PC.');
+    expect(Number(sale.body.character.gold)).toBe(34500);
 
     const inventory = await borin.get(`${DEMO}/inventory/me`);
     expect(inventory.body.inventory).toEqual([
-      expect.objectContaining({ quantity: 1, item: expect.objectContaining({ name: 'Poção de Cura', effectiveSellPrice: 25 }) })
+      expect.objectContaining({ quantity: 1, item: expect.objectContaining({ name: 'Poção de Cura', effectiveSellPrice: 2500 }) })
     ]);
     expect(inventory.body.logs).toEqual([
-      expect.objectContaining({ type: 'VENDA', itemName: 'Poção de Cura', quantity: 1, unitPrice: 25, total: 25 })
+      expect.objectContaining({ type: 'VENDA', itemName: 'Poção de Cura', quantity: 1, unitPrice: 2500, total: 2500 })
     ]);
 
     const prisma = getPrisma();
@@ -1007,26 +1481,26 @@ describe('inventário e recompensas', () => {
     const [master, borin] = [as(await login('mestre@lojarpg.local', 'mestre123')), as(await login('borin@lojarpg.local'))];
 
     const items = (await master.get(`${DEMO}/items`)).body.items;
-    expect(items.find((item) => item.name === 'Espada Longa')).toMatchObject({ sellPrice: null, effectiveSellPrice: 37 });
+    expect(items.find((item) => item.name === 'Espada Longa')).toMatchObject({ sellPrice: null, effectiveSellPrice: 3750 });
 
-    const custom = await master.put(`${DEMO}/items/6`, { sellPrice: 40 });
-    expect(custom.body.item).toMatchObject({ sellPrice: 40, effectiveSellPrice: 40 });
-    expect((await borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 })).body.character.gold).toBe(360);
+    const custom = await master.put(`${DEMO}/items/6`, { sellPrice: 4000 });
+    expect(custom.body.item).toMatchObject({ sellPrice: 4000, effectiveSellPrice: 4000 });
+    expect(Number((await borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 })).body.character.gold)).toBe(36000);
 
     const reset = await master.put(`${DEMO}/items/6`, { sellPrice: '' });
-    expect(reset.body.item).toMatchObject({ sellPrice: null, effectiveSellPrice: 25 });
+    expect(reset.body.item).toMatchObject({ sellPrice: null, effectiveSellPrice: 2500 });
 
     const unsellable = await master.put(`${DEMO}/items/6`, { isSellable: false });
     expect(unsellable.body.item).toMatchObject({ isSellable: false, effectiveSellPrice: null });
 
-    const priceOnly = await master.put(`${DEMO}/items/6`, { price: 60 });
-    expect(priceOnly.body.item).toMatchObject({ price: 60, isSellable: false });
+    const priceOnly = await master.put(`${DEMO}/items/6`, { price: 6000 });
+    expect(priceOnly.body.item).toMatchObject({ price: 6000, isSellable: false });
 
     const refused = await borin.post(`${DEMO}/inventory/2/sell`, { itemId: 6, quantity: 1 });
     expect(refused.status).toBe(400);
     expect(refused.body.message).toBe('A loja não compra Poção de Cura.');
 
-    const invalidPrice = await master.put(`${DEMO}/items/6`, { sellPrice: -5 });
+    const invalidPrice = await master.put(`${DEMO}/items/6`, { sellPrice: -500 });
     expect(invalidPrice.status).toBe(400);
   });
 
@@ -1055,7 +1529,7 @@ describe('inventário e recompensas', () => {
     expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
 
     const prisma = getPrisma();
-    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 267 });
+    expect(await prisma.character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 26750n });
     expect(await prisma.inventory.count({ where: { characterId: 1 } })).toBe(0);
     expect(await prisma.item.findUnique({ where: { id: 10 } })).toMatchObject({ stock: 9 });
   });
@@ -1083,35 +1557,35 @@ describe('inventário e recompensas', () => {
 
     const split = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [1, 2, 3],
-      total: 100,
+      total: 10000,
       mode: 'split',
       reason: 'Tesouro do dragão'
     });
 
     expect(split.status).toBe(200);
-    expect(split.body).toMatchObject({ share: 33, remainder: 1 });
-    expect(split.body.message).toContain('Sobrou 1.');
-    expect(split.body.characters.map((character) => character.gold)).toEqual([283, 353, 213]);
+    expect(split.body).toMatchObject({ share: 3333, remainder: 1 });
+    expect(split.body.message).toContain('Sobrou 1 PC.');
+    expect(split.body.characters.map((character) => character.gold)).toEqual([28333, 35333, 21333]);
 
     const audit = (await master.get(`${DEMO}/characters/gold-audit`)).body.logs;
     expect(audit).toHaveLength(3);
-    expect(audit.every((log) => log.delta === 33 && log.reason === 'Tesouro do dragão')).toBe(true);
+    expect(audit.every((log) => log.delta === 3333 && log.reason === 'Tesouro do dragão')).toBe(true);
 
     const each = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [1, 2],
-      total: 10,
+      total: 1000,
       mode: 'each',
       reason: 'Missão concluída'
     });
-    expect(each.body.characters.map((character) => character.gold)).toEqual([293, 363]);
+    expect(each.body.characters.map((character) => character.gold)).toEqual([29333, 36333]);
 
     const single = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [3],
-      total: 7,
+      total: 700,
       mode: 'split',
       reason: 'Achado'
     });
-    expect(single.body.message).toBe('7 de ouro para Lia Brasa.');
+    expect(single.body.message).toBe('700 PC para Lia Brasa.');
 
     const tooSmall = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [1, 2, 3],
@@ -1121,12 +1595,12 @@ describe('inventário e recompensas', () => {
     });
     expect(tooSmall.status).toBe(400);
 
-    const withoutReason = await master.post(`${DEMO}/rewards/gold`, { characterIds: [1], total: 5, mode: 'each' });
+    const withoutReason = await master.post(`${DEMO}/rewards/gold`, { characterIds: [1], total: 500, mode: 'each' });
     expect(withoutReason.status).toBe(400);
 
     const byPlayer = await aria.post(`${DEMO}/rewards/gold`, {
       characterIds: [1],
-      total: 1000,
+      total: 100000,
       mode: 'each',
       reason: 'Trapaça'
     });
@@ -1149,14 +1623,14 @@ describe('inventário e recompensas', () => {
     const master = as(await login('mestre@lojarpg.local', 'mestre123'));
     const response = await master.post(`${DEMO}/rewards/gold`, {
       characterIds: [1, outsider.id],
-      total: 50,
+      total: 5000,
       mode: 'each',
       reason: 'Entre mesas'
     });
 
     expect(response.status).toBe(404);
-    expect(await getPrisma().character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 250 });
-    expect(await getPrisma().character.findUnique({ where: { id: outsider.id } })).toMatchObject({ gold: 0 });
+    expect(await getPrisma().character.findUnique({ where: { id: 1 } })).toMatchObject({ gold: 25000n });
+    expect(await getPrisma().character.findUnique({ where: { id: outsider.id } })).toMatchObject({ gold: 0n });
   });
 
   it('Mestre da item fora da loja direto no inventário sem mexer no estoque', async () => {

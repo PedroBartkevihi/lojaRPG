@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage, sessionWhere } from '../utils/historyPagination.js';
 import { effectiveSellPrice } from './itemModel.js';
 
 function mapInventoryItem(entry) {
@@ -10,11 +11,14 @@ function mapInventoryItem(entry) {
     item: {
       id: entry.item.id,
       name: entry.item.name,
+      shopId: entry.item.shopId,
+      shopName: entry.item.shop?.name,
+      shopOpen: entry.item.shop?.isOpen,
       category: entry.item.category?.name,
       rarity: entry.item.rarity?.name,
       rarityRank: entry.item.rarity?.rank,
       description: entry.item.description,
-      price: entry.item.price,
+      price: Number(entry.item.price),
       effectiveSellPrice: effectiveSellPrice(entry.item),
       imageUrl: entry.item.imageUrl,
       isActive: Boolean(entry.item.isActive)
@@ -28,6 +32,7 @@ export async function listInventoryByCharacterId(characterId, prisma = getPrisma
     include: {
       item: {
         include: {
+          shop: true,
           category: true,
           rarity: true
         }
@@ -81,6 +86,7 @@ export async function removeInventoryItem(characterId, itemId, quantity, prisma 
 function mapInventoryLog(log) {
   return {
     id: log.id,
+    sessionId: log.sessionId,
     type: log.type,
     characterId: log.characterId,
     characterName: log.character?.name,
@@ -89,8 +95,8 @@ function mapInventoryLog(log) {
     actorUserId: log.actorUserId,
     actorName: log.actor?.name,
     quantity: log.quantity,
-    unitPrice: log.unitPrice,
-    total: log.quantity * log.unitPrice,
+    unitPrice: Number(log.unitPrice),
+    total: log.quantity * Number(log.unitPrice),
     reason: log.reason,
     createdAt: log.createdAt
   };
@@ -99,6 +105,7 @@ function mapInventoryLog(log) {
 export async function createInventoryLog(data, prisma = getPrisma()) {
   await prisma.inventoryLog.create({
     data: {
+      sessionId: data.sessionId ?? null,
       characterId: Number(data.characterId),
       itemId: Number(data.itemId),
       actorUserId: data.actorUserId ? Number(data.actorUserId) : null,
@@ -111,8 +118,9 @@ export async function createInventoryLog(data, prisma = getPrisma()) {
 }
 
 export async function listInventoryLogs(filters, prisma = getPrisma()) {
-  const logs = await prisma.inventoryLog.findMany({
+  return historyPage(prisma.inventoryLog, {
     where: {
+      ...sessionWhere(filters.sessionId),
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },
@@ -120,10 +128,6 @@ export async function listInventoryLogs(filters, prisma = getPrisma()) {
       character: { select: { name: true } },
       item: { select: { name: true } },
       actor: { select: { name: true } }
-    },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: 50
-  });
-
-  return logs.map(mapInventoryLog);
+    }
+  }, filters, mapInventoryLog);
 }

@@ -12,7 +12,7 @@ const jogadorHash =
 // Contas e mesa da demonstracao publica. O codigo MESADEMO nunca sai do
 // gerador de convites (que nao usa a letra O), entao nao colide com uma mesa
 // real.
-const DEMO_CAMPAIGN = { id: 1, name: 'Mesa de demonstração', inviteCode: 'MESADEMO' };
+const DEMO_CAMPAIGN = { id: 1, name: 'Mesa de demonstração', inviteCode: 'MESADEMO', isDemo: true };
 
 const DEMO_USERS = [
   { id: 1, name: 'Mestre do Cofre', email: 'mestre@lojarpg.local', passwordHash: mestreHash, role: 'MESTRE' },
@@ -65,6 +65,7 @@ async function createDemoData(prisma) {
   });
 
   await prisma.campaign.create({ data: DEMO_CAMPAIGN });
+  const shop = await prisma.shop.create({ data: { campaignId, name: 'Geral', isDefault: true } });
 
   await prisma.campaignMember.createMany({
     data: DEMO_USERS.map((user) => ({ campaignId, userId: user.id, role: user.role }))
@@ -80,15 +81,18 @@ async function createDemoData(prisma) {
 
   await prisma.character.createMany({
     data: [
-      { id: 1, campaignId, userId: 2, name: 'Aria Luaferro', className: 'Ladino', race: 'Elfo', level: 4, gold: 250 },
-      { id: 2, campaignId, userId: 3, name: 'Borin Escudoforte', className: 'Guerreiro', race: 'Anão', level: 5, gold: 320 },
-      { id: 3, campaignId, userId: 4, name: 'Lia Brasa', className: 'Maga', race: 'Humana', level: 3, gold: 180 }
+      { id: 1, campaignId, userId: 2, name: 'Aria Luaferro', className: 'Ladino', race: 'Elfo', level: 4, gold: 25000 },
+      { id: 2, campaignId, userId: 3, name: 'Borin Escudoforte', className: 'Guerreiro', race: 'Anão', level: 5, gold: 32000 },
+      { id: 3, campaignId, userId: 4, name: 'Lia Brasa', className: 'Maga', race: 'Humana', level: 3, gold: 18000 }
     ]
   });
 
   await prisma.item.createMany({
     data: STARTER_ITEMS.map(({ category, rarity, ...item }, index) => ({
       ...item,
+      price: item.price * 100,
+      sellPrice: item.sellPrice == null ? null : item.sellPrice * 100,
+      shopId: shop.id,
       id: index + 1,
       campaignId,
       categoryId: STARTER_CATEGORIES.indexOf(category) + 1,
@@ -107,18 +111,33 @@ async function createDemoData(prisma) {
   });
 }
 
-// Recria so a demonstracao: a mesa MESADEMO, as contas de exemplo e as mesas
-// que essas contas criaram. Mesas e contas reais continuam como estao.
+// Nunca inferir que uma mesa e descartavel pelo dono. Contas publicas podem
+// ter vinculos legados: interromper antes de apagar qualquer dado.
 export async function resetDemo(prisma) {
   await prisma.$transaction(
     async (tx) => {
-      const demoCampaigns = await tx.campaign.findMany({
+      const externalData = await tx.user.findFirst({
         where: {
+          email: { in: DEMO_EMAILS },
           OR: [
-            { inviteCode: DEMO_CAMPAIGN.inviteCode },
-            { members: { some: { role: 'MESTRE', user: { email: { in: DEMO_EMAILS } } } } }
+            { memberships: { some: { campaign: { isDemo: false } } } },
+            { characters: { some: { campaign: { isDemo: false } } } },
+            { createdItems: { some: { campaign: { isDemo: false } } } },
+            { goldAuditLogs: { some: { character: { campaign: { isDemo: false } } } } },
+            { inventoryLogs: { some: { character: { campaign: { isDemo: false } } } } },
+            { stockMovements: { some: { item: { campaign: { isDemo: false } } } } }
           ]
         },
+        select: { id: true }
+      });
+      const reservedCampaign = await tx.campaign.findUnique({ where: { id: DEMO_CAMPAIGN.id } });
+
+      if (externalData || (reservedCampaign && !reservedCampaign.isDemo)) {
+        throw new Error('Reset da demonstração bloqueado para preservar dados legados. Consulte DEPLOY.md.');
+      }
+
+      const demoCampaigns = await tx.campaign.findMany({
+        where: { isDemo: true },
         select: { id: true }
       });
 

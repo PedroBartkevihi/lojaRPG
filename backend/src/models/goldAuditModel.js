@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage, sessionWhere } from '../utils/historyPagination.js';
 
 function mapGoldAuditLog(log) {
   if (!log) {
@@ -7,13 +8,14 @@ function mapGoldAuditLog(log) {
 
   return {
     id: log.id,
+    sessionId: log.sessionId,
     actorUserId: log.actorUserId,
     actorName: log.actor?.name,
     characterId: log.characterId,
     characterName: log.character?.name,
-    previousGold: log.previousGold,
-    newGold: log.newGold,
-    delta: log.delta,
+    previousGold: Number(log.previousGold),
+    newGold: Number(log.newGold),
+    delta: Number(log.delta),
     reason: log.reason,
     createdAt: log.createdAt
   };
@@ -35,6 +37,7 @@ const includeAudit = {
 export async function createGoldAuditLog(data, prisma = getPrisma()) {
   const log = await prisma.goldAuditLog.create({
     data: {
+      sessionId: data.sessionId ?? null,
       actorUserId: Number(data.actorUserId),
       characterId: Number(data.characterId),
       previousGold: Number(data.previousGold),
@@ -49,14 +52,12 @@ export async function createGoldAuditLog(data, prisma = getPrisma()) {
 }
 
 export async function listGoldAuditLogs(filters, prisma = getPrisma()) {
-  const logs = await prisma.goldAuditLog.findMany({
+  return historyPage(prisma.goldAuditLog, {
     where: {
+      ...sessionWhere(filters.sessionId),
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },
-    include: includeAudit,
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
-  });
-
-  return logs.map(mapGoldAuditLog);
+    include: includeAudit
+  }, filters, mapGoldAuditLog);
 }

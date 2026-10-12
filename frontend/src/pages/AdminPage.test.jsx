@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,8 @@ import AdminPage from './AdminPage.jsx';
 
 function createApi() {
   return {
+    listSessions: vi.fn().mockResolvedValue({ sessions: [] }),
+    listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }),
     listItems: vi.fn().mockResolvedValue({
       items: [
         { id: 6, name: 'Poção de Cura', category: 'Poções', rarity: 'Comum', price: 50, stock: 12, isActive: true, isSellable: true, effectiveSellPrice: 25 }
@@ -32,26 +34,70 @@ function renderPage(path = '/admin') {
 }
 
 describe('AdminPage', () => {
-  it('abre na aba do grupo e troca de aba sem recarregar os dados', async () => {
+  it('consulta so a aba visivel e nao duplica a carga inicial com liveKey preenchido', async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    const showNotice = vi.fn();
+    const page = (liveKey) => <MemoryRouter><AdminPage api={api} liveKey={liveKey} showNotice={showNotice} /></MemoryRouter>;
+    const { rerender } = render(page(10));
+    await screen.findByText('Aria Luaferro', { selector: 'strong' });
+    expect(api.listItems).toHaveBeenCalledTimes(1);
+    expect(api.listCharacters).toHaveBeenCalledTimes(1);
+    expect(api.listGoldAudit).not.toHaveBeenCalled();
+    expect(api.listCategories).not.toHaveBeenCalled();
+    rerender(page(11));
+    await waitFor(() => expect(api.listCharacters).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('tab', { name: /históricos/i }));
+    await waitFor(() => expect(api.listPurchases).toHaveBeenCalledTimes(1));
+    expect(api.listGoldAudit).toHaveBeenCalledTimes(1);
+    expect(api.listInventoryLogs).toHaveBeenCalledTimes(1);
+    expect(api.listStockMovements).toHaveBeenCalledTimes(1);
+    expect(api.listItems).toHaveBeenCalledTimes(2);
+    rerender(page(12));
+    await waitFor(() => expect(api.listGoldAudit).toHaveBeenCalledTimes(2));
+    expect(api.listItems).toHaveBeenCalledTimes(2);
+    expect(api.listCharacters).toHaveBeenCalledTimes(2);
+    expect(api.listCategories).not.toHaveBeenCalled();
+  });
+
+  it('avisa o erro ao abrir a aba, mas não repete o aviso a cada atualização automática', async () => {
+    const api = createApi();
+    const showNotice = vi.fn();
+    const page = (liveKey) => <MemoryRouter><AdminPage api={api} liveKey={liveKey} showNotice={showNotice} /></MemoryRouter>;
+    api.listCharacters.mockRejectedValue(new Error('API fora do ar.'));
+    const { rerender } = render(page(0));
+    await waitFor(() => expect(showNotice).toHaveBeenCalledWith('API fora do ar.'));
+
+    for (const liveKey of [1, 2]) {
+      rerender(page(liveKey));
+      await waitFor(() => expect(api.listCharacters).toHaveBeenCalledTimes(liveKey + 1));
+      // Deixa a recusa chegar ao catch antes da proxima batida.
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    }
+
+    expect(showNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('abre na aba do grupo e carrega os dados da aba escolhida', async () => {
     const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByText('Aria Luaferro', { selector: 'strong' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /grupo e ouro/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /grupo e moedas/i })).toHaveAttribute('aria-selected', 'true');
 
     await user.click(screen.getByRole('tab', { name: /^itens$/i }));
     expect(screen.getByRole('heading', { name: /itens cadastrados/i })).toBeInTheDocument();
-    expect(screen.getByText('Poção de Cura')).toBeInTheDocument();
+    expect(await screen.findByText('Poção de Cura')).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /catálogo/i }));
     const categories = screen.getByRole('heading', { name: /categorias/i }).closest('.surface-panel');
-    expect(within(categories).getByText(/Poções/)).toBeInTheDocument();
+    expect(await within(categories).findByText(/Poções/)).toBeInTheDocument();
   });
 
   it('abre direto na aba do endereço', async () => {
     renderPage('/admin?aba=historicos');
 
-    expect(await screen.findByRole('heading', { name: /auditoria de ouro/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /auditoria de moedas/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /históricos/i })).toHaveAttribute('aria-selected', 'true');
   });
 });

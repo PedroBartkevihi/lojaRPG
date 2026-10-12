@@ -1,9 +1,10 @@
-import { withTransaction } from '../database/transaction.js';
+import { withCampaignTransaction } from './sessionService.js';
 import { createStockMovement } from '../models/catalogModel.js';
 import { creditCharacterGold, findCharacterById } from '../models/characterModel.js';
 import { createInventoryLog, removeInventoryItem } from '../models/inventoryModel.js';
 import { findItemById, incrementItemStock } from '../models/itemModel.js';
 import { ApiError } from '../utils/ApiError.js';
+import { ensureShopsOpen } from './shopService.js';
 
 async function findOwnCharacter(user, campaignId, characterId, action, prisma) {
   const character = await findCharacterById(characterId, campaignId, prisma);
@@ -39,9 +40,11 @@ async function findCampaignItem(campaignId, itemId, prisma) {
 // do mesmo personagem ao mesmo tempo esperavam uma pela outra (deadlock) e o
 // banco abortava uma delas.
 export async function sellItem({ user, campaignId, characterId, itemId, quantity }) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const character = await findOwnCharacter(user, campaignId, characterId, 'vender', prisma);
     const item = await findCampaignItem(campaignId, itemId, prisma);
+
+    await ensureShopsOpen(campaignId, [item.shopId], prisma);
 
     if (item.effectiveSellPrice === null) {
       throw new ApiError(400, `A loja não compra ${item.name}.`);
@@ -56,7 +59,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
 
     const newStock = await incrementItemStock(item.id, quantity, prisma);
     await createStockMovement(
-      {
+      { sessionId,
         itemId: item.id,
         actorUserId: user.id,
         previousStock: newStock - quantity,
@@ -67,7 +70,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
     );
 
     await createInventoryLog(
-      {
+      { sessionId,
         characterId: character.id,
         itemId: item.id,
         actorUserId: user.id,
@@ -79,14 +82,14 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
     );
 
     return {
-      message: `Venda concluída: ${quantity}x ${item.name} por ${total} ouro.`,
+      message: `Venda concluída: ${quantity}x ${item.name} por ${total} PC.`,
       character: await findCharacterById(character.id, campaignId, prisma)
     };
   });
 }
 
 export async function useItem({ user, campaignId, characterId, itemId, quantity, reason }) {
-  return withTransaction(async (prisma) => {
+  return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
     const character = await findOwnCharacter(user, campaignId, characterId, 'usar', prisma);
     const item = await findCampaignItem(campaignId, itemId, prisma);
 
@@ -95,7 +98,7 @@ export async function useItem({ user, campaignId, characterId, itemId, quantity,
     }
 
     await createInventoryLog(
-      {
+      { sessionId,
         characterId: character.id,
         itemId: item.id,
         actorUserId: user.id,

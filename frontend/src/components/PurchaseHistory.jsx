@@ -1,33 +1,22 @@
-import { useEffect, useState } from 'react';
+import { formatMoney } from '../js/money.js';
+import { useCallback, useState } from 'react';
 import { ReceiptText } from 'lucide-react';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonRows } from './Skeleton.jsx';
+import { usePagedHistory } from '../js/usePagedHistory.js';
+import HistoryPagination from './HistoryPagination.jsx';
+import SessionFilter from './SessionFilter.jsx';
 
-export default function PurchaseHistory({ api, isMaster, character, needsCharacter = false, refreshKey, embedded = false }) {
-  const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (needsCharacter) {
-      return;
-    }
-
-    async function loadPurchases() {
-      setError('');
-
-      try {
-        const data = isMaster ? await api.listPurchases() : await api.myPurchases({ characterId: character?.id });
-        setPurchases(data.purchases);
-      } catch (requestError) {
-        setError(requestError.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadPurchases();
-  }, [api, isMaster, character?.id, needsCharacter, refreshKey]);
+export default function PurchaseHistory({ api, isMaster, character, needsCharacter = false, refreshKey, embedded = false, sessionId }) {
+  const [selectedSession, setSelectedSession] = useState('');
+  const filter = embedded ? sessionId : selectedSession;
+  const loadPage = useCallback(async (params) => {
+    const query = { ...params, ...(filter ? { sessionId: filter } : {}) };
+    const data = isMaster ? await api.listPurchases(query) : await api.myPurchases({ ...query, characterId: character?.id });
+    return { entries: data.purchases, pagination: data.pagination };
+  }, [api, isMaster, character?.id, filter]);
+  const page = usePagedHistory(loadPage, refreshKey, !needsCharacter);
+  const purchases = page.entries;
 
   const content = needsCharacter ? (
     <NoCharacterNotice />
@@ -37,8 +26,8 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
         <ReceiptText size={20} />
         <h3>Histórico de compras</h3>
       </div>
-      {error && <p className="form-error">{error}</p>}
-      {loading ? (
+      {!embedded && <SessionFilter api={api} value={filter} onChange={setSelectedSession} refreshKey={refreshKey} />}
+      {page.loading && purchases.length === 0 ? (
         <SkeletonRows count={3} />
       ) : (
         <div className="history-list">
@@ -49,12 +38,12 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
                   <strong>{isMaster ? purchase.characterName : `Compra #${purchase.id}`}</strong>
                   <span>{new Date(purchase.purchasedAt).toLocaleString()}</span>
                 </div>
-                <b>{purchase.totalValue} ouro</b>
+                <b>{formatMoney(purchase.totalValue)}</b>
               </header>
               <ul>
                 {purchase.items.map((item) => (
                   <li key={item.id}>
-                    {item.quantity}x {item.itemName} ({item.unitPrice} ouro)
+                    {item.quantity}x {item.itemName} ({formatMoney(item.unitPrice)})
                   </li>
                 ))}
               </ul>
@@ -63,6 +52,7 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
           {purchases.length === 0 && <p className="empty-state">Nenhuma compra registrada.</p>}
         </div>
       )}
+      <HistoryPagination page={page} label="compras" />
     </div>
   );
 

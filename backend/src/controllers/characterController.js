@@ -18,6 +18,7 @@ import {
 } from '../schemas/characterSchemas.js';
 import { changeCharacterGold } from '../services/goldService.js';
 import { ApiError } from '../utils/ApiError.js';
+import { historyQuerySchema } from '../utils/historyPagination.js';
 import { parse, parseChanges } from '../utils/validation.js';
 
 // Aceita os apelidos `class` e `raca`; um campo so conta como ausente quando
@@ -121,5 +122,6 @@ export async function changeGold(req, res) {
 export async function goldAudit(req, res) {
   const characterId = req.query.characterId ? parse(characterIdSchema, req.query.characterId) : undefined;
 
-  res.json({ logs: await listGoldAuditLogs({ campaignId: req.campaign.id, characterId }) });
+  const page = await listGoldAuditLogs({ campaignId: req.campaign.id, characterId, ...parse(historyQuerySchema, req.query) });
+  res.json({ logs: page.entries, pagination: page.pagination });
 }

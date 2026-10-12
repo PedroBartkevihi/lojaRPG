@@ -1,10 +1,13 @@
+import { formatMoney } from '../js/money.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Backpack, Coins, HandCoins, History, Sparkles } from 'lucide-react';
+import { Backpack, Coins, HandCoins, Sparkles } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
-import InventoryLogList from './InventoryLogList.jsx';
+import InventoryHistory from './InventoryHistory.jsx';
 import ItemIcon from './ItemIcon.jsx';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
 import { SkeletonCards } from './Skeleton.jsx';
+import TransferPanel from './TransferPanel.jsx';
+import SessionFilter from './SessionFilter.jsx';
 
 export default function InventoryPanel({
   api,
@@ -15,19 +18,18 @@ export default function InventoryPanel({
   onRefreshSession
 }) {
   const [inventory, setInventory] = useState([]);
-  const [logs, setLogs] = useState([]);
   const [character, setCharacter] = useState(null);
   const [quantities, setQuantities] = useState({});
   const [busyItemId, setBusyItemId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState('');
 
   const loadInventory = useCallback(async () => {
     setLoading(true);
 
     try {
-      const data = await api.myInventory({ characterId: selectedCharacter?.id });
+      const data = await api.myInventory({ characterId: selectedCharacter?.id, includeLogs: false });
       setInventory(data.inventory);
-      setLogs(data.logs || []);
       setCharacter(data.character);
     } catch (error) {
       showNotice?.(error.message);
@@ -52,7 +54,7 @@ export default function InventoryPanel({
     const { item } = entry;
     const question =
       action === 'sell'
-        ? `Vender ${quantity}x ${item.name} por ${item.effectiveSellPrice * quantity} ouro?`
+        ? `Vender ${quantity}x ${item.name} por ${formatMoney(item.effectiveSellPrice * quantity)}?`
         : `Usar ${quantity}x ${item.name}? O item sai do inventário.`;
 
     if (!window.confirm(question)) {
@@ -105,7 +107,7 @@ export default function InventoryPanel({
         {character && (
           <span className="gold-badge">
             <Coins size={18} />
-            {character.gold} ouro
+            {formatMoney(character.gold)}
           </span>
         )}
       </div>
@@ -133,8 +135,9 @@ export default function InventoryPanel({
                     <b>{entry.quantity}x</b>
                   </div>
                   <p>{entry.item.description}</p>
+                  <small>{entry.item.shopName}{entry.item.shopOpen === false ? " — fechado para vendas" : ""}</small>
                   <small className="sell-hint">
-                    {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja não compra este item'}
+                    {sellable ? `A loja paga ${formatMoney(entry.item.effectiveSellPrice)} cada` : 'A loja não compra este item'}
                   </small>
                   <div className="inventory-actions">
                     {entry.quantity > 1 && (
@@ -155,7 +158,7 @@ export default function InventoryPanel({
                       Usar
                     </button>
                     {sellable && (
-                      <button className="primary-action" onClick={() => handleAction(entry, 'sell')} disabled={busy}>
+                      <button className="primary-action" onClick={() => handleAction(entry, 'sell')} disabled={busy || entry.item.shopOpen === false}>
                         <HandCoins size={16} />
                         Vender
                       </button>
@@ -168,13 +171,10 @@ export default function InventoryPanel({
           </div>
         )}
       </div>
-      <div className="surface-panel inventory-history">
-        <div className="panel-title">
-          <History size={20} />
-          <h3>Movimentações</h3>
-        </div>
-        <InventoryLogList logs={logs} limit={15} />
-      </div>
+      <SessionFilter api={api} value={sessionId} onChange={setSessionId} refreshKey={refreshKey} />
+      <InventoryHistory api={api} characterId={character?.id} refreshKey={refreshKey} sessionId={sessionId} />
+      {character && (!selectedCharacter || character.id === selectedCharacter.id) && <TransferPanel key={character.id} api={api} character={character} inventory={inventory}
+        refreshKey={refreshKey} sessionId={sessionId} onRefresh={onRefreshSession || loadInventory} showNotice={showNotice} />}
     </section>
   );
 }

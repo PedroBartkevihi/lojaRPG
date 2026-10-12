@@ -35,6 +35,7 @@ import ShopPage from './pages/ShopPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import InventoryPanel from './components/InventoryPanel.jsx';
 import PurchaseHistory from './components/PurchaseHistory.jsx';
+import SessionDiary from './pages/SessionDiary.jsx';
 
 const TOKEN_KEY = 'lojaRpgToken';
 const REFRESH_TOKEN_KEY = 'lojaRpgRefreshToken';
@@ -440,6 +441,9 @@ function AppContent() {
               <History size={18} />
               Compras
             </button>
+            <button className={activeRoute === 'sessions' ? 'active' : ''} onClick={() => navigate('/sessions')}>
+              <ScrollText size={18} />Diário
+            </button>
             <button className={activeRoute === 'mesa' ? 'active' : ''} onClick={() => navigate('/mesa')}>
               <Users size={18} />
               Mesa
@@ -556,12 +560,13 @@ function AppContent() {
           path="/admin"
           element={inCampaign(
             isMaster ? (
-              <AdminPage api={api} liveKey={liveTick} showNotice={showNotice} onRefresh={refreshSession} />
+              <AdminPage api={api} campaign={campaign} onCampaignsChanged={loadCampaigns} liveKey={liveTick} showNotice={showNotice} onRefresh={refreshSession} />
             ) : (
               <Navigate to="/shop" replace />
             )
           )}
         />
+        <Route path="/sessions" element={inCampaign(<SessionDiary api={api} isMaster={isMaster} liveKey={liveTick} showNotice={showNotice} />)} />
         <Route path="*" element={<Navigate to="/shop" replace />} />
       </Routes>
     </main>

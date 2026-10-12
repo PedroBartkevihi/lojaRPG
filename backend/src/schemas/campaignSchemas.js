@@ -8,6 +8,8 @@ export const campaignSchema = z.object({
 
 export const campaignIdSchema = id('Id da mesa');
 
+export const shopStateSchema = z.object({ shopOpen: z.boolean() }).strict();
+
 export const memberIdSchema = id('Id do participante');
 
 export const inviteCodeSchema = z.preprocess(

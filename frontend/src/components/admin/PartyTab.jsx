@@ -1,3 +1,5 @@
+import MoneyInput from '../MoneyInput.jsx';
+import { formatMoney } from '../../js/money.js';
 import { useState } from 'react';
 import { Coins, Pencil, Save, X } from 'lucide-react';
 import RewardsPanel from '../RewardsPanel.jsx';
@@ -41,16 +43,16 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
   }
 
   async function applyGold(character) {
-    const amount = Number(goldInputs[character.id] || 0);
+    const amount = Number(goldInputs[character.id] ?? 0);
     const reason = (goldReasons[character.id] || '').trim();
 
     if (!Number.isInteger(amount) || amount === 0) {
-      showNotice('Informe um ajuste de ouro inteiro diferente de zero.');
+      showNotice('Informe um ajuste de valor em PC inteiro diferente de zero.');
       return;
     }
 
     if (!reason) {
-      showNotice('Informe o motivo da alteração de ouro.');
+      showNotice('Informe o motivo da alteração de saldo.');
       return;
     }
 
@@ -59,7 +61,7 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
       setGoldInputs((current) => ({ ...current, [character.id]: '' }));
       setGoldReasons((current) => ({ ...current, [character.id]: '' }));
       await refreshAll();
-      showNotice(`${data.character.name} agora possui ${data.character.gold} ouro.`);
+      showNotice(`${data.character.name} agora possui ${formatMoney(data.character.gold)}.`);
     } catch (error) {
       showNotice(error.message);
     }
@@ -70,7 +72,7 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
       <div className="surface-panel">
         <div className="panel-title">
           <Coins size={20} />
-          <h3>Ouro dos personagens</h3>
+          <h3>Saldo dos personagens</h3>
         </div>
         <div className="admin-list compact">
           {characters.map((character) => (
@@ -124,7 +126,7 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
                     </div>
                     <span className="gold-badge">
                       <Coins size={16} />
-                      {character.gold} ouro
+                      {formatMoney(character.gold)}
                     </span>
                     <button
                       type="button"
@@ -136,13 +138,9 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
                     </button>
                   </div>
                   <div className="gold-adjust">
-                    <input
-                      type="number"
-                      value={goldInputs[character.id] || ''}
-                      onChange={(event) => setGoldInputs((current) => ({ ...current, [character.id]: event.target.value }))}
-                      placeholder="+/-"
-                      aria-label={`Ajuste de ouro de ${character.name}`}
-                    />
+                    <MoneyInput label={`Ajuste de saldo de ${character.name}`} signed
+                      value={goldInputs[character.id] ?? ''}
+                      onChange={(value) => setGoldInputs((current) => ({ ...current, [character.id]: value }))} />
                     <input
                       value={goldReasons[character.id] || ''}
                       onChange={(event) => setGoldReasons((current) => ({ ...current, [character.id]: event.target.value }))}

@@ -1,4 +1,5 @@
 import { getPrisma } from '../database/connection.js';
+import { historyPage, sessionWhere } from '../utils/historyPagination.js';
 
 function mapPurchase(purchase) {
   if (!purchase) {
@@ -7,10 +8,11 @@ function mapPurchase(purchase) {
 
   return {
     id: purchase.id,
+    sessionId: purchase.sessionId,
     characterId: purchase.characterId,
     characterName: purchase.character?.name,
     userName: purchase.character?.user?.name,
-    totalValue: purchase.totalValue,
+    totalValue: Number(purchase.totalValue),
     purchasedAt: purchase.purchasedAt,
     items: purchase.items.map((entry) => ({
       id: entry.id,
@@ -18,8 +20,8 @@ function mapPurchase(purchase) {
       itemName: entry.item?.name,
       category: entry.item?.category?.name,
       quantity: entry.quantity,
-      unitPrice: entry.unitPrice,
-      subtotal: entry.quantity * entry.unitPrice
+      unitPrice: Number(entry.unitPrice),
+      subtotal: entry.quantity * Number(entry.unitPrice)
     }))
   };
 }
@@ -51,6 +53,7 @@ const includePurchase = {
 export async function createPurchase(data, prisma = getPrisma()) {
   const purchase = await prisma.purchase.create({
     data: {
+      sessionId: data.sessionId ?? null,
       characterId: Number(data.characterId),
       totalValue: Number(data.totalValue)
     },
@@ -81,14 +84,13 @@ export async function findPurchaseById(id, prisma = getPrisma()) {
 }
 
 export async function listPurchases(filters, prisma = getPrisma()) {
-  const purchases = await prisma.purchase.findMany({
+  return historyPage(prisma.purchase, {
     where: {
+      ...sessionWhere(filters.sessionId),
       character: { campaignId: Number(filters.campaignId) },
       ...(filters.characterId ? { characterId: Number(filters.characterId) } : {})
     },
     include: includePurchase,
-    orderBy: [{ purchasedAt: 'desc' }, { id: 'desc' }]
-  });
-
-  return purchases.map(mapPurchase);
+    timeField: 'purchasedAt'
+  }, filters, mapPurchase);
 }

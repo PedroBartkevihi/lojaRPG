@@ -1,5 +1,7 @@
+import { isDemoAccount } from '../config/demo.js';
 import { listCampaignsByUserId, listMembers } from '../models/campaignModel.js';
-import { campaignSchema, inviteCodeSchema, memberIdSchema } from '../schemas/campaignSchemas.js';
+import { getPrisma } from '../database/connection.js';
+import { campaignSchema, inviteCodeSchema, memberIdSchema, shopStateSchema } from '../schemas/campaignSchemas.js';
 import {
   createCampaign,
   deleteCampaign,
@@ -10,7 +12,8 @@ import {
 import { parse } from '../utils/validation.js';
 
 export async function index(req, res) {
-  res.json({ campaigns: await listCampaignsByUserId(req.user.id) });
+  const campaigns = await listCampaignsByUserId(req.user.id);
+  res.json({ campaigns: isDemoAccount(req.user) ? campaigns.filter((campaign) => campaign.isDemo) : campaigns });
 }
 
 export async function create(req, res) {
@@ -32,6 +35,13 @@ export async function show(req, res) {
     campaign: req.campaign,
     members: await listMembers(req.campaign.id)
   });
+}
+
+export async function setShopState(req, res) {
+  const data = parse(shopStateSchema, req.body);
+  // A rota antiga controla apenas o vendedor Geral.
+  await getPrisma().shop.updateMany({ where: { campaignId: req.campaign.id, isDefault: true }, data: { isOpen: data.shopOpen } });
+  res.json({ campaign: { ...req.campaign, shopOpen: data.shopOpen } });
 }
 
 export async function remove(req, res) {

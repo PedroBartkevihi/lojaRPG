@@ -1,8 +1,9 @@
+import { formatMoney } from '../js/money.js';
 import { Coins, Plus } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
 import ItemIcon from './ItemIcon.jsx';
 
-export default function ItemCard({ item, onAdd, disabled }) {
+export default function ItemCard({ item, onAdd, disabled, readOnly = false }) {
   const unavailable = item.stock <= 0;
 
   return (
@@ -20,16 +21,17 @@ export default function ItemCard({ item, onAdd, disabled }) {
       <div className="item-card-body">
         <span className="item-category">{item.category}</span>
         <h3>{item.name}</h3>
+        <small>{item.shopName}{item.shopOpen === false ? " — fechado" : ""}</small>
         <p>{item.description}</p>
       </div>
       <div className="item-card-footer">
         <strong className="price">
           <Coins size={17} />
-          {item.price} ouro
+          {formatMoney(item.price)}
         </strong>
         {/* O Mestre so ve a vitrine; os itens sao editados no painel dele. */}
-        {!disabled && (
-          <button className="add-action" onClick={onAdd} disabled={unavailable}>
+        {!readOnly && (
+          <button className="add-action" onClick={onAdd} disabled={unavailable || disabled}>
             <Plus size={17} />
             Adicionar
           </button>

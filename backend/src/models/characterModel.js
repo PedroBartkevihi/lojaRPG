@@ -1,3 +1,4 @@
+import { ApiError } from '../utils/ApiError.js';
 import { getPrisma } from '../database/connection.js';
 
 export function mapCharacter(character) {
@@ -15,7 +16,7 @@ export function mapCharacter(character) {
     className: character.className,
     race: character.race,
     level: character.level,
-    gold: character.gold,
+    gold: Number(character.gold),
     createdAt: character.createdAt
   };
 }
@@ -117,13 +118,13 @@ export async function debitCharacterGold(id, amount, prisma = getPrisma()) {
 
 // Soma ouro de forma atomica e retorna o saldo novo.
 export async function creditCharacterGold(id, amount, prisma = getPrisma()) {
-  const character = await prisma.character.update({
-    where: { id: Number(id) },
-    data: { gold: { increment: Number(amount) } },
-    select: { gold: true }
+  const result = await prisma.character.updateMany({
+    where: { id: Number(id), gold: { lte: Number.MAX_SAFE_INTEGER - amount } },
+    data: { gold: { increment: amount } }
   });
-
-  return character.gold;
+  if (!result.count) throw new ApiError(400, 'O saldo excederia o limite permitido em PC.');
+  const character = await prisma.character.findUnique({ where: { id: Number(id) }, select: { gold: true } });
+  return Number(character.gold);
 }
 
 // Troca o ouro so se ele ainda for o valor lido antes da alteracao.

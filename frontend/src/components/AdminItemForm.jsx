@@ -1,3 +1,5 @@
+import MoneyInput from './MoneyInput.jsx';
+import { formatMoney } from '../js/money.js';
 import { useEffect, useState } from 'react';
 import { Save, X } from 'lucide-react';
 
@@ -21,7 +23,7 @@ function withinOptions(value, options) {
   return options.length === 0 || options.some((option) => option.name === value) ? value : options[0].name;
 }
 
-export default function AdminItemForm({ item, categories = [], rarities = [], onSave, onCancel }) {
+export default function AdminItemForm({ item, shops = [], categories = [], rarities = [], onSave, onCancel }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -53,6 +55,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
 
     const payload = {
       ...form,
+      shopId: Number(form.shopId || shops[0]?.id) || undefined,
       price: Number(form.price),
       sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
       stock: Number(form.stock)
@@ -84,6 +87,12 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
         <Save size={20} />
         <h3>{item ? 'Editar item' : 'Cadastrar item'}</h3>
       </div>
+      <label>Vendedor
+        <select value={form.shopId || shops[0]?.id || ''} disabled={Boolean(item)} onChange={(e) => updateField('shopId', Number(e.target.value))}>
+          {shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
+        </select>
+      </label>
+      {item && <small>Para outro vendedor, cadastre uma nova oferta. O inventário permanece vinculado à origem.</small>}
       <label>
         Nome
         <input value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
@@ -131,16 +140,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
         />
       </label>
       <div className="form-grid two">
-        <label>
-          Preço
-          <input
-            value={form.price}
-            onChange={(event) => updateField('price', event.target.value)}
-            type="number"
-            min="0"
-            required
-          />
-        </label>
+        <MoneyInput label="Preço" value={form.price} onChange={(value) => updateField('price', value)} required />
         <label>
           Estoque
           <input
@@ -153,17 +153,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
         </label>
       </div>
       <div className="form-grid two">
-        <label>
-          Preço de venda à loja
-          <input
-            value={form.sellPrice}
-            onChange={(event) => updateField('sellPrice', event.target.value)}
-            type="number"
-            min="0"
-            placeholder={`Padrão: ${Math.floor(Number(form.price || 0) / 2)} (metade)`}
-            disabled={!form.isSellable}
-          />
-        </label>
+        <MoneyInput label="Preço de venda à loja" value={form.sellPrice} onChange={(value) => updateField('sellPrice', value)} disabled={!form.isSellable} placeholder={`Padrão: ${formatMoney(Math.floor(Number(form.price || 0) / 2))}`} />
         <label className="checkbox-field">
           <input
             type="checkbox"

@@ -37,7 +37,10 @@ describe('InventoryPanel', () => {
   it('vende a quantidade escolhida pelo preço da loja e atualiza a sessão', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const api = {
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }),
+      getCampaign: vi.fn().mockResolvedValue({ members: [] }),
+      characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
+      characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }),
       myInventory: vi.fn().mockResolvedValue(inventoryResponse()),
       sellItem: vi.fn().mockResolvedValue({ message: 'Venda concluída: 2x Poção de Cura por 50 ouro.' })
     };
@@ -48,15 +51,15 @@ describe('InventoryPanel', () => {
       <InventoryPanel api={api} character={character} showNotice={showNotice} onRefreshSession={onRefreshSession} />
     );
 
-    expect(await screen.findByText('A loja paga 25 ouro cada')).toBeInTheDocument();
+    expect(await screen.findByText('A loja paga 2 PP 5 PC cada')).toBeInTheDocument();
     expect(screen.getByText('A loja não compra este item')).toBeInTheDocument();
-    expect(screen.getByText('Recebeu 1x Chave do Templo de Mestre do Cofre')).toBeInTheDocument();
+    expect(await screen.findByText('Recebeu 1x Chave do Templo de Mestre do Cofre')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /vender/i })).toHaveLength(1);
 
     await user.type(screen.getByLabelText('Quantidade de Poção de Cura'), '2');
     await user.click(screen.getByRole('button', { name: /vender/i }));
 
-    expect(window.confirm).toHaveBeenCalledWith('Vender 2x Poção de Cura por 50 ouro?');
+    expect(window.confirm).toHaveBeenCalledWith('Vender 2x Poção de Cura por 5 PP?');
     expect(api.sellItem).toHaveBeenCalledWith(2, { itemId: 6, quantity: 2 });
     expect(showNotice).toHaveBeenCalledWith('Venda concluída: 2x Poção de Cura por 50 ouro.');
     expect(onRefreshSession).toHaveBeenCalledTimes(1);
@@ -65,7 +68,9 @@ describe('InventoryPanel', () => {
   it('não usa o item quando o jogador cancela a confirmação', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const api = { myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn() };
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), getCampaign: vi.fn().mockResolvedValue({ members: [] }), characterGoldLogs: vi.fn().mockResolvedValue({ logs: [] }),
+      myInventory: vi.fn().mockResolvedValue(inventoryResponse()), useItem: vi.fn(),
+      characterInventoryLogs: vi.fn().mockResolvedValue({ logs: inventoryResponse().logs }) };
 
     render(<InventoryPanel api={api} character={character} />);
 
@@ -76,7 +81,7 @@ describe('InventoryPanel', () => {
   });
 
   it('manda criar o personagem em vez de mostrar erro para quem ainda não tem um', () => {
-    const api = { myInventory: vi.fn() };
+    const api = { listSessions: vi.fn().mockResolvedValue({ sessions: [] }), myInventory: vi.fn() };
     const showNotice = vi.fn();
 
     render(

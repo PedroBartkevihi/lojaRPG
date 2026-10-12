@@ -46,6 +46,12 @@ blocos de carregamento e avisa que a API está acordando.
   entrar de novo.
 - As telas se atualizam sozinhas durante a sessão: o ouro que o Mestre dá ou
   o item que outro jogador compra aparecem sem recarregar a página.
+- Moedas do D&D: preços e saldos aparecem em PO, PP e PC, como no livro
+  (248 PO 5 PP), e os campos de valor aceitam também PL (1 PL = 10 PO,
+  1 PO = 10 PP, 1 PP = 10 PC).
+- Diário de sessões: compras, vendas, usos, entregas, recompensas e ajustes
+  feitos com uma sessão aberta ficam ligados a ela. Toda a mesa consulta o
+  resumo de cada sessão, e os históricos filtram por sessão.
 
 Para jogar com o seu grupo: crie uma conta, crie a mesa e envie o link da aba
 **Mesa** aos jogadores. Cada um cria a conta pelo link, entra na mesa e cria o
@@ -57,30 +63,37 @@ personagem.
 
 - Um ou mais personagens por mesa (botão "Novo personagem"), com a escolha
   do personagem ativo.
-- Catálogo com busca (que ignora acentos) e filtro por categoria; cada item
-  tem a cor da raridade (comum, incomum, raro, muito raro, lendário) e um ícone
-  pela categoria.
-- Carrinho e compra com o ouro do personagem ativo; no celular, uma barra no
-  rodapé leva ao carrinho.
-- Venda de itens à loja pela regra do D&D 5e (metade do preço) ou pelo valor
-  que o Mestre definir; o item volta ao estoque.
+- Catálogo com busca (que ignora acentos) e filtro por vendedor e por
+  categoria; cada item tem a cor da raridade (comum, incomum, raro, muito raro,
+  lendário) e um ícone pela categoria.
+- Carrinho e compra com as moedas do personagem ativo, inclusive com itens de
+  vendedores diferentes; no celular, uma barra no rodapé leva ao carrinho.
+- Venda de itens ao vendedor de origem pela regra do D&D 5e (metade do preço)
+  ou pelo valor que o Mestre definir; o item volta ao estoque.
 - Uso de itens consumíveis, como poções, que saem do inventário.
-- Inventário, histórico de compras e de vendas, usos e recompensas por
-  personagem.
+- Entrega de itens e moedas a outro personagem da mesa, sem passar pelo
+  Mestre; os dois lados ficam registrados no histórico.
+- Inventário, histórico de compras e de vendas, usos, entregas e recompensas
+  por personagem, com "Mostrar mais" para os registros antigos.
 
 ![Aria compra, vende uma poção à loja e usa outra pelo inventário](docs/images/demo-compra.gif)
 
 **Mestre**
 
-- Painel em abas: grupo e ouro, itens, catálogo e históricos.
+- Painel em abas: grupo e moedas, vendedores, itens, catálogo e históricos.
+- Vendedores (a mesa começa com o **Geral**), cada um com catálogo, estoque e
+  horário de atendimento próprios. O horário é só informativo, no tempo da
+  campanha: o Mestre abre e fecha cada vendedor, e um vendedor fechado
+  continua visível, mas não compra nem vende.
+- Diário: o Mestre inicia e encerra sessões numeradas, com notas.
 - Cadastro, edição, remoção e reativação de itens.
 - Categorias e raridades próprias, com a cor de cada raridade escolhida pelo
   Mestre; ao remover uma em uso, os itens são realocados.
-- Recompensas: ouro dividido entre o grupo (avisando o que sobra da divisão)
-  ou o mesmo valor para cada um, e itens entregues direto no inventário,
-  inclusive itens que não estão à venda.
+- Recompensas: moedas divididas entre o grupo (avisando o que sobra da
+  divisão) ou o mesmo valor para cada um, e itens entregues direto no
+  inventário, inclusive itens que não estão à venda.
 - Preço de venda por item e itens que a loja não compra, como itens de missão.
-- Ajuste de ouro com motivo obrigatório e auditoria de cada alteração.
+- Ajuste de saldo com motivo obrigatório e auditoria de cada alteração.
 - Histórico de movimentações de estoque.
 
 ![Painel do Mestre com o cadastro de itens e a divisão de ouro entre o grupo](docs/images/painel-mestre.jpg)
@@ -112,13 +125,26 @@ pede participa da mesa e qual é o papel dele nela.
 - **Demonstração e mesas reais no mesmo banco.** As contas de exemplo são
   públicas, então a API não deixa que criem ou entrem em outras mesas (numa
   mesa real, qualquer visitante veria a mesa e o reset apagaria os
-  personagens). O reset apaga só a mesa `MESA-DEMO` e as contas de exemplo.
+  personagens). O reset apaga só a mesa marcada como demonstração e as contas
+  de exemplo; se houver dados legados dessas contas em mesas reais, ele para
+  antes de excluir qualquer dado. Veja a orientação no DEPLOY.md.
 - **Compras e vendas simultâneas sem perder dinheiro nem estoque.** O desconto
   de ouro e de estoque é um update condicional ("só desconta se ainda houver
-  saldo"), a venda só paga depois de tirar o item do inventário do mesmo
-  jeito, e as edições do Mestre rodam em transação e só gravam se o valor lido
+  saldo"). Compras bloqueiam os itens em ordem de id. Compras e vendas
+  bloqueiam primeiro o personagem; se faltar inventário na venda, o crédito
+  inteiro é desfeito. As edições do Mestre rodam em transação e só gravam se o valor lido
   não mudou (senão respondem 409). Testes disparam compras, vendas e ajustes ao
   mesmo tempo para garantir isso.
+- **Dinheiro inteiro, em peças de cobre.** Banco e API guardam todo valor em
+  PC (`BIGINT`), e o front converte para PO e PP só na tela: não há ponto
+  flutuante, e metade de 75 PO é 37 PO e 5 PP, sem arredondar. As proporções
+  seguem o [SRD 5.1](https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf).
+  Uma aba aberta antes da troca de unidade recebe 428 ao gravar, em vez de
+  mandar valores em PO para uma API que espera PC.
+- **Compra e entrega sem cobrança dupla.** Cada compra e cada entrega levam
+  uma `idempotencyKey`, gravada na mesma transação da operação. Se a resposta
+  se perder e o front repetir o pedido, a API devolve o resultado original em
+  vez de cobrar de novo.
 - **Regras de integridade no próprio banco.** As migrations têm restrições
   `CHECK` (ouro e estoque nunca negativos, nível de 1 a 20), que valem mesmo
   para código que grave direto no banco.
@@ -201,14 +227,15 @@ npm run lint
 npm test
 ```
 
-Os 49 testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
+Os testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
 mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
-itens e catálogo, compras, vendas, uso de itens e recompensas, compras, vendas
-e ajustes simultâneos,
-validação das entradas, regras `CHECK` do banco, o reset da demonstração e a
-verificação dos segredos de produção.
+itens e catálogo, vendedores, compras, vendas, uso de itens, entregas e
+recompensas, compras, vendas e ajustes simultâneos, repetição de compras e
+entregas, sessões e paginação dos históricos, validação das entradas, regras
+`CHECK` do banco, as migrações de vendedores e de moedas, o reset da
+demonstração e a verificação dos segredos de produção.
 
 ## Rotas da API
 
@@ -234,14 +261,26 @@ Mesas:
 As rotas abaixo ficam dentro da mesa, em `/campaigns/:id`, e "Mestre" é o
 Mestre daquela mesa.
 
+Vendedores:
+
+- `GET /shops`
+- `POST /shops` e `PATCH /shops/:shopId` (Mestre): `name`, `hours` e `isOpen`
+- `PATCH /shop` (Mestre): `{ "shopOpen": false }` abre ou fecha só o vendedor
+  Geral
+
 Catálogo e itens:
 
-- `GET /items`
+- `GET /items` (aceita `shopId` para filtrar por vendedor)
 - `POST /items`, `PUT /items/:id`, `DELETE /items/:id` e
   `PATCH /items/:id/reactivate` (Mestre)
 - `GET /catalog/categories` e `GET /catalog/rarities`
 - `POST|PUT|DELETE /catalog/categories` e `/catalog/rarities` (Mestre)
 - `GET /catalog/stock-movements` (Mestre)
+
+Em `PUT /items/:id`, envie `expectedStock` (estoque visto ao abrir a edição)
+sempre que enviar `stock`. Sem essa pré-condição a API retorna 400; se o estoque
+tiver mudado, retorna 409. Ao editar somente nome/preço, omita `stock` para
+preservar as compras feitas durante a edição.
 
 Personagens:
 
@@ -261,7 +300,48 @@ Compras e inventário:
 - `GET /inventory/:characterId`
 - `POST /inventory/:characterId/sell` e `POST /inventory/:characterId/use`
   (dono do personagem, com `itemId` e `quantity`)
-- `GET /inventory/logs` (Mestre): vendas, usos e recompensas da mesa
+- `POST /inventory/:characterId/give` (dono do personagem): entrega a outro
+  personagem da mesa, com `targetCharacterId`, `idempotencyKey` e `gold`
+  e/ou `itemId` + `quantity`
+- `GET /inventory/logs` (Mestre): vendas, usos, entregas e recompensas da mesa
+- `GET /inventory/:characterId/logs` (dono ou Mestre): histórico paginado do personagem
+- `GET /inventory/:characterId/gold-logs` (dono ou Mestre): ajustes,
+  recompensas e entregas de moedas do personagem
+
+Sessões:
+
+- `GET /sessions`: sessões da mesa e a sessão aberta (`active`)
+- `POST /sessions` e `POST /sessions/:sessionId/close` (Mestre), com `notes`
+- `GET /sessions/:sessionId/summary`: gastos, ajustes de saldo e movimentações
+  da sessão
+
+Valores de dinheiro (`price`, `sellPrice`, `gold`, `total`...) são em PC,
+inclusive nos campos chamados `gold`, e cada valor informado vai até
+100.000.000 PC (1.000.000 PO). As escritas de dinheiro exigem o cabeçalho
+`X-Currency-Unit: PC`; sem ele, a API responde 428.
+
+Compras, auditoria de ouro e movimentações de estoque/inventário aceitam
+`limit` (padrão 25, máximo 100) e `cursor`. As respostas mantêm `purchases`,
+`logs` ou `movements` e acrescentam `pagination: { limit, hasMore, nextCursor }`.
+Passe `nextCursor` na próxima chamada com os mesmos filtros; ele usa data e id,
+sem depender de a linha de fronteira ainda existir. Os históricos também
+aceitam `sessionId=<id>` ou `sessionId=none` (fora de sessão). `GET /inventory/me`
+também retorna `logsPagination`; `includeLogs=false` permite carregar só
+equipamentos.
+
+O painel carrega apenas os dados da aba ativa. Nos históricos, **Mostrar mais**
+acrescenta páginas anteriores e pausa a atualização automática dessa lista
+para preservar a leitura. **Ver registros recentes** volta à primeira página
+e retoma as atualizações. A loja consulta categorias pelo endpoint próprio,
+sem baixar o catálogo de itens duas vezes por ciclo.
+
+O checkout exige `idempotencyKey` (UUID) no corpo, junto de `items` e
+`characterId`. Gere uma chave para cada intenção de compra e reutilize-a
+se a resposta se perder. A mesma chave, usuário e mesa retornam o resultado
+original sem cobrar novamente; um payload diferente com a mesma chave recebe
+409. Uma compra deliberadamente nova deve usar outra chave. Clientes antigos
+sem chave recebem 400 e precisam ser atualizados. A reserva e o resultado são
+persistidos na mesma transação da compra e não expiram automaticamente.
 
 Recompensas (Mestre):
 

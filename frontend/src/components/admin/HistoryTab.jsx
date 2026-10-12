@@ -1,26 +1,50 @@
+import { formatMoney } from '../../js/money.js';
 import { Coins, Gift, PackagePlus } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { usePagedHistory } from '../../js/usePagedHistory.js';
+import HistoryPagination from '../HistoryPagination.jsx';
 import InventoryLogList from '../InventoryLogList.jsx';
 import PurchaseHistory from '../PurchaseHistory.jsx';
 import { SkeletonRows } from '../Skeleton.jsx';
+import SessionFilter from '../SessionFilter.jsx';
 
-export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAuditLogs, loading, purchasesKey }) {
+export default function HistoryTab({ api, refreshKey }) {
+  const [sessionId, setSessionId] = useState('');
+  const loadInventory = useCallback(async (params) => {
+    const data = await api.listInventoryLogs({ ...params, ...(sessionId ? { sessionId } : {}) });
+    return { entries: data.logs, pagination: data.pagination };
+  }, [api, sessionId]);
+  const loadGold = useCallback(async (params) => {
+    const data = await api.listGoldAudit({ ...params, ...(sessionId ? { sessionId } : {}) });
+    return { entries: data.logs, pagination: data.pagination };
+  }, [api, sessionId]);
+  const loadStock = useCallback(async (params) => {
+    const data = await api.listStockMovements({ ...params, ...(sessionId ? { sessionId } : {}) });
+    return { entries: data.movements, pagination: data.pagination };
+  }, [api, sessionId]);
+  const inventory = usePagedHistory(loadInventory, refreshKey);
+  const gold = usePagedHistory(loadGold, refreshKey);
+  const stock = usePagedHistory(loadStock, refreshKey);
   return (
-    <div className="panel-grid admin-tab">
+    <div className="admin-tab">
+      <SessionFilter api={api} value={sessionId} onChange={setSessionId} refreshKey={refreshKey} />
+      <div className="panel-grid">
       <div className="surface-panel">
         <div className="panel-title">
           <Gift size={20} />
           <h3>Vendas, usos e recompensas</h3>
         </div>
-        {loading ? <SkeletonRows count={3} /> : <InventoryLogList logs={inventoryLogs} showCharacter limit={15} />}
+        {inventory.loading && inventory.entries.length === 0 ? <SkeletonRows count={3} /> : <InventoryLogList logs={inventory.entries} showCharacter />}
+        <HistoryPagination page={inventory} label="vendas, usos e recompensas" />
       </div>
 
       <div className="surface-panel">
         <div className="panel-title">
           <Coins size={20} />
-          <h3>Auditoria de ouro</h3>
+          <h3>Auditoria de moedas</h3>
         </div>
         <div className="history-list">
-          {goldAuditLogs.map((log) => (
+          {gold.entries.map((log) => (
             <article className="history-entry" key={log.id}>
               <header>
                 <div>
@@ -29,16 +53,17 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
                     {log.actorName} - {new Date(log.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <b>{log.delta > 0 ? `+${log.delta}` : log.delta} ouro</b>
+                <b>{log.delta > 0 ? '+' : ''}{formatMoney(log.delta)}</b>
               </header>
               <p>
-                {log.previousGold} &rarr; {log.newGold} ouro. Motivo: {log.reason}
+                {formatMoney(log.previousGold)} &rarr; {formatMoney(log.newGold)}. Motivo: {log.reason}
               </p>
             </article>
           ))}
-          {loading && <SkeletonRows count={3} />}
-          {!loading && goldAuditLogs.length === 0 && <p className="empty-state">Nenhum ajuste de ouro registrado.</p>}
+          {gold.loading && gold.entries.length === 0 && <SkeletonRows count={3} />}
+          {!gold.loading && gold.entries.length === 0 && <p className="empty-state">Nenhum ajuste de ouro registrado.</p>}
         </div>
+        <HistoryPagination page={gold} label="auditoria de ouro" />
       </div>
 
       <div className="surface-panel">
@@ -47,7 +72,7 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
           <h3>Histórico de estoque</h3>
         </div>
         <div className="history-list">
-          {stockMovements.slice(0, 15).map((movement) => (
+          {stock.entries.map((movement) => (
             <article className="history-entry" key={movement.id}>
               <header>
                 <div>
@@ -61,12 +86,14 @@ export default function HistoryTab({ api, stockMovements, inventoryLogs, goldAud
               </p>
             </article>
           ))}
-          {loading && <SkeletonRows count={3} />}
-          {!loading && stockMovements.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
+          {stock.loading && stock.entries.length === 0 && <SkeletonRows count={3} />}
+          {!stock.loading && stock.entries.length === 0 && <p className="empty-state">Nenhuma movimentação registrada.</p>}
         </div>
+        <HistoryPagination page={stock} label="estoque" />
       </div>
 
-      <PurchaseHistory api={api} isMaster refreshKey={purchasesKey} embedded />
+      <PurchaseHistory api={api} isMaster refreshKey={refreshKey} embedded sessionId={sessionId} />
+      </div>
     </div>
   );
 }
