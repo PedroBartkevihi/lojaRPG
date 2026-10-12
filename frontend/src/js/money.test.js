@@ -13,9 +13,10 @@ describe('moedas de D&D em cobre inteiro', () => {
     for (const value of ['0.1', '1e3', 'NaN', '', '9007199254740992']) expect(parseMoney(value, 'PC')).toBeNaN();
     expect(parseMoney('0.001', 'PO')).toBeNaN();
   });
-  it('formata saldos, zeros e débitos em denominações mistas', () => {
+  it('formata saldos, zeros e débitos em denominações mistas, até a PO', () => {
     expect(formatMoney(150)).toBe('1 PO 5 PP');
-    expect(formatMoney(1234)).toBe('1 PL 2 PO 3 PP 4 PC');
+    expect(formatMoney(1234)).toBe('12 PO 3 PP 4 PC');
+    expect(formatMoney(25000)).toBe('250 PO');
     expect(formatMoney(0)).toBe('0 PC');
     expect(formatMoney(-29)).toBe('-2 PP 9 PC');
   });

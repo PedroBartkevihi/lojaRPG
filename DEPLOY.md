@@ -146,8 +146,8 @@ fora de qualquer sessão.
    `npm run db:init` e `npm run prisma:generate` antes de subir a API.
 4. Peça para recarregar as abas abertas. Uma aba antiga recebe 428 ao gravar
    dinheiro, porque não envia o cabeçalho `X-Currency-Unit: PC`.
-5. Confira um saldo conhecido (250 PO aparecem como 25 PL na tela e valem
-   25000 na API), uma compra antiga, um vendedor fechado e uma compra de 1 PC.
+5. Confira um saldo conhecido (250 PO continuam 250 PO na tela e valem 25000
+   na API), uma compra antiga, um vendedor fechado e uma compra de 1 PC.
 
 Metade do preço e divisões de recompensa passam a arredondar em cobre: metade
 de 75 PO é 37 PO e 5 PP. Vendas antigas mantêm o valor registrado. Uma chave

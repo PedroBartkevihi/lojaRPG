@@ -46,8 +46,9 @@ blocos de carregamento e avisa que a API está acordando.
   entrar de novo.
 - As telas se atualizam sozinhas durante a sessão: o ouro que o Mestre dá ou
   o item que outro jogador compra aparecem sem recarregar a página.
-- Moedas do D&D: preços e saldos aparecem em PL, PO, PP e PC (1 PL = 10 PO,
-  1 PO = 10 PP, 1 PP = 10 PC), e os campos de valor aceitam qualquer uma delas.
+- Moedas do D&D: preços e saldos aparecem em PO, PP e PC, como no livro
+  (248 PO 5 PP), e os campos de valor aceitam também PL (1 PL = 10 PO,
+  1 PO = 10 PP, 1 PP = 10 PC).
 - Diário de sessões: compras, vendas, usos, entregas, recompensas e ajustes
   feitos com uma sessão aberta ficam ligados a ela. Toda a mesa consulta o
   resumo de cada sessão, e os históricos filtram por sessão.
@@ -135,7 +136,7 @@ pede participa da mesa e qual é o papel dele nela.
   não mudou (senão respondem 409). Testes disparam compras, vendas e ajustes ao
   mesmo tempo para garantir isso.
 - **Dinheiro inteiro, em peças de cobre.** Banco e API guardam todo valor em
-  PC (`BIGINT`), e o front converte para PL, PO e PP só na tela: não há ponto
+  PC (`BIGINT`), e o front converte para PO e PP só na tela: não há ponto
   flutuante, e metade de 75 PO é 37 PO e 5 PP, sem arredondar. As proporções
   seguem o [SRD 5.1](https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf).
   Uma aba aberta antes da troca de unidade recebe 428 ao gravar, em vez de

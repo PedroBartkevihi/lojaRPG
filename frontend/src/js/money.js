@@ -22,11 +22,16 @@ export function moneyInUnit(value, unit) {
   return `${value < 0 ? '-' : ''}${Math.floor(abs / rate)}${fraction ? `.${fraction}` : ''}`;
 }
 
+// Na tela a maior moeda e a PO, como nos precos do SRD: 250 PO, e nao 25 PL.
+// A PL continua valendo nos campos de valor.
+const DISPLAY_COINS = ['PO', 'PP', 'PC'];
+
 export function formatMoney(value) {
   if (!Number.isSafeInteger(value)) return '—';
   let remaining = Math.abs(value);
   const parts = [];
-  for (const [unit, rate] of Object.entries(COINS).reverse()) {
+  for (const unit of DISPLAY_COINS) {
+    const rate = COINS[unit];
     const count = Math.floor(remaining / rate);
     if (count) parts.push(`${count} ${unit}`);
     remaining %= rate;
