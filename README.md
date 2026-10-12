@@ -34,28 +34,6 @@ blocos de carregamento e avisa que a API está acordando.
 
 ## Funcionalidades
 
-O Mestre abre e fecha a loja no painel. Fechada, ela mantém o catálogo visível,
-mas novas compras e vendas recebem 409. Usar itens continua permitido. O estado
-é atualizado nos demais clientes pelo ciclo de atualização da mesa.
-API: `PATCH /campaigns/:id/shop` com `{ "shopOpen": false }`, exclusivo do Mestre.
-
-No inventário, o jogador pode entregar itens e/ou ouro a outro personagem ativo
-da mesma mesa, inclusive com a loja fechada. A confirmação identifica o destino;
-o histórico de itens e a auditoria de ouro registram os dois lados. Não há aprovação
-intermediária do Mestre. `POST /campaigns/:id/inventory/:characterId/give` exige
-`targetCharacterId`, `idempotencyKey` UUID e `gold` positivo e/ou `itemId` + `quantity`.
-Repetir a mesma chave não transfere duas vezes. O histórico pessoal de ouro está em
-`GET /campaigns/:id/inventory/:characterId/gold-logs`, com a mesma paginação dos demais.
-
-O **Diário** permite ao Mestre iniciar e encerrar sessões numeradas com notas.
-Compras, vendas, usos, transferências, recompensas e ajustes registram a sessão
-aberta na própria transação. Só uma sessão pode estar aberta por mesa. Eventos
-anteriores ou entre sessões permanecem sem sessão; nenhuma data é inferida.
-Todos os membros consultam o resumo de gastos e movimentações. Históricos aceitam
-`sessionId=<id>` ou `sessionId=none`; o filtro não altera as permissões de personagem.
-Rotas: `GET/POST /campaigns/:id/sessions`, `GET .../sessions/:sessionId/summary`
-e `POST .../sessions/:sessionId/close` (início e encerramento exclusivos do Mestre).
-
 **Mesas**
 
 - Qualquer conta cria uma mesa e é o Mestre dela; a mesma conta pode ser
@@ -68,6 +46,11 @@ e `POST .../sessions/:sessionId/close` (início e encerramento exclusivos do Mes
   entrar de novo.
 - As telas se atualizam sozinhas durante a sessão: o ouro que o Mestre dá ou
   o item que outro jogador compra aparecem sem recarregar a página.
+- Moedas do D&D: preços e saldos aparecem em PL, PO, PP e PC (1 PL = 10 PO,
+  1 PO = 10 PP, 1 PP = 10 PC), e os campos de valor aceitam qualquer uma delas.
+- Diário de sessões: compras, vendas, usos, entregas, recompensas e ajustes
+  feitos com uma sessão aberta ficam ligados a ela. Toda a mesa consulta o
+  resumo de cada sessão, e os históricos filtram por sessão.
 
 Para jogar com o seu grupo: crie uma conta, crie a mesa e envie o link da aba
 **Mesa** aos jogadores. Cada um cria a conta pelo link, entra na mesa e cria o
@@ -79,30 +62,37 @@ personagem.
 
 - Um ou mais personagens por mesa (botão "Novo personagem"), com a escolha
   do personagem ativo.
-- Catálogo com busca (que ignora acentos) e filtro por categoria; cada item
-  tem a cor da raridade (comum, incomum, raro, muito raro, lendário) e um ícone
-  pela categoria.
-- Carrinho e compra com o ouro do personagem ativo; no celular, uma barra no
-  rodapé leva ao carrinho.
-- Venda de itens à loja pela regra do D&D 5e (metade do preço) ou pelo valor
-  que o Mestre definir; o item volta ao estoque.
+- Catálogo com busca (que ignora acentos) e filtro por vendedor e por
+  categoria; cada item tem a cor da raridade (comum, incomum, raro, muito raro,
+  lendário) e um ícone pela categoria.
+- Carrinho e compra com as moedas do personagem ativo, inclusive com itens de
+  vendedores diferentes; no celular, uma barra no rodapé leva ao carrinho.
+- Venda de itens ao vendedor de origem pela regra do D&D 5e (metade do preço)
+  ou pelo valor que o Mestre definir; o item volta ao estoque.
 - Uso de itens consumíveis, como poções, que saem do inventário.
-- Inventário, histórico de compras e de vendas, usos e recompensas por
-  personagem.
+- Entrega de itens e moedas a outro personagem da mesa, sem passar pelo
+  Mestre; os dois lados ficam registrados no histórico.
+- Inventário, histórico de compras e de vendas, usos, entregas e recompensas
+  por personagem, com "Mostrar mais" para os registros antigos.
 
 ![Aria compra, vende uma poção à loja e usa outra pelo inventário](docs/images/demo-compra.gif)
 
 **Mestre**
 
-- Painel em abas: grupo e ouro, itens, catálogo e históricos.
+- Painel em abas: grupo e moedas, vendedores, itens, catálogo e históricos.
+- Vendedores (a mesa começa com o **Geral**), cada um com catálogo, estoque e
+  horário de atendimento próprios. O horário é só informativo, no tempo da
+  campanha: o Mestre abre e fecha cada vendedor, e um vendedor fechado
+  continua visível, mas não compra nem vende.
+- Diário: o Mestre inicia e encerra sessões numeradas, com notas.
 - Cadastro, edição, remoção e reativação de itens.
 - Categorias e raridades próprias, com a cor de cada raridade escolhida pelo
   Mestre; ao remover uma em uso, os itens são realocados.
-- Recompensas: ouro dividido entre o grupo (avisando o que sobra da divisão)
-  ou o mesmo valor para cada um, e itens entregues direto no inventário,
-  inclusive itens que não estão à venda.
+- Recompensas: moedas divididas entre o grupo (avisando o que sobra da
+  divisão) ou o mesmo valor para cada um, e itens entregues direto no
+  inventário, inclusive itens que não estão à venda.
 - Preço de venda por item e itens que a loja não compra, como itens de missão.
-- Ajuste de ouro com motivo obrigatório e auditoria de cada alteração.
+- Ajuste de saldo com motivo obrigatório e auditoria de cada alteração.
 - Histórico de movimentações de estoque.
 
 ![Painel do Mestre com o cadastro de itens e a divisão de ouro entre o grupo](docs/images/painel-mestre.jpg)
@@ -144,6 +134,16 @@ pede participa da mesa e qual é o papel dele nela.
   inteiro é desfeito. As edições do Mestre rodam em transação e só gravam se o valor lido
   não mudou (senão respondem 409). Testes disparam compras, vendas e ajustes ao
   mesmo tempo para garantir isso.
+- **Dinheiro inteiro, em peças de cobre.** Banco e API guardam todo valor em
+  PC (`BIGINT`), e o front converte para PL, PO e PP só na tela: não há ponto
+  flutuante, e metade de 75 PO é 37 PO e 5 PP, sem arredondar. As proporções
+  seguem o [SRD 5.1](https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf).
+  Uma aba aberta antes da troca de unidade recebe 428 ao gravar, em vez de
+  mandar valores em PO para uma API que espera PC.
+- **Compra e entrega sem cobrança dupla.** Cada compra e cada entrega levam
+  uma `idempotencyKey`, gravada na mesma transação da operação. Se a resposta
+  se perder e o front repetir o pedido, a API devolve o resultado original em
+  vez de cobrar de novo.
 - **Regras de integridade no próprio banco.** As migrations têm restrições
   `CHECK` (ouro e estoque nunca negativos, nível de 1 a 20), que valem mesmo
   para código que grave direto no banco.
@@ -230,10 +230,11 @@ Os testes do back-end usam o banco `lojarpg_test` do Docker: aplicam as
 mesmas migrations do desenvolvimento e recriam os dados antes de cada teste.
 Por segurança, só rodam em bancos cujo nome termina em `_test`. Eles cobrem
 mesas, convites e isolamento entre mesas, autenticação e permissões, CRUD de
-itens e catálogo, compras, vendas, uso de itens e recompensas, compras, vendas
-e ajustes simultâneos,
-validação das entradas, regras `CHECK` do banco, o reset da demonstração e a
-verificação dos segredos de produção.
+itens e catálogo, vendedores, compras, vendas, uso de itens, entregas e
+recompensas, compras, vendas e ajustes simultâneos, repetição de compras e
+entregas, sessões e paginação dos históricos, validação das entradas, regras
+`CHECK` do banco, as migrações de vendedores e de moedas, o reset da
+demonstração e a verificação dos segredos de produção.
 
 ## Rotas da API
 
@@ -259,9 +260,16 @@ Mesas:
 As rotas abaixo ficam dentro da mesa, em `/campaigns/:id`, e "Mestre" é o
 Mestre daquela mesa.
 
+Vendedores:
+
+- `GET /shops`
+- `POST /shops` e `PATCH /shops/:shopId` (Mestre): `name`, `hours` e `isOpen`
+- `PATCH /shop` (Mestre): `{ "shopOpen": false }` abre ou fecha só o vendedor
+  Geral
+
 Catálogo e itens:
 
-- `GET /items`
+- `GET /items` (aceita `shopId` para filtrar por vendedor)
 - `POST /items`, `PUT /items/:id`, `DELETE /items/:id` e
   `PATCH /items/:id/reactivate` (Mestre)
 - `GET /catalog/categories` e `GET /catalog/rarities`
@@ -291,15 +299,34 @@ Compras e inventário:
 - `GET /inventory/:characterId`
 - `POST /inventory/:characterId/sell` e `POST /inventory/:characterId/use`
   (dono do personagem, com `itemId` e `quantity`)
-- `GET /inventory/logs` (Mestre): vendas, usos e recompensas da mesa
+- `POST /inventory/:characterId/give` (dono do personagem): entrega a outro
+  personagem da mesa, com `targetCharacterId`, `idempotencyKey` e `gold`
+  e/ou `itemId` + `quantity`
+- `GET /inventory/logs` (Mestre): vendas, usos, entregas e recompensas da mesa
 - `GET /inventory/:characterId/logs` (dono ou Mestre): histórico paginado do personagem
+- `GET /inventory/:characterId/gold-logs` (dono ou Mestre): ajustes,
+  recompensas e entregas de moedas do personagem
+
+Sessões:
+
+- `GET /sessions`: sessões da mesa e a sessão aberta (`active`)
+- `POST /sessions` e `POST /sessions/:sessionId/close` (Mestre), com `notes`
+- `GET /sessions/:sessionId/summary`: gastos, ajustes de saldo e movimentações
+  da sessão
+
+Valores de dinheiro (`price`, `sellPrice`, `gold`, `total`...) são em PC,
+inclusive nos campos chamados `gold`, e cada valor informado vai até
+100.000.000 PC (1.000.000 PO). As escritas de dinheiro exigem o cabeçalho
+`X-Currency-Unit: PC`; sem ele, a API responde 428.
 
 Compras, auditoria de ouro e movimentações de estoque/inventário aceitam
 `limit` (padrão 25, máximo 100) e `cursor`. As respostas mantêm `purchases`,
 `logs` ou `movements` e acrescentam `pagination: { limit, hasMore, nextCursor }`.
 Passe `nextCursor` na próxima chamada com os mesmos filtros; ele usa data e id,
-sem depender de a linha de fronteira ainda existir. `GET /inventory/me` também
-retorna `logsPagination`; `includeLogs=false` permite carregar só equipamentos.
+sem depender de a linha de fronteira ainda existir. Os históricos também
+aceitam `sessionId=<id>` ou `sessionId=none` (fora de sessão). `GET /inventory/me`
+também retorna `logsPagination`; `includeLogs=false` permite carregar só
+equipamentos.
 
 O painel carrega apenas os dados da aba ativa. Nos históricos, **Mostrar mais**
 acrescenta páginas anteriores e pausa a atualização automática dessa lista
@@ -356,21 +383,3 @@ local com Docker, as variáveis de ambiente e o backup do banco.
 ## Licença
 
 [MIT](./LICENSE).
-
-### Vendedores por mesa (A4)
-
-- A migração cria o vendedor **Geral** em cada mesa, preserva a abertura anterior e vincula todos os itens existentes a ele, sem alterar estoque ou histórico.
-- Em **Mestre → Vendedores**, crie vendedores e informe seus horários. Os horários são descritivos (tempo da campanha); a abertura é controlada manualmente e afeta somente aquele vendedor.
-- A loja e o painel de itens filtram por vendedor. Ofertas com o mesmo nome têm preços e estoques independentes. O vendedor de uma oferta não muda depois do cadastro, preservando a origem dos itens no inventário.
-- Um carrinho pode reunir ofertas de vendedores abertos. Se algum fechar, toda a compra é recusada sem débito parcial. Vender devolve o item ao vendedor de origem; usar e transferir continuam disponíveis.
-- API: `GET/POST /campaigns/:id/shops`, `PATCH /campaigns/:id/shops/:shopId`, filtro `shopId` em `/items`. A rota antiga `PATCH /campaigns/:id/shop` controla somente o vendedor padrão.
-
-### Moedas de D&D (A5)
-
-- Todos os valores monetários da API e do banco são **peças inteiras de cobre (PC)**, inclusive os campos legados chamados `gold`. Conversão: **1 PP = 10 PC; 1 PO = 100 PC; 1 PL = 1000 PC**. A interface mostra combinações como `1 PO 5 PP` e permite escolher a unidade nos formulários. PC é a unidade inicial dos campos.
-- A migração `20261012050000_copper_currency` converte preços, saldos, valores históricos e respostas armazenadas de compras/transferências de PO para PC (multiplica por 100). Usa uma transação e amplia as colunas para `BIGINT`; `CHECK`s limitam valores à faixa inteira exata do JavaScript. O catálogo e os saldos iniciais mantêm o mesmo poder de compra.
-- Preços, ajustes e recompensas aceitam até 100.000.000 PC por valor informado (equivalente ao limite anterior de 1.000.000 PO). Saldos acumulados podem chegar a 9.007.199.254.740.991 PC. Débitos continuam condicionais; créditos que ultrapassariam esse limite são recusados sem efeitos parciais.
-- Metade do preço e divisões de recompensas agora arredondam para baixo em **cobre**, com a sobra informada. Exemplo: metade de 75 PO é 37 PO e 5 PP; uma venda antiga de 37 PO continua registrada como 37 PO.
-- Escritas monetárias exigem `X-Currency-Unit: PC` para impedir que uma aba antiga envie valores em PO. A interface envia esse cabeçalho automaticamente; clientes externos precisam atualizá-lo. Os nomes dos campos/rotas permanecem estáveis, mas a unidade mudou.
-- Chaves de compras antigas continuam retornando a compra original com valores convertidos. Chaves de transferências anteriores à migração ficam reservadas e retornam 409, pois seu hash foi calculado em PO: consulte o histórico antes de iniciar outra entrega. Isso impede repetir uma transferência já realizada.
-- Referência das proporções: [SRD 5.1 oficial, Equipment / Coinage](https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf).

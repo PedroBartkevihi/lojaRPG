@@ -127,23 +127,70 @@ banco para uma "Mesa principal", com cada conta no papel que tinha antes; na
 demonstração, o reset seguinte troca essa mesa pela Mesa de demonstração.
 Dados de um banco SQLite das versões antigas não são migrados.
 
-## Backup do PostgreSQL
+## Atualização para vendedores, sessões e moedas em cobre
 
-### Contas demo com dados legados
+Esta versão troca a unidade do dinheiro: preços, saldos e históricos passam
+de PO inteiras para PC (peças de cobre). A migration
+`20261012050000_copper_currency` multiplica os valores por 100, amplia as
+colunas para `BIGINT` e converte também as respostas guardadas das compras. A
+migration dos vendedores cria o **Geral** em cada mesa, aberto ou fechado como
+a loja estava, e liga a ele todos os itens existentes. Os eventos antigos ficam
+fora de qualquer sessão.
 
-A mesa de demonstracao possui a marca persistente `campaigns.is_demo`, que
-nao muda ao regenerar o convite. A migration marca apenas o codigo reservado
-`MESADEMO`; nao presume que a mesa de id 1, chamada "Mesa principal" em uma
-migration antiga, seja descartavel.
+1. Faça o backup do banco (veja "Backup do PostgreSQL") e confira a mesa de
+   demonstração (próxima seção).
+2. Evite escritas durante a troca: a API antiga não pode gravar valores em PO
+   num banco já convertido. No Render, publique num horário sem uso.
+3. Publique a API e o front-end da mesma revisão. No Render e no Docker, o
+   início da API aplica as migrations; em outra hospedagem, rode
+   `npm run db:init` e `npm run prisma:generate` antes de subir a API.
+4. Peça para recarregar as abas abertas. Uma aba antiga recebe 428 ao gravar
+   dinheiro, porque não envia o cabeçalho `X-Currency-Unit: PC`.
+5. Confira um saldo conhecido (250 PO aparecem como 25 PL na tela e valem
+   25000 na API), uma compra antiga, um vendedor fechado e uma compra de 1 PC.
 
-Se uma conta publica tiver vinculos, personagens ou registros em uma mesa real,
-o reset para **antes de excluir dados**. O acesso dessas contas a mesas reais
-tambem e bloqueado, mesmo com um vinculo antigo. Para publicar sem executar o
-reset durante a revisao, defina `DEMO_RESET_ON_START=false`; as migrations
-continuam obrigatorias. Com a variavel ligada, esse bloqueio interrompe o inicio
-da API, preservando os dados.
+Metade do preço e divisões de recompensa passam a arredondar em cobre: metade
+de 75 PO é 37 PO e 5 PP. Vendas antigas mantêm o valor registrado. Uma chave
+de entrega gravada antes da conversão recebe 409 em vez de repetir a entrega,
+porque foi calculada em PO.
 
-Faca backup e identifique os vinculos antes de qualquer transferencia:
+Não use `db:reset` nem o seed para atualizar um banco real. Para voltar à
+versão em PO depois de novas operações, restaure o backup com a API parada;
+voltar só o código não basta. Se o `migrate deploy` falhar, resolva o estado da
+migration antes de rodar de novo, sem aplicar a multiplicação por 100 à mão.
+
+## Contas de demonstração com dados antigos
+
+A mesa de demonstração tem a marca `campaigns.is_demo`, que não muda quando o
+convite é regenerado. A migration marca só a mesa com o convite reservado
+`MESADEMO`: ela não presume que a mesa de id 1 seja a demonstração, porque a
+migration das mesas também usou esse id para a "Mesa principal".
+
+Antes de publicar, confira o convite da mesa 1:
+
+```sql
+SELECT id, name, invite_code FROM campaigns WHERE id = 1;
+```
+
+Na versão anterior, qualquer visitante logado como Mestre da demonstração pode
+regenerar o convite. Se a mesa 1 for a Mesa de demonstração e o convite não
+for `MESADEMO`, devolva o código antes do deploy (ou reinicie a API antiga,
+cujo reset faz o mesmo):
+
+```sql
+UPDATE campaigns SET invite_code = 'MESADEMO'
+WHERE id = 1 AND name = 'Mesa de demonstração';
+```
+
+Sem isso, a migration não marca a mesa, o reset da versão nova para e a API
+não sobe.
+
+Se uma conta pública tiver vínculos, personagens ou registros em uma mesa real,
+o reset também para **antes de excluir dados**, e o acesso dessas contas a
+mesas reais é bloqueado, mesmo com um vínculo antigo. Com
+`DEMO_RESET_ON_START=true`, esse bloqueio impede a API de subir, preservando os
+dados; para publicar enquanto revisa, use `DEMO_RESET_ON_START=false` (as
+migrations continuam obrigatórias). Para encontrar esses vínculos:
 
 ```sql
 SELECT u.id AS user_id, u.email, c.id AS campaign_id, c.name, m.role
@@ -162,13 +209,14 @@ WHERE NOT c.is_demo
                   'borin@lojarpg.local', 'lia@lojarpg.local');
 ```
 
-Essas consultas iniciais nao substituem revisar autoria de itens e auditorias.
-Confirme com o responsavel pela mesa a conta individual que recebera os dados;
-so entao planeje uma transferencia transacional de propriedade e vinculos,
-preservando personagens, compras e historicos. Nao apague personagens para
-liberar o reset. Uma demo antiga com convite ja regenerado tambem requer
-classificacao manual: nao marque uma mesa como demo apenas por nome ou id.
-Nenhuma transferencia automatica para uma conta presumida e executada.
+Essas consultas não cobrem a autoria de itens nem as auditorias. Antes de mover
+qualquer dado, confirme com o responsável pela mesa qual conta deve recebê-lo e
+faça a transferência de propriedade numa transação, preservando personagens,
+compras e históricos. Não apague personagens para liberar o reset, e não marque
+uma mesa como demonstração só pelo nome ou pelo id. A API nunca transfere dados
+para uma conta presumida.
+
+## Backup do PostgreSQL
 
 Banco do Docker:
 
@@ -186,14 +234,3 @@ próprio provedor.
 - Render: aba Logs de cada serviço no painel.
 
 A API evita retornar detalhes internos em erros 500.
-
-## Atualização A1–A5: vendedores, sessões e moedas
-
-1. Faça backup e suspenda as escritas da API antiga antes de migrar. A unidade monetária muda de ouro inteiro para cobre; não execute versões antigas e novas simultaneamente sobre o mesmo banco.
-2. Instale as dependências do backend, execute `npm run db:init` (Prisma migrate deploy) e `npm run prisma:generate`. As migrações preservam os itens em “Geral”, deixam eventos antigos sem sessão e convertem todos os valores monetários, inclusive históricos e respostas idempotentes.
-3. Publique a API e o build da interface desta mesma revisão. Reabra as escritas e solicite que as abas antigas sejam recarregadas. Clientes externos devem enviar valores em PC e o cabeçalho `X-Currency-Unit: PC`; sem ele, escritas monetárias recebem 428.
-4. Confira em staging um saldo/preço conhecido: 250 PO devem aparecer como 25 PL, com valor 25000 na API. Confira uma compra histórica, um vendedor fechado e uma compra de 1 PC.
-
-Não use `db:reset` ou seed para atualizar um banco real. As migrations são aplicadas uma única vez pelo Prisma. Um rollback para a versão em PO exige restaurar o backup com a API parada; não basta voltar o código depois de novas operações em PC. Se `migrate deploy` falhar, investigue e resolva o estado da migration antes de reexecutar, sem aplicar manualmente a multiplicação por 100.
-
-Os testes de integração e de migração usam exclusivamente `TEST_DATABASE_URL` com nome terminado em `_test`. A checagem local não executa publicação nem migra o banco real.
