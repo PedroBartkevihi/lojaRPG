@@ -1,3 +1,4 @@
+import { formatMoney } from '../../js/money.js';
 import { Coins, Gift, PackagePlus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { usePagedHistory } from '../../js/usePagedHistory.js';
@@ -40,7 +41,7 @@ export default function HistoryTab({ api, refreshKey }) {
       <div className="surface-panel">
         <div className="panel-title">
           <Coins size={20} />
-          <h3>Auditoria de ouro</h3>
+          <h3>Auditoria de moedas</h3>
         </div>
         <div className="history-list">
           {gold.entries.map((log) => (
@@ -52,10 +53,10 @@ export default function HistoryTab({ api, refreshKey }) {
                     {log.actorName} - {new Date(log.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <b>{log.delta > 0 ? `+${log.delta}` : log.delta} ouro</b>
+                <b>{log.delta > 0 ? '+' : ''}{formatMoney(log.delta)}</b>
               </header>
               <p>
-                {log.previousGold} &rarr; {log.newGold} ouro. Motivo: {log.reason}
+                {formatMoney(log.previousGold)} &rarr; {formatMoney(log.newGold)}. Motivo: {log.reason}
               </p>
             </article>
           ))}

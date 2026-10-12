@@ -1,3 +1,5 @@
+import MoneyInput from './MoneyInput.jsx';
+import { formatMoney } from '../js/money.js';
 import { useState } from 'react';
 import { Coins, Gift, PackagePlus } from 'lucide-react';
 
@@ -92,7 +94,7 @@ export default function RewardsPanel({ api, characters, items, showNotice, onDon
       </div>
 
       <form className="stack-form compact-form" onSubmit={giveGold}>
-        <p className="fieldset-title">Ouro para o grupo</p>
+        <p className="fieldset-title">Moedas para o grupo</p>
         <div className="checkbox-list">
           {characters.map((character) => (
             <label className="checkbox-field" key={character.id}>
@@ -106,16 +108,7 @@ export default function RewardsPanel({ api, characters, items, showNotice, onDon
           ))}
         </div>
         <div className="form-grid two">
-          <label>
-            Ouro
-            <input
-              type="number"
-              min="1"
-              value={goldReward.total}
-              onChange={(event) => updateGold('total', event.target.value)}
-              required
-            />
-          </label>
+          <MoneyInput label="Valor da recompensa" value={goldReward.total} onChange={(value) => updateGold('total', value)} required />
           <label>
             Distribuição
             <select value={goldReward.mode} onChange={(event) => updateGold('mode', event.target.value)}>
@@ -136,13 +129,13 @@ export default function RewardsPanel({ api, characters, items, showNotice, onDon
         {total > 0 && selected.length > 0 && (
           <p className="form-hint" aria-live="polite">
             {splitting
-              ? `Cada personagem recebe ${share} de ouro${remainder > 0 ? `; sobra ${remainder}` : ''}.`
-              : `Cada personagem recebe ${total} de ouro, ${total * selected.length} no total.`}
+              ? `Cada personagem recebe ${formatMoney(share)}${remainder > 0 ? `; sobra ${formatMoney(remainder)}` : ''}.`
+              : `Cada personagem recebe ${formatMoney(total)}, ${formatMoney(total * selected.length)} no total.`}
           </p>
         )}
         <button className="primary-action" disabled={saving === 'gold' || selected.length === 0}>
           <Coins size={17} />
-          {saving === 'gold' ? 'Entregando...' : 'Dar ouro'}
+          {saving === 'gold' ? 'Entregando...' : 'Dar moedas'}
         </button>
       </form>
 

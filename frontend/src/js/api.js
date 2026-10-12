@@ -72,6 +72,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
   async function request(path, options = {}) {
     const retry = options.retry !== false;
     const headers = {
+      'X-Currency-Unit': 'PC',
       ...(options.headers || {})
     };
 

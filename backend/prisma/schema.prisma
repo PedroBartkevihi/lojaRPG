@@ -69,7 +69,7 @@ model Character {
   className     String         @map("class")
   race          String
   level         Int            @default(1)
-  gold          Int            @default(0)
+  gold          BigInt            @default(0)
   createdAt     DateTime       @default(now()) @map("created_at")
   campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -135,10 +135,10 @@ model Item {
   categoryId     Int             @map("category_id")
   rarityId       Int             @map("rarity_id")
   description    String          @default("")
-  price          Int
+  price          BigInt
   // Quanto a loja paga ao comprar o item de um jogador. Vazio segue a regra
   // do D&D 5e (metade do preco); isSellable falso faz a loja recusar o item.
-  sellPrice      Int?            @map("sell_price")
+  sellPrice      BigInt?            @map("sell_price")
   isSellable     Boolean         @default(true) @map("is_sellable")
   stock          Int             @default(0)
   imageUrl       String          @default("") @map("image_url")
@@ -185,7 +185,7 @@ model InventoryLog {
   actorUserId Int?      @map("actor_user_id")
   type        String
   quantity    Int
-  unitPrice   Int       @default(0) @map("unit_price")
+  unitPrice   BigInt       @default(0) @map("unit_price")
   reason      String    @default("")
   createdAt   DateTime  @default(now()) @map("created_at")
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
@@ -205,7 +205,7 @@ model InventoryLog {
 model Purchase {
   id          Int            @id @default(autoincrement())
   characterId Int            @map("character_id")
-  totalValue  Int            @map("total_value")
+  totalValue  BigInt            @map("total_value")
   purchasedAt DateTime       @default(now()) @map("purchased_at")
   character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
   items       PurchaseItem[]
@@ -239,7 +239,7 @@ model PurchaseItem {
   purchaseId Int      @map("purchase_id")
   itemId     Int      @map("item_id")
   quantity   Int
-  unitPrice  Int      @map("unit_price")
+  unitPrice  BigInt      @map("unit_price")
   purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   item       Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
@@ -250,9 +250,9 @@ model GoldAuditLog {
   id           Int       @id @default(autoincrement())
   actorUserId  Int       @map("actor_user_id")
   characterId  Int       @map("character_id")
-  previousGold Int       @map("previous_gold")
-  newGold      Int       @map("new_gold")
-  delta        Int
+  previousGold BigInt       @map("previous_gold")
+  newGold      BigInt       @map("new_gold")
+  delta        BigInt
   reason       String
   createdAt    DateTime  @default(now()) @map("created_at")
   actor        User      @relation("GoldAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
@@ -308,6 +308,7 @@ model TransferRequest {
   campaignId  Int      @map("campaign_id")
   key         String   @db.VarChar(36)
   requestHash String   @map("request_hash") @db.VarChar(64)
+  currencyVersion Int @default(2) @map("currency_version")
   response    Json?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)

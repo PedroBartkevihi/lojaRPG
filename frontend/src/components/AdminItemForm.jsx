@@ -1,3 +1,5 @@
+import MoneyInput from './MoneyInput.jsx';
+import { formatMoney } from '../js/money.js';
 import { useEffect, useState } from 'react';
 import { Save, X } from 'lucide-react';
 
@@ -138,16 +140,7 @@ export default function AdminItemForm({ item, shops = [], categories = [], rarit
         />
       </label>
       <div className="form-grid two">
-        <label>
-          Preço
-          <input
-            value={form.price}
-            onChange={(event) => updateField('price', event.target.value)}
-            type="number"
-            min="0"
-            required
-          />
-        </label>
+        <MoneyInput label="Preço" value={form.price} onChange={(value) => updateField('price', value)} required />
         <label>
           Estoque
           <input
@@ -160,17 +153,7 @@ export default function AdminItemForm({ item, shops = [], categories = [], rarit
         </label>
       </div>
       <div className="form-grid two">
-        <label>
-          Preço de venda à loja
-          <input
-            value={form.sellPrice}
-            onChange={(event) => updateField('sellPrice', event.target.value)}
-            type="number"
-            min="0"
-            placeholder={`Padrão: ${Math.floor(Number(form.price || 0) / 2)} (metade)`}
-            disabled={!form.isSellable}
-          />
-        </label>
+        <MoneyInput label="Preço de venda à loja" value={form.sellPrice} onChange={(value) => updateField('sellPrice', value)} disabled={!form.isSellable} placeholder={`Padrão: ${formatMoney(Math.floor(Number(form.price || 0) / 2))}`} />
         <label className="checkbox-field">
           <input
             type="checkbox"

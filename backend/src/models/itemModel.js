@@ -8,7 +8,7 @@ export function effectiveSellPrice(item) {
     return null;
   }
 
-  return item.sellPrice ?? Math.floor(item.price / 2);
+  return item.sellPrice == null ? Math.floor(Number(item.price) / 2) : Number(item.sellPrice);
 }
 
 function mapItem(item) {
@@ -26,8 +26,8 @@ function mapItem(item) {
     categoryId: item.categoryId,
     category: item.category?.name,
     description: item.description,
-    price: item.price,
-    sellPrice: item.sellPrice,
+    price: Number(item.price),
+    sellPrice: item.sellPrice === null ? null : Number(item.sellPrice),
     isSellable: item.isSellable,
     effectiveSellPrice: effectiveSellPrice(item),
     rarityId: item.rarityId,

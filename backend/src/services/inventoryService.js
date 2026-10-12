@@ -82,7 +82,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
     );
 
     return {
-      message: `Venda concluída: ${quantity}x ${item.name} por ${total} ouro.`,
+      message: `Venda concluída: ${quantity}x ${item.name} por ${total} PC.`,
       character: await findCharacterById(character.id, campaignId, prisma)
     };
   });

@@ -12,8 +12,8 @@ export const characterIdSchema = id('Id do personagem');
 
 export const characterOwnerSchema = id('Usuário');
 
-export const goldSchema = integer('Ouro', { min: 0, max: 1000000 });
+export const goldSchema = integer('Ouro', { min: 0, max: 100000000 });
 
-export const goldAdjustmentSchema = integer('Ajuste de ouro', { min: -1000000, max: 1000000 });
+export const goldAdjustmentSchema = integer('Ajuste de ouro', { min: -100000000, max: 100000000 });
 
 export const goldReasonSchema = requiredText('Motivo da alteração de ouro', 240);

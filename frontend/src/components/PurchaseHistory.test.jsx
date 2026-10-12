@@ -61,7 +61,7 @@ describe('PurchaseHistory', () => {
     render(<PurchaseHistory api={api} character={{ id: 2 }} />);
 
     expect(await screen.findByText('Compra #4')).toBeInTheDocument();
-    expect(screen.getByText('3x Poção de Cura (25 ouro)')).toBeInTheDocument();
+    expect(screen.getByText('3x Poção de Cura (2 PP 5 PC)')).toBeInTheDocument();
     expect(api.myPurchases).toHaveBeenCalledWith({ characterId: 2, limit: 25 });
   });
 

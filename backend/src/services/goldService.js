@@ -13,6 +13,8 @@ export async function changeCharacterGold({ campaignId, actorUserId, characterId
 
     const nextGold = mode === 'set' ? value : character.gold + value;
 
+    if (!Number.isSafeInteger(nextGold)) throw new ApiError(400, 'O saldo excederia o limite permitido em PC.');
+
     if (nextGold < 0) {
       throw new ApiError(400, 'Ouro não pode ficar negativo.');
     }

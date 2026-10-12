@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePagedHistory } from '../js/usePagedHistory.js';
 import HistoryPagination from '../components/HistoryPagination.jsx';
@@ -56,9 +57,9 @@ export default function SessionDiary({ api, isMaster, liveKey, showNotice }) {
       </div>
       <div className="surface-panel"><h3>Resumo{details ? ` da sessão ${details.session.number}` : ''}</h3>
         {details ? <><p className="session-notes">{details.session.notes || 'Sem notas.'}</p>
-          <p>{details.summary.purchaseCount} compras; o grupo gastou {details.summary.spent} ouro.</p>
-          <p>Variação líquida nos ajustes de ouro: {details.summary.goldChange}.</p>
-          <ul>{details.summary.movements.map((entry, index) => <li key={index}>{entry.characterName}: {entry.type.toLowerCase()} de {entry.quantity}x {entry.itemName}{entry.type === 'VENDA' ? ` por ${entry.value} ouro` : ''}</li>)}</ul>
+          <p>{details.summary.purchaseCount} compras; o grupo gastou {formatMoney(details.summary.spent)}.</p>
+          <p>Variação líquida nos ajustes de saldo: {formatMoney(details.summary.goldChange)}.</p>
+          <ul>{details.summary.movements.map((entry, index) => <li key={index}>{entry.characterName}: {entry.type.toLowerCase()} de {entry.quantity}x {entry.itemName}{entry.type === 'VENDA' ? ` por ${formatMoney(entry.value)}` : ''}</li>)}</ul>
         </> : <p>Escolha uma sessão para consultar compras, usos, vendas e recompensas.</p>}
       </div>
     </div>

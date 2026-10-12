@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { useState } from 'react';
 import { Save, ScrollText, UserPlus, X } from 'lucide-react';
 
@@ -86,8 +87,8 @@ export default function CharacterPanel({
             <dd>{character.level}</dd>
           </div>
           <div>
-            <dt>Ouro</dt>
-            <dd>{character.gold}</dd>
+            <dt>Saldo</dt>
+            <dd>{formatMoney(character.gold)}</dd>
           </div>
         </dl>
         <button type="button" className="text-action new-character" onClick={() => setCreating(true)}>

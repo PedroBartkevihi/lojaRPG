@@ -45,6 +45,8 @@ async function copyStarterCatalog(campaignId, actorUserId, prisma) {
   await prisma.item.createMany({
     data: STARTER_ITEMS.map(({ category, rarity, ...item }) => ({
       ...item,
+      price: item.price * 100,
+      sellPrice: item.sellPrice == null ? null : item.sellPrice * 100,
       shopId: shop.id,
       campaignId,
       categoryId: categoryIds.get(category),

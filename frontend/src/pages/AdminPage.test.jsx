@@ -65,7 +65,7 @@ describe('AdminPage', () => {
     renderPage();
 
     expect(await screen.findByText('Aria Luaferro', { selector: 'strong' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /grupo e ouro/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /grupo e moedas/i })).toHaveAttribute('aria-selected', 'true');
 
     await user.click(screen.getByRole('tab', { name: /^itens$/i }));
     expect(screen.getByRole('heading', { name: /itens cadastrados/i })).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('AdminPage', () => {
   it('abre direto na aba do endereço', async () => {
     renderPage('/admin?aba=historicos');
 
-    expect(await screen.findByRole('heading', { name: /auditoria de ouro/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /auditoria de moedas/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /históricos/i })).toHaveAttribute('aria-selected', 'true');
   });
 });

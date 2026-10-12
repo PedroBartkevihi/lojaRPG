@@ -18,7 +18,7 @@ function mapInventoryItem(entry) {
       rarity: entry.item.rarity?.name,
       rarityRank: entry.item.rarity?.rank,
       description: entry.item.description,
-      price: entry.item.price,
+      price: Number(entry.item.price),
       effectiveSellPrice: effectiveSellPrice(entry.item),
       imageUrl: entry.item.imageUrl,
       isActive: Boolean(entry.item.isActive)
@@ -95,8 +95,8 @@ function mapInventoryLog(log) {
     actorUserId: log.actorUserId,
     actorName: log.actor?.name,
     quantity: log.quantity,
-    unitPrice: log.unitPrice,
-    total: log.quantity * log.unitPrice,
+    unitPrice: Number(log.unitPrice),
+    total: log.quantity * Number(log.unitPrice),
     reason: log.reason,
     createdAt: log.createdAt
   };

@@ -1344,3 +1344,17 @@ a.primary-action {
 .history-pagination .form-error {
   flex-basis: 100%;
 }
+
+.money-field { min-width: 0; display: grid; gap: 0.4rem; }
+.money-input { display: flex; gap: 0.5rem; }
+.money-input input { min-width: 0; width: 100%; }
+.money-input select { flex: 0 0 5rem; width: 5rem; }
+.money-field small { color: var(--text-muted, #b7afa5); }
+
+@media (max-width: 640px) {
+  .subtabs {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .subtabs button { white-space: normal; }
+}

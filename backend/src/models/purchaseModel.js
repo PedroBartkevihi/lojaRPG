@@ -12,7 +12,7 @@ function mapPurchase(purchase) {
     characterId: purchase.characterId,
     characterName: purchase.character?.name,
     userName: purchase.character?.user?.name,
-    totalValue: purchase.totalValue,
+    totalValue: Number(purchase.totalValue),
     purchasedAt: purchase.purchasedAt,
     items: purchase.items.map((entry) => ({
       id: entry.id,
@@ -20,8 +20,8 @@ function mapPurchase(purchase) {
       itemName: entry.item?.name,
       category: entry.item?.category?.name,
       quantity: entry.quantity,
-      unitPrice: entry.unitPrice,
-      subtotal: entry.quantity * entry.unitPrice
+      unitPrice: Number(entry.unitPrice),
+      subtotal: entry.quantity * Number(entry.unitPrice)
     }))
   };
 }

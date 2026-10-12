@@ -1,3 +1,4 @@
+import { formatMoney } from '../../js/money.js';
 import { useMemo, useState } from 'react';
 import { PackagePlus, Pencil, RefreshCcw, Trash2 } from 'lucide-react';
 import AdminItemForm from '../AdminItemForm.jsx';
@@ -130,8 +131,8 @@ export default function ItemsTab({ api, items, shops = [], categories, rarities,
                 <div>
                   <strong>{item.name}</strong>
                   <span>
-                    {item.shopName} - {item.category} - {item.rarity} - {item.price} ouro -{' '}
-                    {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja não compra'} - estoque {item.stock}{' '}
+                    {item.shopName} - {item.category} - {item.rarity} - {formatMoney(item.price)} -{' '}
+                    {item.isSellable ? `revenda ${formatMoney(item.effectiveSellPrice)}` : 'loja não compra'} - estoque {item.stock}{' '}
                     - {item.isActive ? 'ativo' : 'inativo'}
                   </span>
                 </div>

@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 
 export default function CartPanel({ cart, setCart, character, onCheckout, submitting = false, shopOpen = true }) {
@@ -34,7 +35,7 @@ export default function CartPanel({ cart, setCart, character, onCheckout, submit
             <div className="cart-line" key={entry.item.id}>
               <div>
                 <strong>{entry.item.name}</strong><small>{entry.item.shopName}</small>
-                <span>{entry.item.price} ouro cada</span>
+                <span>{formatMoney(entry.item.price)} cada</span>
               </div>
               <input
                 type="number"
@@ -53,7 +54,7 @@ export default function CartPanel({ cart, setCart, character, onCheckout, submit
       )}
       <div className="cart-total">
         <span>Total</span>
-        <strong>{total} ouro</strong>
+        <strong>{formatMoney(total)}</strong>
       </div>
       <button className="primary-action full" disabled={!canCheckout} onClick={onCheckout}>
         {submitting ? 'Finalizando...' : 'Finalizar compra'}

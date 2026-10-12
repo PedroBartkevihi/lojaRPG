@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { Coins, Plus } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
 import ItemIcon from './ItemIcon.jsx';
@@ -26,7 +27,7 @@ export default function ItemCard({ item, onAdd, disabled, readOnly = false }) {
       <div className="item-card-footer">
         <strong className="price">
           <Coins size={17} />
-          {item.price} ouro
+          {formatMoney(item.price)}
         </strong>
         {/* O Mestre so ve a vitrine; os itens sao editados no painel dele. */}
         {!readOnly && (

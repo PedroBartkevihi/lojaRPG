@@ -9,7 +9,7 @@ import ShopsTab from '../components/admin/ShopsTab.jsx';
 
 // A aba fica no endereco (?aba=itens) para sobreviver a um recarregamento.
 const TABS = [
-  { key: 'grupo', label: 'Grupo e ouro', Icon: Coins },
+  { key: 'grupo', label: 'Grupo e moedas', Icon: Coins },
   { key: 'vendedores', label: 'Vendedores', Icon: Tags },
   { key: 'itens', label: 'Itens', Icon: PackagePlus },
   { key: 'catalogo', label: 'Catálogo', Icon: Tags },

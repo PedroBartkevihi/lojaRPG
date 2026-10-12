@@ -364,3 +364,13 @@ local com Docker, as variáveis de ambiente e o backup do banco.
 - A loja e o painel de itens filtram por vendedor. Ofertas com o mesmo nome têm preços e estoques independentes. O vendedor de uma oferta não muda depois do cadastro, preservando a origem dos itens no inventário.
 - Um carrinho pode reunir ofertas de vendedores abertos. Se algum fechar, toda a compra é recusada sem débito parcial. Vender devolve o item ao vendedor de origem; usar e transferir continuam disponíveis.
 - API: `GET/POST /campaigns/:id/shops`, `PATCH /campaigns/:id/shops/:shopId`, filtro `shopId` em `/items`. A rota antiga `PATCH /campaigns/:id/shop` controla somente o vendedor padrão.
+
+### Moedas de D&D (A5)
+
+- Todos os valores monetários da API e do banco são **peças inteiras de cobre (PC)**, inclusive os campos legados chamados `gold`. Conversão: **1 PP = 10 PC; 1 PO = 100 PC; 1 PL = 1000 PC**. A interface mostra combinações como `1 PO 5 PP` e permite escolher a unidade nos formulários. PC é a unidade inicial dos campos.
+- A migração `20261012050000_copper_currency` converte preços, saldos, valores históricos e respostas armazenadas de compras/transferências de PO para PC (multiplica por 100). Usa uma transação e amplia as colunas para `BIGINT`; `CHECK`s limitam valores à faixa inteira exata do JavaScript. O catálogo e os saldos iniciais mantêm o mesmo poder de compra.
+- Preços, ajustes e recompensas aceitam até 100.000.000 PC por valor informado (equivalente ao limite anterior de 1.000.000 PO). Saldos acumulados podem chegar a 9.007.199.254.740.991 PC. Débitos continuam condicionais; créditos que ultrapassariam esse limite são recusados sem efeitos parciais.
+- Metade do preço e divisões de recompensas agora arredondam para baixo em **cobre**, com a sobra informada. Exemplo: metade de 75 PO é 37 PO e 5 PP; uma venda antiga de 37 PO continua registrada como 37 PO.
+- Escritas monetárias exigem `X-Currency-Unit: PC` para impedir que uma aba antiga envie valores em PO. A interface envia esse cabeçalho automaticamente; clientes externos precisam atualizá-lo. Os nomes dos campos/rotas permanecem estáveis, mas a unidade mudou.
+- Chaves de compras antigas continuam retornando a compra original com valores convertidos. Chaves de transferências anteriores à migração ficam reservadas e retornam 409, pois seu hash foi calculado em PO: consulte o histórico antes de iniciar outra entrega. Isso impede repetir uma transferência já realizada.
+- Referência das proporções: [SRD 5.1 oficial, Equipment / Coinage](https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf).

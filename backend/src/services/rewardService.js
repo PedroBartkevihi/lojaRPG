@@ -7,7 +7,7 @@ import { ApiError } from '../utils/ApiError.js';
 
 // Divide o ouro entre os personagens escolhidos (`split`) ou da o valor
 // inteiro a cada um (`each`). Na divisao, o que nao fecha em partes iguais
-// sobra e e informado ao Mestre. Cada credito fica na auditoria de ouro.
+// sobra e e informado ao Mestre. Cada credito fica na auditoria PC.
 export async function giveGold({ actorUserId, campaignId, characterIds, total, mode, reason }) {
   // Em ordem crescente, como os outros bloqueios: duas recompensas ao mesmo
   // tempo para os mesmos personagens nao esperam uma pela outra.
@@ -16,7 +16,7 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
   const remainder = mode === 'split' ? total - share * ids.length : 0;
 
   if (share <= 0) {
-    throw new ApiError(400, `${total} de ouro não dá para dividir entre ${ids.length} personagens.`);
+    throw new ApiError(400, `${total} PC não dá para dividir entre ${ids.length} personagens.`);
   }
 
   return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
@@ -44,11 +44,11 @@ export async function giveGold({ actorUserId, campaignId, characterIds, total, m
       characters.push({ ...character, gold: newGold });
     }
 
-    const leftover = remainder > 0 ? ` Sobrou ${remainder}.` : '';
+    const leftover = remainder > 0 ? ` Sobrou ${remainder} PC.` : '';
     const message =
       characters.length === 1
-        ? `${share} de ouro para ${characters[0].name}.${leftover}`
-        : `${share} de ouro para cada um dos ${characters.length} personagens.${leftover}`;
+        ? `${share} PC para ${characters[0].name}.${leftover}`
+        : `${share} PC para cada um dos ${characters.length} personagens.${leftover}`;
 
     return { message, share, remainder, characters };
   });

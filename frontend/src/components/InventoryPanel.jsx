@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Backpack, Coins, HandCoins, Sparkles } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
@@ -53,7 +54,7 @@ export default function InventoryPanel({
     const { item } = entry;
     const question =
       action === 'sell'
-        ? `Vender ${quantity}x ${item.name} por ${item.effectiveSellPrice * quantity} ouro?`
+        ? `Vender ${quantity}x ${item.name} por ${formatMoney(item.effectiveSellPrice * quantity)}?`
         : `Usar ${quantity}x ${item.name}? O item sai do inventário.`;
 
     if (!window.confirm(question)) {
@@ -106,7 +107,7 @@ export default function InventoryPanel({
         {character && (
           <span className="gold-badge">
             <Coins size={18} />
-            {character.gold} ouro
+            {formatMoney(character.gold)}
           </span>
         )}
       </div>
@@ -136,7 +137,7 @@ export default function InventoryPanel({
                   <p>{entry.item.description}</p>
                   <small>{entry.item.shopName}{entry.item.shopOpen === false ? " — fechado para vendas" : ""}</small>
                   <small className="sell-hint">
-                    {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja não compra este item'}
+                    {sellable ? `A loja paga ${formatMoney(entry.item.effectiveSellPrice)} cada` : 'A loja não compra este item'}
                   </small>
                   <div className="inventory-actions">
                     {entry.quantity > 1 && (

@@ -18,7 +18,7 @@ it('pede confirmação e reutiliza a chave ao repetir uma entrega após falha de
   await screen.findByRole('option', { name: 'Borin' });
   expect(screen.queryByRole('option', { name: 'Aria' })).not.toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText('Destinatário'), '2');
-  await user.type(screen.getByLabelText('Ouro a entregar'), '20');
+  await user.type(screen.getByLabelText('Valor a entregar'), '20');
   await user.click(screen.getByRole('button', { name: 'Confirmar entrega' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Rede indisponível');
   await user.click(screen.getByRole('button', { name: 'Confirmar entrega' }));

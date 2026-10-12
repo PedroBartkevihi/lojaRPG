@@ -186,3 +186,14 @@ próprio provedor.
 - Render: aba Logs de cada serviço no painel.
 
 A API evita retornar detalhes internos em erros 500.
+
+## Atualização A1–A5: vendedores, sessões e moedas
+
+1. Faça backup e suspenda as escritas da API antiga antes de migrar. A unidade monetária muda de ouro inteiro para cobre; não execute versões antigas e novas simultaneamente sobre o mesmo banco.
+2. Instale as dependências do backend, execute `npm run db:init` (Prisma migrate deploy) e `npm run prisma:generate`. As migrações preservam os itens em “Geral”, deixam eventos antigos sem sessão e convertem todos os valores monetários, inclusive históricos e respostas idempotentes.
+3. Publique a API e o build da interface desta mesma revisão. Reabra as escritas e solicite que as abas antigas sejam recarregadas. Clientes externos devem enviar valores em PC e o cabeçalho `X-Currency-Unit: PC`; sem ele, escritas monetárias recebem 428.
+4. Confira em staging um saldo/preço conhecido: 250 PO devem aparecer como 25 PL, com valor 25000 na API. Confira uma compra histórica, um vendedor fechado e uma compra de 1 PC.
+
+Não use `db:reset` ou seed para atualizar um banco real. As migrations são aplicadas uma única vez pelo Prisma. Um rollback para a versão em PO exige restaurar o backup com a API parada; não basta voltar o código depois de novas operações em PC. Se `migrate deploy` falhar, investigue e resolva o estado da migration antes de reexecutar, sem aplicar manualmente a multiplicação por 100.
+
+Os testes de integração e de migração usam exclusivamente `TEST_DATABASE_URL` com nome terminado em `_test`. A checagem local não executa publicação nem migra o banco real.

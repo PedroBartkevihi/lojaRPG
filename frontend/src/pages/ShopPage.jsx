@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Coins, Search, ShoppingCart } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
@@ -172,7 +173,7 @@ export default function ShopPage({
           {!isMaster && character && (
             <span className="gold-badge">
               <Coins size={18} />
-              {character.gold} ouro
+              {formatMoney(character.gold)}
             </span>
           )}
         </div>
@@ -244,7 +245,7 @@ export default function ShopPage({
         ) : (
           <div className="surface-panel">
             <ShoppingCart size={20} />
-            <p>Mestres podem criar itens, ajustar ouro e ver compras no painel Mestre.</p>
+            <p>Mestres podem criar itens, ajustar saldo e ver compras no painel Mestre.</p>
           </div>
         )}
       </aside>
@@ -253,7 +254,7 @@ export default function ShopPage({
       {!isMaster && cartCount > 0 && (
         <div className="mobile-cart-bar">
           <span>
-            {cartCount} {cartCount === 1 ? 'item' : 'itens'} - {cartTotal} ouro
+            {cartCount} {cartCount === 1 ? 'item' : 'itens'} - {formatMoney(cartTotal)}
           </span>
           <button
             className="primary-action"

@@ -5,7 +5,7 @@ export const transferSchema = z.object({
   targetCharacterId: id('Personagem de destino'),
   itemId: id('Item').optional(),
   quantity: integer('Quantidade', { min: 1, max: 100000 }).optional(),
-  gold: integer('Ouro', { min: 0, max: 1000000 }).default(0),
+  gold: integer('Ouro', { min: 0, max: 100000000 }).default(0),
   reason: optionalText(300),
   idempotencyKey: z.uuid()
 }).strict().refine((data) => data.itemId ? data.quantity !== undefined : data.quantity === undefined, {

@@ -1,3 +1,4 @@
+import { formatMoney } from '../js/money.js';
 import { useCallback, useState } from 'react';
 import { ReceiptText } from 'lucide-react';
 import NoCharacterNotice from './NoCharacterNotice.jsx';
@@ -37,12 +38,12 @@ export default function PurchaseHistory({ api, isMaster, character, needsCharact
                   <strong>{isMaster ? purchase.characterName : `Compra #${purchase.id}`}</strong>
                   <span>{new Date(purchase.purchasedAt).toLocaleString()}</span>
                 </div>
-                <b>{purchase.totalValue} ouro</b>
+                <b>{formatMoney(purchase.totalValue)}</b>
               </header>
               <ul>
                 {purchase.items.map((item) => (
                   <li key={item.id}>
-                    {item.quantity}x {item.itemName} ({item.unitPrice} ouro)
+                    {item.quantity}x {item.itemName} ({formatMoney(item.unitPrice)})
                   </li>
                 ))}
               </ul>

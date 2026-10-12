@@ -104,6 +104,8 @@ export async function checkout(user, membership, cartItems, characterId, idempot
       totalValue += item.price * cartItem.quantity;
     }
 
+    if (!Number.isSafeInteger(totalValue)) throw new ApiError(400, 'Total da compra excede o limite em PC.');
+
     // Os valores lidos acima podem ter mudado por outra compra ou por um ajuste
     // do Mestre; os descontos so acontecem se ainda houver saldo na escrita.
     if (!(await debitCharacterGold(character.id, totalValue, prisma))) {

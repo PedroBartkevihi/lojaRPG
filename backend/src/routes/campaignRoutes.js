@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as controller from '../controllers/campaignController.js';
+import { requireCopperUnit } from '../middlewares/currencyMiddleware.js';
 import { authenticate } from '../middlewares/authMiddleware.js';
 import { loadCampaign } from '../middlewares/campaignMiddleware.js';
 import { inviteRateLimiter } from '../middlewares/rateLimiters.js';
@@ -23,6 +24,7 @@ campaignRoutes.post('/join', inviteRateLimiter, asyncHandler(controller.join));
 
 // Tudo abaixo de /campaigns/:campaignId exige participar da mesa.
 campaignRoutes.use('/:campaignId', asyncHandler(loadCampaign));
+campaignRoutes.use(requireCopperUnit);
 campaignRoutes.get('/:campaignId', asyncHandler(controller.show));
 campaignRoutes.patch('/:campaignId/shop', requireGameMaster, asyncHandler(controller.setShopState));
 campaignRoutes.delete('/:campaignId', requireGameMaster, asyncHandler(controller.remove));

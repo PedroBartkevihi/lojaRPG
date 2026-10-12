@@ -51,7 +51,7 @@ describe('InventoryPanel', () => {
       <InventoryPanel api={api} character={character} showNotice={showNotice} onRefreshSession={onRefreshSession} />
     );
 
-    expect(await screen.findByText('A loja paga 25 ouro cada')).toBeInTheDocument();
+    expect(await screen.findByText('A loja paga 2 PP 5 PC cada')).toBeInTheDocument();
     expect(screen.getByText('A loja não compra este item')).toBeInTheDocument();
     expect(await screen.findByText('Recebeu 1x Chave do Templo de Mestre do Cofre')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /vender/i })).toHaveLength(1);
@@ -59,7 +59,7 @@ describe('InventoryPanel', () => {
     await user.type(screen.getByLabelText('Quantidade de Poção de Cura'), '2');
     await user.click(screen.getByRole('button', { name: /vender/i }));
 
-    expect(window.confirm).toHaveBeenCalledWith('Vender 2x Poção de Cura por 50 ouro?');
+    expect(window.confirm).toHaveBeenCalledWith('Vender 2x Poção de Cura por 5 PP?');
     expect(api.sellItem).toHaveBeenCalledWith(2, { itemId: 6, quantity: 2 });
     expect(showNotice).toHaveBeenCalledWith('Venda concluída: 2x Poção de Cura por 50 ouro.');
     expect(onRefreshSession).toHaveBeenCalledTimes(1);

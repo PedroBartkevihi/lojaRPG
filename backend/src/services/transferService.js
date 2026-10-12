@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { withCampaignTransaction } from './sessionService.js';
-import { debitCharacterGold, creditCharacterGold, findCharacterById } from '../models/characterModel.js';
+import { debitCharacterGold, creditCharacterGold, findCharacterById, mapCharacter } from '../models/characterModel.js';
 import { createGoldAuditLog } from '../models/goldAuditModel.js';
 import { addInventoryItem, createInventoryLog, removeInventoryItem } from '../models/inventoryModel.js';
 import { findItemById } from '../models/itemModel.js';
@@ -18,6 +18,7 @@ export async function transfer({ user, campaignId, characterId, data }) {
     const reserved = await prisma.transferRequest.createMany({ data: { ...identity, requestHash }, skipDuplicates: true });
     if (!reserved.count) {
       const previous = await prisma.transferRequest.findUnique({ where: { userId_campaignId_key: identity } });
+      if (previous.currencyVersion !== 2) throw new ApiError(409, 'Transferência anterior à atualização das moedas. Consulte o histórico antes de iniciar outra entrega.');
       if (previous.requestHash !== requestHash) throw new ApiError(409, 'Esta chave já foi usada em outra transferência.');
       return previous.response;
     }
@@ -26,14 +27,14 @@ export async function transfer({ user, campaignId, characterId, data }) {
     await prisma.$queryRaw`SELECT id FROM characters
       WHERE campaign_id = ${campaignId} AND id IN (${characterId}, ${data.targetCharacterId})
       ORDER BY id FOR NO KEY UPDATE`;
-    const target = await prisma.character.findFirst({
+    const target = mapCharacter(await prisma.character.findFirst({
       where: { id: data.targetCharacterId, campaignId, user: { memberships: { some: { campaignId } } } }
-    });
+    }));
     if (!target) throw new ApiError(404, 'Destinatário não encontrado nesta mesa.');
     const sender = await findCharacterById(characterId, campaignId, prisma);
     if (data.gold > 0) {
       if (!(await debitCharacterGold(characterId, data.gold, prisma))) throw new ApiError(400, 'Ouro insuficiente para a transferência.');
-      if (target.gold + data.gold > 2147483647) throw new ApiError(400, 'Saldo do destinatário excede o limite permitido.');
+      if (!Number.isSafeInteger(target.gold + data.gold)) throw new ApiError(400, 'Saldo do destinatário excede o limite permitido.');
       await creditCharacterGold(target.id, data.gold, prisma);
       for (const [character, delta, direction] of [[sender, -data.gold, `para ${target.name}`], [target, data.gold, `de ${sender.name}`]]) {
         await createGoldAuditLog({ sessionId, actorUserId: user.id, characterId: character.id,

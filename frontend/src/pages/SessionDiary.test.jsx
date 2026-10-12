@@ -20,7 +20,7 @@ it('o Mestre inicia e encerra a sessão; jogadores consultam o resumo', async ()
   await waitFor(() => expect(screen.getByRole('button', { name: 'Iniciar sessão' })).toBeEnabled());
   await user.type(screen.getByLabelText('Notas da sessão'), 'Cripta');
   await user.click(screen.getByRole('button', { name: 'Iniciar sessão' }));
-  expect(await screen.findByText(/o grupo gastou 100 ouro/)).toBeInTheDocument();
+  expect(await screen.findByText(/o grupo gastou 1 PO/)).toBeInTheDocument();
   expect(api.startSession).toHaveBeenCalledWith({ notes: 'Cripta' });
   await user.click(screen.getByRole('button', { name: 'Encerrar sessão' }));
   await waitFor(() => expect(api.closeSession).toHaveBeenCalledWith(3, {}));

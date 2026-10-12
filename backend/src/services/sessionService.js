@@ -46,7 +46,7 @@ export async function sessionSummary(campaignId, id, prisma = getPrisma()) {
       WHERE l.session_id = ${id} AND c.campaign_id = ${campaignId}
       GROUP BY l.type, c.id, c.name, i.id, i.name ORDER BY c.name, i.name, l.type`
   ]);
-  return { session, summary: { spent: purchases._sum.totalValue || 0, purchaseCount: purchases._count,
-    goldChange: gold._sum.delta || 0,
+  return { session, summary: { spent: Number(purchases._sum.totalValue || 0), purchaseCount: purchases._count,
+    goldChange: Number(gold._sum.delta || 0),
     movements: movements.map((entry) => ({ ...entry, quantity: Number(entry.quantity), value: Number(entry.value) })) } };
 }

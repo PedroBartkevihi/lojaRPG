@@ -13,9 +13,9 @@ function mapGoldAuditLog(log) {
     actorName: log.actor?.name,
     characterId: log.characterId,
     characterName: log.character?.name,
-    previousGold: log.previousGold,
-    newGold: log.newGold,
-    delta: log.delta,
+    previousGold: Number(log.previousGold),
+    newGold: Number(log.newGold),
+    delta: Number(log.delta),
     reason: log.reason,
     createdAt: log.createdAt
   };

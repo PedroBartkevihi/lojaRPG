@@ -81,15 +81,17 @@ async function createDemoData(prisma) {
 
   await prisma.character.createMany({
     data: [
-      { id: 1, campaignId, userId: 2, name: 'Aria Luaferro', className: 'Ladino', race: 'Elfo', level: 4, gold: 250 },
-      { id: 2, campaignId, userId: 3, name: 'Borin Escudoforte', className: 'Guerreiro', race: 'Anão', level: 5, gold: 320 },
-      { id: 3, campaignId, userId: 4, name: 'Lia Brasa', className: 'Maga', race: 'Humana', level: 3, gold: 180 }
+      { id: 1, campaignId, userId: 2, name: 'Aria Luaferro', className: 'Ladino', race: 'Elfo', level: 4, gold: 25000 },
+      { id: 2, campaignId, userId: 3, name: 'Borin Escudoforte', className: 'Guerreiro', race: 'Anão', level: 5, gold: 32000 },
+      { id: 3, campaignId, userId: 4, name: 'Lia Brasa', className: 'Maga', race: 'Humana', level: 3, gold: 18000 }
     ]
   });
 
   await prisma.item.createMany({
     data: STARTER_ITEMS.map(({ category, rarity, ...item }, index) => ({
       ...item,
+      price: item.price * 100,
+      sellPrice: item.sellPrice == null ? null : item.sellPrice * 100,
       shopId: shop.id,
       id: index + 1,
       campaignId,
