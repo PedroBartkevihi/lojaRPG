@@ -21,7 +21,7 @@ function withinOptions(value, options) {
   return options.length === 0 || options.some((option) => option.name === value) ? value : options[0].name;
 }
 
-export default function AdminItemForm({ item, categories = [], rarities = [], onSave, onCancel }) {
+export default function AdminItemForm({ item, shops = [], categories = [], rarities = [], onSave, onCancel }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -53,6 +53,7 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
 
     const payload = {
       ...form,
+      shopId: Number(form.shopId || shops[0]?.id) || undefined,
       price: Number(form.price),
       sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
       stock: Number(form.stock)
@@ -84,6 +85,12 @@ export default function AdminItemForm({ item, categories = [], rarities = [], on
         <Save size={20} />
         <h3>{item ? 'Editar item' : 'Cadastrar item'}</h3>
       </div>
+      <label>Vendedor
+        <select value={form.shopId || shops[0]?.id || ''} disabled={Boolean(item)} onChange={(e) => updateField('shopId', Number(e.target.value))}>
+          {shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
+        </select>
+      </label>
+      {item && <small>Para outro vendedor, cadastre uma nova oferta. O inventário permanece vinculado à origem.</small>}
       <label>
         Nome
         <input value={form.name} onChange={(event) => updateField('name', event.target.value)} required />

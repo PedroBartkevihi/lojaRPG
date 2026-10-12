@@ -5,6 +5,9 @@ import ShopPage from './ShopPage.jsx';
 
 const potion = {
   id: 6,
+  shopId: 1,
+  shopName: 'Geral',
+  shopOpen: true,
   name: 'Poção de Cura',
   category: 'Poções',
   description: '',
@@ -19,7 +22,7 @@ const aria = { id: 2, name: 'Aria', className: 'Ladina', race: 'Elfa', level: 4,
 function renderShop(api) {
   return render(
     <ShopPage
-      api={{ listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), ...api }}
+      api={{ listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }), listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), ...api }}
       liveKey={0}
       isMaster={false}
       character={aria}
@@ -33,6 +36,24 @@ function renderShop(api) {
 }
 
 describe('ShopPage', () => {
+  it('filtra vendedores e bloqueia somente as ofertas fechadas', async () => {
+    const user = userEvent.setup();
+    const closed = { ...sword, shopId: 2, shopName: 'Ferreiro', shopOpen: false };
+    const api = {
+      listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }, { id: 2, name: 'Ferreiro', hours: 'Até o anoitecer', isOpen: false }] }),
+      listItems: vi.fn(({ shopId }) => Promise.resolve({ items: shopId === '2' ? [closed] : [potion, closed] }))
+    };
+    renderShop(api);
+    await screen.findByRole('heading', { name: closed.name });
+    const buttons = screen.getAllByRole('button', { name: /adicionar/i });
+    await waitFor(() => expect(buttons[0]).toBeEnabled());
+    expect(buttons[1]).toBeDisabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filtrar por vendedor' }), '2');
+    await waitFor(() => expect(api.listItems).toHaveBeenLastCalledWith(expect.objectContaining({ shopId: '2' })));
+    expect(await screen.findByText(/Até o anoitecer/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: potion.name })).not.toBeInTheDocument());
+  });
+
   it('busca categorias sem baixar novamente o catalogo completo de itens', async () => {
     const api = {
       listItems: vi.fn().mockResolvedValue({ items: [potion] }),

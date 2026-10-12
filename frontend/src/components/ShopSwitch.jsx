@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-export default function ShopSwitch({ api, shopOpen = true, onChanged, showNotice }) {
+export default function ShopSwitch({ api, shopId, shopOpen = true, onChanged, showNotice }) {
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   async function toggle() {
@@ -8,7 +8,7 @@ export default function ShopSwitch({ api, shopOpen = true, onChanged, showNotice
     pending.current = true;
     setBusy(true);
     try {
-      await api.setShopState({ shopOpen: !shopOpen });
+      await api.updateShop(shopId, { isOpen: !shopOpen });
       await onChanged();
       showNotice(shopOpen ? 'Loja fechada para compras e vendas.' : 'Loja aberta.');
     } catch (error) {

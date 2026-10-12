@@ -11,6 +11,9 @@ function mapInventoryItem(entry) {
     item: {
       id: entry.item.id,
       name: entry.item.name,
+      shopId: entry.item.shopId,
+      shopName: entry.item.shop?.name,
+      shopOpen: entry.item.shop?.isOpen,
       category: entry.item.category?.name,
       rarity: entry.item.rarity?.name,
       rarityRank: entry.item.rarity?.rank,
@@ -29,6 +32,7 @@ export async function listInventoryByCharacterId(characterId, prisma = getPrisma
     include: {
       item: {
         include: {
+          shop: true,
           category: true,
           rarity: true
         }

@@ -11,13 +11,14 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
-export default function ItemsTab({ api, items, categories, rarities, loading, reload, showNotice }) {
+export default function ItemsTab({ api, items, shops = [], categories, rarities, loading, reload, showNotice }) {
   const [editingItem, setEditingItem] = useState(null);
-  const [filters, setFilters] = useState({ search: '', category: '', rarity: '', status: 'active' });
+  const [filters, setFilters] = useState({ shopId: '', search: '', category: '', rarity: '', status: 'active' });
 
   const filteredItems = useMemo(() => {
     return items
       .filter((item) => {
+        if (filters.shopId && item.shopId !== Number(filters.shopId)) return false;
         if (filters.status === 'active' && !item.isActive) return false;
         if (filters.status === 'inactive' && item.isActive) return false;
         if (filters.category && item.category !== filters.category) return false;
@@ -77,6 +78,9 @@ export default function ItemsTab({ api, items, categories, rarities, loading, re
           <h3>Itens cadastrados</h3>
         </div>
         <div className="toolbar admin-filters">
+          <select aria-label="Filtrar por vendedor" value={filters.shopId} onChange={(e) => updateFilter('shopId', e.target.value)}>
+            <option value="">Todos vendedores</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
+          </select>
           <input
             value={filters.search}
             onChange={(event) => updateFilter('search', event.target.value)}
@@ -126,7 +130,7 @@ export default function ItemsTab({ api, items, categories, rarities, loading, re
                 <div>
                   <strong>{item.name}</strong>
                   <span>
-                    {item.category} - {item.rarity} - {item.price} ouro -{' '}
+                    {item.shopName} - {item.category} - {item.rarity} - {item.price} ouro -{' '}
                     {item.isSellable ? `revenda ${item.effectiveSellPrice}` : 'loja não compra'} - estoque {item.stock}{' '}
                     - {item.isActive ? 'ativo' : 'inativo'}
                   </span>
@@ -155,6 +159,7 @@ export default function ItemsTab({ api, items, categories, rarities, loading, re
         )}
       </div>
       <AdminItemForm
+        shops={shops}
         item={editingItem}
         categories={categories}
         rarities={rarities}

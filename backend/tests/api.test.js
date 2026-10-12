@@ -100,6 +100,48 @@ afterAll(async () => {
 });
 
 describe('validação das entradas', () => {
+  it('isola catálogo, preços, estoque e abertura por vendedor', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const general = (await aria.get(`${DEMO}/shops`)).body.shops[0];
+    expect(general).toMatchObject({ name: 'Geral', isDefault: true, isOpen: true });
+    const created = await master.post(`${DEMO}/shops`, { name: 'Alquimista', hours: 'Até o anoitecer' });
+    expect(created.status).toBe(201);
+    const shopId = created.body.shop.id;
+    expect((await master.post(`${DEMO}/shops`, { name: 'Alquimista' })).status).toBe(409);
+    const original = (await aria.get(`${DEMO}/items/6`)).body.item;
+    const offer = await master.post(`${DEMO}/items`, { ...original, shopId, price: 15, stock: 3 });
+    expect(offer.status).toBe(201);
+    const itemId = offer.body.item.id;
+    expect((await aria.get(`${DEMO}/items?shopId=${shopId}`)).body.items.map((i) => i.id)).toEqual([itemId]);
+    expect((await master.patch(`${DEMO}/shops/${general.id}`, { isOpen: false })).status).toBe(200);
+    const mixed = await aria.post(`${DEMO}/purchases`, { items: [{ itemId, quantity: 1 }, { itemId: 6, quantity: 1 }] });
+    expect(mixed.status).toBe(409);
+    expect((await aria.post(`${DEMO}/purchases`, { items: [{ itemId, quantity: 1 }] })).status).toBe(201);
+    expect((await aria.get(`${DEMO}/items/6`)).body.item.stock).toBe(original.stock);
+    expect((await aria.get(`${DEMO}/items/${itemId}`)).body.item.stock).toBe(2);
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId, quantity: 1 })).status).toBe(200);
+    expect((await aria.get(`${DEMO}/items/${itemId}`)).body.item.stock).toBe(3);
+    expect((await master.put(`${DEMO}/items/${itemId}`, { shopId: general.id })).status).toBe(400);
+  });
+
+  it('protege vendedores e recusa atribuição de outra mesa', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const general = (await aria.get(`${DEMO}/shops`)).body.shops[0];
+    expect((await aria.post(`${DEMO}/shops`, { name: 'Intruso' })).status).toBe(403);
+    expect((await aria.patch(`${DEMO}/shops/${general.id}`, { isOpen: false })).status).toBe(403);
+    expect((await master.patch(`${DEMO}/shops/${general.id}`, { isOpen: 'false' })).status).toBe(400);
+    expect((await aria.get(`${DEMO}/items?shopId=abc`)).status).toBe(400);
+    const other = await newAccount('OutroVendedor');
+    const campaign = await createCampaign(other.token);
+    const foreign = (await as(other.token).get(`/campaigns/${campaign.id}/shops`)).body.shops[0];
+    expect((await master.patch(`${DEMO}/shops/${foreign.id}`, { isOpen: false })).status).toBe(404);
+    const item = (await aria.get(`${DEMO}/items/6`)).body.item;
+    expect((await master.post(`${DEMO}/items`, { ...item, shopId: foreign.id })).status).toBe(400);
+    expect((await aria.get(`${DEMO}/items?shopId=${foreign.id}`)).body.items).toEqual([]);
+  });
+
   it('agrupa compras, vendas, usos, recompensas e trocas na sessão e mantém eventos externos separados', async () => {
     const master = as(await login('mestre@lojarpg.local', 'mestre123'));
     const aria = as(await login('aria@lojarpg.local'));

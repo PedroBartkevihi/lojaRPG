@@ -11,6 +11,9 @@ const STOCK_CHANGED_MESSAGE = 'O estoque do item mudou durante a edição. Recar
 // regravaria o estoque antigo e desfaria a venda. Sem `expectedStock` (o
 // formulario nao mexeu no estoque), a comparacao e com o valor atual.
 export async function saveItemChanges(existing, data, actorUserId, { stockReason, expectedStock } = {}) {
+  if (data.shopId !== undefined && data.shopId !== existing.shopId) {
+    throw new ApiError(400, 'O vendedor de um item não pode ser alterado. Cadastre uma oferta no outro vendedor.');
+  }
   return withCampaignTransaction(existing.campaignId, async (prisma, sessionId) => {
     if (!(await replaceItemStock(existing.id, expectedStock ?? existing.stock, data.stock, prisma))) {
       throw new ApiError(409, STOCK_CHANGED_MESSAGE);

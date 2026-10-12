@@ -10,7 +10,7 @@ import { characterIdSchema } from '../schemas/characterSchemas.js';
 import { cartSchema, idempotencyKeySchema } from '../schemas/purchaseSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse } from '../utils/validation.js';
-import { ensureShopOpen } from './shopService.js';
+import { ensureShopsOpen } from './shopService.js';
 
 function normalizeCart(cartItems) {
   const grouped = new Map();
@@ -74,7 +74,6 @@ export async function checkout(user, membership, cartItems, characterId, idempot
       return previous.response;
     }
 
-    await ensureShopOpen(campaignId, prisma);
     const character = await resolveCheckoutCharacter(user, campaignId, characterId, prisma);
 
     if (!character) {
@@ -86,6 +85,7 @@ export async function checkout(user, membership, cartItems, characterId, idempot
       campaignId,
       prisma
     );
+    await ensureShopsOpen(campaignId, items.map((item) => item.shopId), prisma);
     const itemMap = new Map(items.map((item) => [item.id, item]));
 
     let totalValue = 0;

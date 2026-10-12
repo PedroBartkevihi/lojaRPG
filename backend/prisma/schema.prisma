@@ -33,7 +33,7 @@ model Campaign {
   name       String
   inviteCode String           @unique @map("invite_code")
   isDemo     Boolean          @default(false) @map("is_demo")
-  shopOpen   Boolean          @default(true) @map("shop_open")
+  shops      Shop[]
   createdAt  DateTime         @default(now()) @map("created_at")
   sessions   CampaignSession[]
   members    CampaignMember[]
@@ -112,9 +112,25 @@ model Rarity {
   @@map("rarities")
 }
 
+model Shop {
+  id Int @id @default(autoincrement())
+  campaignId Int @map("campaign_id")
+  name String
+  hours String @default("")
+  isOpen Boolean @default(true) @map("is_open")
+  isDefault Boolean @default(false) @map("is_default")
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  items Item[]
+  @@unique([campaignId, name])
+  @@unique([id, campaignId])
+  @@map("shops")
+}
+
 model Item {
   id             Int             @id @default(autoincrement())
   campaignId     Int             @map("campaign_id")
+  shopId         Int             @map("shop_id")
+  shop           Shop            @relation(fields: [shopId, campaignId], references: [id, campaignId], onDelete: Restrict)
   name           String
   categoryId     Int             @map("category_id")
   rarityId       Int             @map("rarity_id")
@@ -140,6 +156,7 @@ model Item {
   stockMovements StockMovement[]
 
   @@index([campaignId])
+  @@index([shopId])
   @@index([categoryId])
   @@index([rarityId])
   @@index([name])

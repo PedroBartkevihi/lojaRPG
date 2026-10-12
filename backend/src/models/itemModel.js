@@ -19,6 +19,9 @@ function mapItem(item) {
   return {
     id: item.id,
     campaignId: item.campaignId,
+    shopId: item.shopId,
+    shopName: item.shop?.name,
+    shopOpen: item.shop?.isOpen,
     name: item.name,
     categoryId: item.categoryId,
     category: item.category?.name,
@@ -41,6 +44,7 @@ function mapItem(item) {
 }
 
 const includeRelations = {
+  shop: true,
   category: true,
   rarity: true,
   creator: {
@@ -107,6 +111,8 @@ function normalizeSearch(value) {
 export async function listItems(filters, prisma = getPrisma()) {
   const where = { campaignId: Number(filters.campaignId) };
 
+  if (filters.shopId) where.shopId = filters.shopId;
+
   if (!filters.includeInactive) {
     where.isActive = true;
   } else if (filters.status === 'active') {
@@ -168,9 +174,12 @@ export async function createItem(data, prisma = getPrisma()) {
   const campaignId = Number(data.campaignId);
   const categoryId = await resolveCategoryId(campaignId, data.categoryId || data.category, prisma);
   const rarityId = await resolveRarityId(campaignId, data.rarityId || data.rarity, prisma);
+  const shop = await prisma.shop.findFirst({ where: { campaignId, ...(data.shopId ? { id: data.shopId } : { isDefault: true }) } });
+  if (!shop) throw new ApiError(400, 'Vendedor inválido para esta mesa.');
   const item = await prisma.item.create({
     data: {
       campaignId,
+      shopId: shop.id,
       name: data.name,
       categoryId,
       rarityId,

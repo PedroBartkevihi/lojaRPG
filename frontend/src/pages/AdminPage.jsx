@@ -5,18 +5,20 @@ import CatalogTab from '../components/admin/CatalogTab.jsx';
 import HistoryTab from '../components/admin/HistoryTab.jsx';
 import ItemsTab from '../components/admin/ItemsTab.jsx';
 import PartyTab from '../components/admin/PartyTab.jsx';
-import ShopSwitch from '../components/ShopSwitch.jsx';
+import ShopsTab from '../components/admin/ShopsTab.jsx';
 
 // A aba fica no endereco (?aba=itens) para sobreviver a um recarregamento.
 const TABS = [
   { key: 'grupo', label: 'Grupo e ouro', Icon: Coins },
+  { key: 'vendedores', label: 'Vendedores', Icon: Tags },
   { key: 'itens', label: 'Itens', Icon: PackagePlus },
   { key: 'catalogo', label: 'Catálogo', Icon: Tags },
   { key: 'historicos', label: 'Históricos', Icon: History }
 ];
 
-export default function AdminPage({ api, campaign, liveKey, showNotice, onRefresh, onCampaignsChanged }) {
+export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [shops, setShops] = useState([]);
   const [items, setItems] = useState([]);
   const [characters, setCharacters] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -39,12 +41,14 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
     try {
       const sources = {
         grupo: [() => api.listItems({ includeInactive: true }), () => api.listCharacters()],
-        itens: [() => api.listItems({ includeInactive: true }), () => api.listCategories(), () => api.listRarities()],
+        vendedores: [() => api.listShops()],
+        itens: [() => api.listShops(), () => api.listItems({ includeInactive: true }), () => api.listCategories(), () => api.listRarities()],
         catalogo: [() => api.listCategories(), () => api.listRarities()],
         historicos: []
       };
       const data = Object.assign({}, ...await Promise.all(sources[activeTab].map((load) => load())));
       if (request !== requestVersion.current) return;
+      if (data.shops) setShops(data.shops);
       if (data.items) setItems(data.items);
       if (data.characters) setCharacters(data.characters);
       if (data.categories) setCategories(data.categories);
@@ -79,7 +83,6 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
         </button>
       </div>
 
-      {campaign && <ShopSwitch api={api} shopOpen={campaign.shopOpen} onChanged={onCampaignsChanged} showNotice={showNotice} />}
       <nav className="subtabs" role="tablist" aria-label="Seções do painel do Mestre">
         {TABS.map(({ key, label, Icon }) => (
           <button
@@ -107,8 +110,10 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
           showNotice={showNotice}
         />
       )}
+      {activeTab === 'vendedores' && <ShopsTab api={api} shops={shops} reload={reload} showNotice={showNotice} />}
       {activeTab === 'itens' && (
         <ItemsTab
+          shops={shops}
           api={api}
           items={items}
           categories={categories}

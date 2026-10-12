@@ -1,11 +1,12 @@
 import { ApiError } from '../utils/ApiError.js';
 
-// Compartilha o bloqueio com compras/vendas; fechar a loja espera as operacoes
-// em andamento terminarem. A leitura ocorre na transacao, nunca no snapshot HTTP.
-export async function ensureShopOpen(campaignId, prisma) {
-  const [campaign] = await prisma.$queryRaw`
-    SELECT id, shop_open AS "shopOpen" FROM campaigns WHERE id = ${campaignId} FOR SHARE
-  `;
-  if (!campaign) throw new ApiError(404, 'Mesa não encontrada.');
-  if (!campaign.shopOpen) throw new ApiError(409, 'A loja está fechada.');
+// Bloqueia os vendedores antes de saldos/estoques. Fechar espera as operações
+// em andamento; a ordem por id também vale para carrinhos com vários vendedores.
+export async function ensureShopsOpen(campaignId, shopIds, prisma) {
+  for (const id of [...new Set(shopIds)].sort((a, b) => a - b)) {
+    const [shop] = await prisma.$queryRaw`SELECT id, name, is_open AS "isOpen" FROM shops
+      WHERE id = ${id} AND campaign_id = ${campaignId} FOR SHARE`;
+    if (!shop) throw new ApiError(404, 'Vendedor não encontrado.');
+    if (!shop.isOpen) throw new ApiError(409, `O vendedor ${shop.name} está fechado.`);
+  }
 }

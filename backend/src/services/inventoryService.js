@@ -4,7 +4,7 @@ import { creditCharacterGold, findCharacterById } from '../models/characterModel
 import { createInventoryLog, removeInventoryItem } from '../models/inventoryModel.js';
 import { findItemById, incrementItemStock } from '../models/itemModel.js';
 import { ApiError } from '../utils/ApiError.js';
-import { ensureShopOpen } from './shopService.js';
+import { ensureShopsOpen } from './shopService.js';
 
 async function findOwnCharacter(user, campaignId, characterId, action, prisma) {
   const character = await findCharacterById(characterId, campaignId, prisma);
@@ -41,9 +41,10 @@ async function findCampaignItem(campaignId, itemId, prisma) {
 // banco abortava uma delas.
 export async function sellItem({ user, campaignId, characterId, itemId, quantity }) {
   return withCampaignTransaction(campaignId, async (prisma, sessionId) => {
-    await ensureShopOpen(campaignId, prisma);
     const character = await findOwnCharacter(user, campaignId, characterId, 'vender', prisma);
     const item = await findCampaignItem(campaignId, itemId, prisma);
+
+    await ensureShopsOpen(campaignId, [item.shopId], prisma);
 
     if (item.effectiveSellPrice === null) {
       throw new ApiError(400, `A loja não compra ${item.name}.`);

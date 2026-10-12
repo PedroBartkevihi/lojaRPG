@@ -65,6 +65,7 @@ async function createDemoData(prisma) {
   });
 
   await prisma.campaign.create({ data: DEMO_CAMPAIGN });
+  const shop = await prisma.shop.create({ data: { campaignId, name: 'Geral', isDefault: true } });
 
   await prisma.campaignMember.createMany({
     data: DEMO_USERS.map((user) => ({ campaignId, userId: user.id, role: user.role }))
@@ -89,6 +90,7 @@ async function createDemoData(prisma) {
   await prisma.item.createMany({
     data: STARTER_ITEMS.map(({ category, rarity, ...item }, index) => ({
       ...item,
+      shopId: shop.id,
       id: index + 1,
       campaignId,
       categoryId: STARTER_CATEGORIES.indexOf(category) + 1,

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { id, integer, optionalText, requiredText } from './fields.js';
 
 export const itemSchema = z.object({
+  shopId: id('Vendedor').optional(),
   name: requiredText('Nome do item', 140),
   category: requiredText('Categoria', 80),
   description: optionalText(1200),
@@ -30,6 +31,7 @@ const queryPrice = (field) => integer(field, { min: 0, max: 1000000 }).optional(
 
 export const itemQuerySchema = z
   .object({
+    shopId: id('Vendedor').optional(),
     search: queryText,
     category: queryText,
     rarity: queryText,

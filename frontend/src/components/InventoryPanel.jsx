@@ -10,7 +10,6 @@ import SessionFilter from './SessionFilter.jsx';
 
 export default function InventoryPanel({
   api,
-  shopOpen = true,
   character: selectedCharacter,
   needsCharacter = false,
   refreshKey,
@@ -111,7 +110,6 @@ export default function InventoryPanel({
           </span>
         )}
       </div>
-      {!shopOpen && <p role="status">A loja está fechada para vendas. Você ainda pode usar seus itens.</p>}
       <div className="surface-panel">
         <div className="panel-title">
           <Backpack size={20} />
@@ -136,6 +134,7 @@ export default function InventoryPanel({
                     <b>{entry.quantity}x</b>
                   </div>
                   <p>{entry.item.description}</p>
+                  <small>{entry.item.shopName}{entry.item.shopOpen === false ? " — fechado para vendas" : ""}</small>
                   <small className="sell-hint">
                     {sellable ? `A loja paga ${entry.item.effectiveSellPrice} ouro cada` : 'A loja não compra este item'}
                   </small>
@@ -158,7 +157,7 @@ export default function InventoryPanel({
                       Usar
                     </button>
                     {sellable && (
-                      <button className="primary-action" onClick={() => handleAction(entry, 'sell')} disabled={busy || !shopOpen}>
+                      <button className="primary-action" onClick={() => handleAction(entry, 'sell')} disabled={busy || entry.item.shopOpen === false}>
                         <HandCoins size={16} />
                         Vender
                       </button>

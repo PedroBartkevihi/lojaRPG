@@ -356,3 +356,11 @@ local com Docker, as variáveis de ambiente e o backup do banco.
 ## Licença
 
 [MIT](./LICENSE).
+
+### Vendedores por mesa (A4)
+
+- A migração cria o vendedor **Geral** em cada mesa, preserva a abertura anterior e vincula todos os itens existentes a ele, sem alterar estoque ou histórico.
+- Em **Mestre → Vendedores**, crie vendedores e informe seus horários. Os horários são descritivos (tempo da campanha); a abertura é controlada manualmente e afeta somente aquele vendedor.
+- A loja e o painel de itens filtram por vendedor. Ofertas com o mesmo nome têm preços e estoques independentes. O vendedor de uma oferta não muda depois do cadastro, preservando a origem dos itens no inventário.
+- Um carrinho pode reunir ofertas de vendedores abertos. Se algum fechar, toda a compra é recusada sem débito parcial. Vender devolve o item ao vendedor de origem; usar e transferir continuam disponíveis.
+- API: `GET/POST /campaigns/:id/shops`, `PATCH /campaigns/:id/shops/:shopId`, filtro `shopId` em `/items`. A rota antiga `PATCH /campaigns/:id/shop` controla somente o vendedor padrão.

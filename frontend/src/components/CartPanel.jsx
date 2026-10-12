@@ -33,7 +33,7 @@ export default function CartPanel({ cart, setCart, character, onCheckout, submit
           {cart.map((entry) => (
             <div className="cart-line" key={entry.item.id}>
               <div>
-                <strong>{entry.item.name}</strong>
+                <strong>{entry.item.name}</strong><small>{entry.item.shopName}</small>
                 <span>{entry.item.price} ouro cada</span>
               </div>
               <input

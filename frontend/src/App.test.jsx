@@ -159,6 +159,8 @@ describe('mesa por aba', () => {
               ? { characters: [] }
               : pathname.endsWith('/catalog/categories')
                 ? { categories: [] }
+              : pathname.endsWith('/shops')
+                ? { shops: [] }
               : pathname.endsWith('/items')
                 ? { items: [] }
                 : { campaign: mesas.find((entry) => entry.id === id), members: [] };

@@ -502,7 +502,6 @@ function AppContent() {
           element={inCampaign(
             <ShopPage
               api={api}
-              shopOpen={campaign?.shopOpen}
               liveKey={liveTick}
               isMaster={isMaster}
               character={selectedCharacter}
@@ -522,7 +521,6 @@ function AppContent() {
             ) : (
               <InventoryPanel
                 api={api}
-                shopOpen={campaign?.shopOpen}
                 character={selectedCharacter}
                 needsCharacter={needsCharacter}
                 refreshKey={refreshCount}

@@ -1,5 +1,5 @@
 import { isDemoAccount } from '../config/demo.js';
-import { listCampaignsByUserId, listMembers, mapCampaign } from '../models/campaignModel.js';
+import { listCampaignsByUserId, listMembers } from '../models/campaignModel.js';
 import { getPrisma } from '../database/connection.js';
 import { campaignSchema, inviteCodeSchema, memberIdSchema, shopStateSchema } from '../schemas/campaignSchemas.js';
 import {
@@ -39,8 +39,9 @@ export async function show(req, res) {
 
 export async function setShopState(req, res) {
   const data = parse(shopStateSchema, req.body);
-  const campaign = await getPrisma().campaign.update({ where: { id: req.campaign.id }, data });
-  res.json({ campaign: mapCampaign(campaign, req.membership.role) });
+  // A rota antiga controla apenas o vendedor Geral.
+  await getPrisma().shop.updateMany({ where: { campaignId: req.campaign.id, isDefault: true }, data: { isOpen: data.shopOpen } });
+  res.json({ campaign: { ...req.campaign, shopOpen: data.shopOpen } });
 }
 
 export async function remove(req, res) {
