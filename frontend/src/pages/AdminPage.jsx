@@ -27,6 +27,7 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
   const [historyVersion, setHistoryVersion] = useState(0);
   const requestVersion = useRef(0);
   const loadedTab = useRef(null);
+  const lastLiveKey = useRef(liveKey);
 
   const activeTab = TABS.some((tab) => tab.key === searchParams.get('aba')) ? searchParams.get('aba') : 'grupo';
 
@@ -63,8 +64,14 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
 
   const reload = useCallback(() => loadAdminData({ silent: true }), [loadAdminData]);
 
+  // So a abertura da aba avisa do erro. Na batida de 10 s, com a API dormindo
+  // ou fora do ar, o aviso se repetiria a cada batida; a proxima tenta de novo.
   useEffect(() => {
-    loadAdminData({ silent: loadedTab.current === activeTab }).catch((error) => showNotice(error.message));
+    const polling = lastLiveKey.current !== liveKey;
+    lastLiveKey.current = liveKey;
+    loadAdminData({ silent: loadedTab.current === activeTab }).catch((error) => {
+      if (!polling) showNotice(error.message);
+    });
     return () => { requestVersion.current += 1; };
   }, [loadAdminData, showNotice, liveKey, activeTab]);
 

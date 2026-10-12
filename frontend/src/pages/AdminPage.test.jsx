@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -58,6 +58,24 @@ describe('AdminPage', () => {
     expect(api.listItems).toHaveBeenCalledTimes(2);
     expect(api.listCharacters).toHaveBeenCalledTimes(2);
     expect(api.listCategories).not.toHaveBeenCalled();
+  });
+
+  it('avisa o erro ao abrir a aba, mas não repete o aviso a cada atualização automática', async () => {
+    const api = createApi();
+    const showNotice = vi.fn();
+    const page = (liveKey) => <MemoryRouter><AdminPage api={api} liveKey={liveKey} showNotice={showNotice} /></MemoryRouter>;
+    api.listCharacters.mockRejectedValue(new Error('API fora do ar.'));
+    const { rerender } = render(page(0));
+    await waitFor(() => expect(showNotice).toHaveBeenCalledWith('API fora do ar.'));
+
+    for (const liveKey of [1, 2]) {
+      rerender(page(liveKey));
+      await waitFor(() => expect(api.listCharacters).toHaveBeenCalledTimes(liveKey + 1));
+      // Deixa a recusa chegar ao catch antes da proxima batida.
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    }
+
+    expect(showNotice).toHaveBeenCalledTimes(1);
   });
 
   it('abre na aba do grupo e carrega os dados da aba escolhida', async () => {
