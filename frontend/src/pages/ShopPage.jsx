@@ -5,6 +5,7 @@ import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
 import ItemCard from '../components/ItemCard.jsx';
 import ItemRequestsPanel from '../components/ItemRequestsPanel.jsx';
+import DiscountBanner from '../components/DiscountBanner.jsx';
 import { SkeletonCards } from '../components/Skeleton.jsx';
 
 
@@ -48,7 +49,10 @@ export default function ShopPage({
   const selectedShop = shops.find((shop) => shop.id === Number(shopId));
   const cartOpen = cart.every((entry) => shops.some((shop) => shop.id === entry.item.shopId && shop.isOpen));
   const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
-  const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+  const cartTotal = cart.reduce((sum, entry) => sum + (entry.item.finalPrice ?? entry.item.price) * entry.quantity, 0);
+  // Os precos vem com os descontos do personagem ativo (eventos da mesa e os
+  // dele); o Mestre ve a vitrine com os eventos da mesa.
+  const priceCharacterId = isMaster ? undefined : character?.id;
 
   // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
   // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
@@ -65,7 +69,8 @@ export default function ShopPage({
         rarity,
         shopId,
         minPrice: priceRange.min,
-        maxPrice: priceRange.max
+        maxPrice: priceRange.max,
+        characterId: priceCharacterId
       });
 
       if (!isLatest()) {
@@ -86,7 +91,7 @@ export default function ShopPage({
         setLoading(false);
       }
     }
-  }, [api, searchTerm, category, rarity, shopId, priceRange]);
+  }, [api, searchTerm, category, rarity, shopId, priceRange, priceCharacterId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(search), 300);
@@ -299,6 +304,7 @@ export default function ShopPage({
         </div>
         {priceError && <p className="form-error" role="alert">{priceError}</p>}
 
+        <DiscountBanner api={api} liveKey={liveKey} characterId={priceCharacterId} />
         {selectedShop && <p className="surface-panel" role="status">{selectedShop.name}: {selectedShop.isOpen ? 'aberto' : 'fechado para compras e vendas'}. {selectedShop.hours || 'Horário não informado'}</p>}
         {!cartOpen && <p role="status">Há um vendedor fechado no carrinho. Remova seus itens ou aguarde a reabertura.</p>}
         {error && <p className="form-error">{error}</p>}

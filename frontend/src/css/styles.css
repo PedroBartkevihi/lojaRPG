@@ -1651,3 +1651,40 @@ a.primary-action {
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
+
+/* Descontos e eventos de preco. */
+.price s {
+  color: var(--muted);
+  font-weight: 600;
+  margin-right: 0.35rem;
+}
+
+.discount-tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(95, 211, 138, 0.15);
+  color: #5fd38a;
+  font-size: 0.75rem;
+}
+
+.discount-banner {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  color: #5fd38a;
+}
+
+.discount-banner ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.discounts-panel {
+  margin-top: 1rem;
+}

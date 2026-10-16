@@ -20,7 +20,7 @@ export default function ItemRequestsPanel({ api, character, liveKey, showNotice,
 
   const load = useCallback(async () => {
     const data = await api.listItemRequests();
-    setRequests(data.requests);
+    setRequests(data.requests || []);
   }, [api]);
 
   useEffect(() => {
