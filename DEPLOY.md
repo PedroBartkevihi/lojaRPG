@@ -54,6 +54,34 @@ Limites do plano gratuito:
   usam as contas da demonstração. Sem demonstração, defina
   `VITE_DEMO_LOGIN=false` no front-end e refaça o deploy dele para escondê-los.
 
+## Envio de imagens dos itens (opcional)
+
+Sem configuração, o Mestre cola a URL da imagem, como antes. Para ele enviar a
+foto direto do celular:
+
+1. Crie uma conta gratuita no [Cloudinary](https://cloudinary.com).
+2. No painel dele, copie a **API environment variable**, no formato
+   `cloudinary://<api_key>:<api_secret>@<cloud_name>`.
+3. No Render, defina `CLOUDINARY_URL` na API (`lojarpg-api`) com esse valor.
+   Ela já está no `render.yaml` como opcional (`sync: false`). No Docker,
+   coloque-a no `.env` da raiz, que o `docker-compose.yml` repassa à API.
+
+A API só assina cada envio (pasta `lojarpg/mesa-<id>`, formatos JPG, PNG,
+WebP e GIF, redução para no máximo 800 x 800 px); o arquivo vai do navegador
+direto ao Cloudinary, e o segredo não sai da API. O formulário recusa arquivos
+acima de 5 MB. A CSP do site já libera `https://api.cloudinary.com` para o
+envio e qualquer imagem HTTPS para exibição.
+
+## App instalável (PWA)
+
+O build gera `manifest.webmanifest`, os ícones (`pwa-192x192.png`,
+`pwa-512x512.png`, `maskable-512x512.png`, `apple-touch-icon.png`) e o service
+worker (`sw.js`). No Android, o Chrome oferece "Instalar app"; no iPhone, use
+Compartilhar > "Adicionar à Tela de Início" no Safari. Depois de um deploy, a
+versão nova vale na próxima abertura do app (o service worker se atualiza
+sozinho). Para trocar os ícones, gere os PNG a partir do `favicon.svg` com os
+mesmos nomes.
+
 ## API acordada no dia de jogo e monitoramento
 
 No plano gratuito, a API dorme depois de 15 minutos sem acesso, e o primeiro
