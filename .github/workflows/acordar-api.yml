@@ -1,0 +1,50 @@
+name: Acordar a API para a sessão
+
+# No plano gratuito do Render a API dorme depois de 15 minutos sem acesso, e o
+# primeiro login depois disso leva perto de um minuto. Antes do dia de jogo,
+# rode este workflow pela aba Actions (ou pelo app do GitHub no celular): ele
+# chama o /ready a cada 5 minutos pelas horas escolhidas, e a API fica acordada
+# durante a sessão. Cada hora acordada conta nas horas mensais do plano.
+#
+# A URL vem da variável API_URL do repositório (Settings > Secrets and
+# variables > Actions > Variables), com a da demonstração como padrão.
+on:
+  workflow_dispatch:
+    inputs:
+      horas:
+        description: Por quantas horas manter a API acordada (1 a 5)
+        required: true
+        default: '4'
+        type: choice
+        options: ['1', '2', '3', '4', '5']
+
+jobs:
+  acordar:
+    name: Manter a API acordada
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      API_URL: ${{ vars.API_URL || 'https://lojarpg-api.onrender.com' }}
+      HORAS: ${{ inputs.horas }}
+    steps:
+      - name: Chamar o /ready a cada 5 minutos
+        run: |
+          fim=$(( $(date +%s) + HORAS * 3600 ))
+          falhas=0
+          while [ "$(date +%s)" -lt "$fim" ]; do
+            # A primeira chamada pode levar perto de um minuto (a API acordando).
+            if status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$API_URL/ready") && [ "$status" = "200" ]; then
+              echo "$(date -u +%H:%M) /ready respondeu 200"
+              falhas=0
+            else
+              falhas=$((falhas + 1))
+              echo "::warning::$(date -u +%H:%M) /ready respondeu ${status:-sem resposta} (falha $falhas seguida)"
+            fi
+            # Seis falhas seguidas (30 minutos) param o workflow com erro, e o
+            # GitHub avisa por e-mail quem o iniciou.
+            if [ "$falhas" -ge 6 ]; then
+              echo "::error::A API ficou 30 minutos sem responder ao /ready."
+              exit 1
+            fi
+            sleep 300
+          done

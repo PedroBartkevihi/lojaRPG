@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetDemo, seed } from '../prisma/seed.js';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -1662,5 +1662,28 @@ describe('inventário e recompensas', () => {
     expect(
       (await lia.post(`${DEMO}/rewards/items`, { characterId: 3, itemId: 7, quantity: 1 })).status
     ).toBe(403);
+  });
+});
+
+describe('disponibilidade', () => {
+  it('separa o /health do processo do /ready que consulta o banco', async () => {
+    expect((await request(app).get('/health')).body).toEqual({ status: 'ok' });
+
+    const ready = await request(app).get('/ready');
+    expect(ready.status).toBe(200);
+    expect(ready.body).toEqual({ status: 'ok', database: 'ok' });
+  });
+
+  it('responde 503 no /ready quando o banco falha, sem derrubar o /health', async () => {
+    const spy = vi.spyOn(getPrisma(), '$queryRaw').mockRejectedValueOnce(new Error('banco fora'));
+
+    try {
+      const ready = await request(app).get('/ready');
+      expect(ready.status).toBe(503);
+      expect(ready.body).toEqual({ status: 'indisponivel', database: 'erro' });
+      expect((await request(app).get('/health')).status).toBe(200);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
