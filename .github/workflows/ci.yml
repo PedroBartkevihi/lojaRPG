@@ -103,6 +103,13 @@ jobs:
       # site de producao (vite build + preview); veja e2e/playwright.config.js.
       - run: npx playwright test
         working-directory: e2e
+      # De novo, com o refresh token no cookie httpOnly (VITE_REFRESH_COOKIE),
+      # nos fluxos de sessao, senha, compra e convite.
+      - name: Ponta a ponta no modo cookie
+        run: npx playwright test tests/sessao.spec.js tests/senha.spec.js tests/compra.spec.js tests/mesa-com-convite.spec.js
+        working-directory: e2e
+        env:
+          E2E_REFRESH_COOKIE: 'true'
       - name: Guardar prints, videos e traces da falha
         if: failure()
         uses: actions/upload-artifact@v4
