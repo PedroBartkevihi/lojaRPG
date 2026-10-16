@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { id, integer, optionalText, requiredText } from './fields.js';
 
+/** @param {string} field */
 const money = (field) => integer(field, { min: 0, max: 100000000 });
 
 export const itemRequestSchema = z

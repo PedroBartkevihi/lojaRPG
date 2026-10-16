@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { isCommonPassword } from '../utils/commonPasswords.js';
 
+/**
+ * @param {string} field Nome do campo nas mensagens.
+ * @param {number} [maxLength]
+ */
 export function requiredText(field, maxLength = 255) {
   const required = `${field} é obrigatório.`;
 
@@ -18,6 +22,10 @@ export function optionalText(maxLength = 1000) {
   );
 }
 
+/**
+ * @param {string} field
+ * @param {{ min?: number, max?: number }} [limits]
+ */
 export function integer(field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   const message = `${field} deve ser um número inteiro entre ${min} e ${max}.`;
 
@@ -28,6 +36,7 @@ export function integer(field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) 
 // validacao e quebraria a consulta com erro 500.
 const MAX_DATABASE_ID = 2147483647;
 
+/** @param {string} field */
 export function id(field) {
   return integer(field, { min: 1, max: MAX_DATABASE_ID });
 }

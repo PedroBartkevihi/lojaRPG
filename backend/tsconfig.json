@@ -1,0 +1,28 @@
+{
+  // TypeScript gradual (D6): o codigo continua em JavaScript, e o tsc confere
+  // so os arquivos de "include". Os tipos das entradas vem dos schemas Zod
+  // (z.infer) e os do banco, do cliente gerado pelo Prisma. Para tipar mais
+  // um modulo, acrescente-o aqui e rode npm run typecheck.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/config/env.js",
+    "src/schemas/*.js",
+    "src/utils/ApiError.js",
+    "src/utils/commonPasswords.js",
+    "src/utils/inviteCode.js",
+    "src/utils/password.js",
+    "src/utils/pricing.js",
+    "src/utils/tokens.js",
+    "src/utils/validation.js"
+  ]
+}

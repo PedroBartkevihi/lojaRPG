@@ -35,9 +35,9 @@ export const env = {
   // site e API no mesmo dominio (app. e api. de um dominio proprio); "none"
   // para dominios diferentes, que navegadores com bloqueio de cookies de
   // terceiros recusam. Veja o DEPLOY.md.
-  refreshCookieSameSite: ['lax', 'strict', 'none'].includes(process.env.REFRESH_COOKIE_SAMESITE)
-    ? process.env.REFRESH_COOKIE_SAMESITE
-    : 'lax'
+  refreshCookieSameSite: /** @type {'lax' | 'strict' | 'none'} */ (
+    ['lax', 'strict', 'none'].includes(process.env.REFRESH_COOKIE_SAMESITE || '') ? process.env.REFRESH_COOKIE_SAMESITE : 'lax'
+  )
 };
 
 env.appUrl ||= env.corsOrigins[0] || 'http://localhost:5173';
@@ -50,10 +50,15 @@ const EXAMPLE_SECRETS = new Set([
   'configure-um-segredo-longo-e-unico'
 ]);
 
+/**
+ * @param {string | undefined} value
+ * @param {number} minLength
+ */
 function isWeakSecret(value, minLength) {
   return !value || EXAMPLE_SECRETS.has(value) || value.length < minLength;
 }
 
+/** @param {{ nodeEnv: string, jwtSecret?: string }} config */
 export function assertProductionSecrets({ nodeEnv, jwtSecret }) {
   if (nodeEnv !== 'production') {
     return;

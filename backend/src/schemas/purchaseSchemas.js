@@ -11,8 +11,10 @@ const positiveInteger = z.coerce
 
 // Aceita itemId ou item_id, como o front-end antigo enviava.
 const cartItemSchema = z.preprocess(
-  (value) =>
-    value && typeof value === 'object' ? { itemId: value.itemId ?? value.item_id, quantity: value.quantity } : value,
+  (value) => {
+    const entry = /** @type {{ itemId?: unknown, item_id?: unknown, quantity?: unknown } | null} */ (value);
+    return entry && typeof entry === 'object' ? { itemId: entry.itemId ?? entry.item_id, quantity: entry.quantity } : value;
+  },
   z.object({ itemId: positiveInteger, quantity: positiveInteger }, { error: INVALID_CART_ITEM })
 );
 

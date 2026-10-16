@@ -94,10 +94,12 @@ const COMMON_PASSWORDS = [
 const COMMON = new Set(COMMON_PASSWORDS);
 
 // "aaaaaaaa", "12121212" e afins: um bloco curto repetido ate o fim.
+/** @param {string} value */
 function isRepetition(value) {
   return /^(.{1,2})\1+$/.test(value);
 }
 
+/** @param {string} password */
 export function isCommonPassword(password) {
   const value = password.trim().toLowerCase();
   return COMMON.has(value) || isRepetition(value);
