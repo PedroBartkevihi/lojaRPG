@@ -118,12 +118,20 @@ A API tem duas rotas sem autenticação:
 Elas são separadas de propósito: se o `/health` dependesse do banco, um Neon
 lento faria o Render reiniciar uma API saudável, e a queda ficaria maior.
 
-Para ser avisado de uma queda, cadastre o `/ready` num monitor gratuito (por
-exemplo UptimeRobot ou Better Stack), com alerta por e-mail. Atenção: um
-monitor que verifica a cada poucos minutos também mantém a API acordada o mês
-inteiro, consumindo as horas do plano gratuito como na opção 2. Com a API no
-plano pago isso não importa; no gratuito, prefira o workflow só no dia de jogo
-e confira o `/ready` quando ele terminar.
+Para ser avisado de uma queda, cadastre a API num monitor gratuito (por
+exemplo UptimeRobot ou Better Stack), com alerta por e-mail. Atenção a dois
+custos de um monitor que verifica a cada poucos minutos:
+
+- **Render:** ele mantém a API acordada o mês inteiro, consumindo as horas do
+  plano gratuito como na opção 2. Com a API no plano pago isso não importa.
+- **Neon:** cada chamada ao `/ready` faz um `SELECT 1`, então o banco também
+  nunca dorme e gasta as horas de computação do plano gratuito do Neon o mês
+  inteiro. Se elas acabarem, o Neon suspende o banco até o próximo ciclo e a
+  API inteira para. Confira a cota em *Billing* no Neon.
+
+No plano gratuito, prefira o workflow só no dia de jogo e confira o `/ready`
+quando ele terminar. Um monitor contínuo deve chamar o `/health` (que não toca
+no banco); deixe o `/ready` com intervalo longo, ou só com o Neon pago.
 
 ## Produção local com Docker
 
@@ -311,20 +319,25 @@ Antes de uma atualização sensível, crie também um branch de backup no Neon
 ### Backup manual (do seu computador)
 
 Os scripts rodam o `pg_dump` e o `pg_restore` na imagem oficial do
-PostgreSQL 17 pelo Docker, sem instalar nada além dele. No diretório
-`backend`:
+PostgreSQL 17 pelo Docker, sem instalar nada além dele. Para a senha do banco
+não ficar no histórico do terminal, ponha a URL no `backend/.env` (que o Git
+ignora), em vez de passá-la na linha de comando:
 
 ```bash
-npm run db:backup -- --url "postgresql://usuario:senha@host/banco?sslmode=require"
+BACKUP_DATABASE_URL=postgresql://usuario:senha@host/banco?sslmode=require
 ```
 
-O arquivo vai para `backups/<banco>-<data UTC>.dump`, no formato custom do
-`pg_dump` (comprimido). Sem `--url`, o script usa `BACKUP_DATABASE_URL` ou o
-`DATABASE_URL` do `.env` (o banco de desenvolvimento). Para o banco do Docker:
+Depois, no diretório `backend`:
 
 ```bash
 npm run db:backup
 ```
+
+O arquivo vai para `backups/<banco>-<data UTC>.dump` na raiz do projeto, no
+formato custom do `pg_dump` (comprimido). Sem `BACKUP_DATABASE_URL`, o script
+usa o `DATABASE_URL` do `.env` (o banco de desenvolvimento). Também aceita
+`--url <URL>` e `--out <pasta>`. A senha vai para o container só pelo ambiente
+(`PGPASSWORD`), nunca nos argumentos do `pg_dump`.
 
 ### Backup semanal automático (GitHub Actions)
 
@@ -335,17 +348,24 @@ criptografia é obrigatória porque os artefatos de um repositório público pod
 ser baixados por qualquer conta do GitHub. Para ligar, crie dois segredos em
 *Settings > Secrets and variables > Actions*:
 
-- `BACKUP_DATABASE_URL`: a connection string direta do Neon.
+- `BACKUP_DATABASE_URL`: a connection string direta do Neon. De preferência
+  com um papel só de leitura criado para o backup (por exemplo, no SQL Editor do Neon:
+  `CREATE ROLE backup LOGIN PASSWORD '...'; GRANT pg_read_all_data TO backup;`),
+  e não com o dono do banco.
 - `BACKUP_PASSPHRASE`: uma senha longa, guardada também fora do GitHub (sem
   ela o backup não abre).
 
 Sem os segredos, o workflow só avisa e termina. O GitHub desativa workflows
 agendados de repositórios sem atividade por 60 dias; se isso acontecer, ele
-avisa por e-mail e basta reativar na aba Actions. Para abrir um backup baixado:
+avisa por e-mail e basta reativar na aba Actions. O artefato baixado vem num
+`.zip`; extraia o `.dump.gpg` para a pasta `backups/` e abra com:
 
 ```bash
-gpg --decrypt lojarpg-AAAAMMDD-HHMM.dump.gpg > lojarpg.dump
+gpg --output backups/lojarpg.dump --decrypt backups/lojarpg-AAAAMMDD-HHMM.dump.gpg
 ```
+
+Use `--output`, e não `> arquivo`: no PowerShell o `>` regrava a saída como
+texto e corrompe o dump.
 
 ### Ensaio de restauração
 
@@ -354,16 +374,21 @@ mudanças grandes no schema), restaure um backup num banco de teste e confira
 os dados:
 
 ```bash
-npm run db:restore-check -- backups/arquivo.dump --compare "<URL do banco de origem>"
+npm run db:restore-check -- ../backups/<arquivo>.dump
 ```
+
+Para comparar com a origem, ponha a URL dela no `backend/.env` como
+`COMPARE_DATABASE_URL` (ou passe `--compare <URL>`). O caminho do arquivo vale
+a partir da pasta onde você digitou o comando ou da raiz do projeto.
 
 O script recria o banco `lojarpg_restore` do Docker local (o destino precisa
 terminar em `_restore`, porque é apagado e recriado; mude com `--target`),
 restaura o arquivo e mostra a contagem de usuários, mesas, vendedores,
 personagens, itens, inventário, compras e históricos, a soma do ouro e a
-última migration. Com `--compare`, compara cada número com a origem e termina
-com erro se algum for diferente; rode logo depois do backup, antes de novas
-operações na origem. Depois do ensaio, apague o banco de teste:
+última migration. Com a origem, compara cada número (inclusive tabelas que só
+existam de um lado) e termina com erro se algum for diferente; rode logo depois
+do backup, antes de novas operações na origem. Um backup sem as tabelas da loja
+(por exemplo, do banco errado) também termina com erro. Depois do ensaio, apague o banco de teste:
 
 ```bash
 docker compose exec db psql -U lojarpg -c "DROP DATABASE lojarpg_restore"

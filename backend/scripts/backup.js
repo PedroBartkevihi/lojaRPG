@@ -5,11 +5,14 @@
 //   npm run db:backup -- [--url <DATABASE_URL>] [--out <pasta>]
 //   npm run db:restore-check -- <arquivo.dump> [--target <URL>] [--compare <URL>]
 //
+// Para nao deixar a senha no historico do terminal, prefira as variaveis
+// BACKUP_DATABASE_URL e COMPARE_DATABASE_URL no backend/.env a --url e --compare.
+//
 // O backup tem e-mails e hashes de senha: guarde-o em local privado, fora do
 // repositorio (a pasta backups/ e ignorada pelo Git).
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
-import { createReadStream, createWriteStream, mkdirSync, statSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -61,20 +64,33 @@ function dockerNetwork(url) {
   return { url: parsed.toString(), args: [] };
 }
 
-// A URL vai pelo ambiente (-e PGURL sem valor), e nao pela linha de comando,
-// para a senha nao aparecer na lista de processos.
+// A senha sai da URL e vai so pelo ambiente (PGPASSWORD). O comando dentro do
+// container expande "$PGURL" nos argumentos do pg_dump/psql, que aparecem na
+// lista de processos (no Linux, tambem na do computador); sem a senha ali, so
+// sobram usuario, host e banco.
+function splitPassword(url) {
+  const parsed = new URL(url);
+  const password = decodeURIComponent(parsed.password);
+  parsed.password = '';
+  return { url: parsed.toString(), password };
+}
+
 function runPostgresTool(url, command, { input, output, capture = false } = {}) {
   const network = dockerNetwork(url);
-  const args = ['run', '--rm', '-i', ...network.args, '-e', 'PGURL', POSTGRES_IMAGE, 'sh', '-c', command];
+  const { url: urlWithoutPassword, password } = splitPassword(network.url);
+  const envArgs = ['-e', 'PGURL', ...(password ? ['-e', 'PGPASSWORD'] : [])];
+  const args = ['run', '--rm', '-i', ...network.args, ...envArgs, POSTGRES_IMAGE, 'sh', '-c', command];
 
   return new Promise((resolve, reject) => {
     const child = spawn('docker', args, {
-      env: { ...process.env, PGURL: network.url },
+      env: { ...process.env, PGURL: urlWithoutPassword, ...(password ? { PGPASSWORD: password } : {}) },
       stdio: ['pipe', output || capture ? 'pipe' : 'inherit', 'inherit']
     });
     let stdout = '';
 
     child.on('error', (error) => reject(new Error(`Não foi possível rodar o Docker: ${error.message}`)));
+    input?.on('error', (error) => reject(new Error(`Não foi possível ler ${input.path}: ${error.message}`)));
+    output?.on('error', (error) => reject(new Error(`Não foi possível gravar ${output.path}: ${error.message}`)));
 
     if (output) {
       child.stdout.pipe(output);
@@ -117,11 +133,21 @@ async function dump(args) {
   mkdirSync(outDir, { recursive: true });
 
   console.log(`Exportando ${database} para ${file}...`);
-  const output = createWriteStream(file);
-  // Formato custom (-Fc): comprimido e restauravel tabela a tabela. Sem dono
-  // nem permissoes, para restaurar em outro servidor com outro usuario.
-  await runPostgresTool(url, 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"', { output });
-  await new Promise((resolve) => output.end(resolve));
+  // Grava em .partial e so renomeia no fim: um dump que falha (Docker
+  // desligado, conexao caida) nao deixa um arquivo com nome de backup bom.
+  const partial = `${file}.partial`;
+  const output = createWriteStream(partial);
+  try {
+    // Formato custom (-Fc): comprimido e restauravel tabela a tabela. Sem dono
+    // nem permissoes, para restaurar em outro servidor com outro usuario.
+    await runPostgresTool(url, 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"', { output });
+    await new Promise((resolve) => output.end(resolve));
+  } catch (error) {
+    output.destroy();
+    if (existsSync(partial)) unlinkSync(partial);
+    throw error;
+  }
+  renameSync(partial, file);
   console.log(`Backup concluído (${Math.round(statSync(file).size / 1024)} KB).`);
 }
 
@@ -146,6 +172,11 @@ async function countRows(url) {
         ]
       : [])
   ];
+
+  if (queries.length === 0) {
+    return new Map();
+  }
+
   const result = await runPostgresTool(url, `psql "$PGURL" -At -F '|' -c "${queries.join(' UNION ALL ').replace(/"/g, '\\"')}"`, {
     capture: true
   });
@@ -158,13 +189,27 @@ async function countRows(url) {
   );
 }
 
+// O npm roda o script dentro de backend/, mas o backup vai para <raiz>/backups:
+// um caminho relativo vale a partir de onde o comando foi digitado (INIT_CWD)
+// ou da raiz do repositorio.
+function resolveBackupFile(file) {
+  const candidates = [path.resolve(process.env.INIT_CWD || process.cwd(), file), path.resolve(repoRoot, file)];
+  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+}
+
 async function restoreCheck(args) {
-  const file = args.find((arg, index) => !arg.startsWith('--') && !args[index - 1]?.startsWith('--'));
+  const fileArg = args.find((arg, index) => !arg.startsWith('--') && !args[index - 1]?.startsWith('--'));
   const target = option(args, '--target') || process.env.RESTORE_DATABASE_URL || DEFAULT_TARGET;
-  const compare = option(args, '--compare');
+  const compare = option(args, '--compare') || process.env.COMPARE_DATABASE_URL;
+
+  if (!fileArg) {
+    fail('Informe o arquivo do backup: npm run db:restore-check -- ../backups/arquivo.dump');
+  }
+
+  const file = resolveBackupFile(fileArg);
 
   if (!file) {
-    fail('Informe o arquivo do backup: npm run db:restore-check -- backups/arquivo.dump');
+    fail(`Arquivo não encontrado: ${fileArg}`);
   }
 
   const targetUrl = new URL(target);
@@ -191,15 +236,25 @@ async function restoreCheck(args) {
   });
 
   const restored = await countRows(target);
+
+  // Um dump do banco errado (ou vazio) tambem restaura sem erro: sem as
+  // tabelas da loja, o ensaio nao prova nada.
+  if (!restored.has('última migration') || !restored.has('users')) {
+    fail('O backup restaurado não tem as tabelas da loja (users e _prisma_migrations). Confira a URL usada no backup.');
+  }
+
   const source = compare ? await countRows(compare) : null;
+  // Uniao das chaves: uma tabela que so existe na origem tambem e diferenca.
+  const names = [...new Set([...restored.keys(), ...(source?.keys() ?? [])])];
   let mismatches = 0;
 
   console.log('\nConferência do banco restaurado:');
-  for (const [name, value] of restored) {
+  for (const name of names) {
+    const value = restored.get(name);
     const expected = source?.get(name);
     const flag = source ? (expected === value ? 'ok' : `DIFERENTE (origem: ${expected ?? 'ausente'})`) : '';
     if (source && expected !== value) mismatches += 1;
-    console.log(`  ${name.padEnd(20)} ${String(value).padStart(10)}  ${flag}`);
+    console.log(`  ${name.padEnd(20)} ${String(value ?? 'ausente').padStart(10)}  ${flag}`);
   }
 
   if (mismatches > 0) {

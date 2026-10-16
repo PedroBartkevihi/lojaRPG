@@ -22,9 +22,20 @@ test('jogador compra com clique duplo e paga uma vez só', async ({ page }) => {
   await expect(page.locator('.cart-line', { hasText: 'Poção de Cura' })).toBeVisible();
 
   // O clique duplo chegava antes de o botão redesenhar desativado e fazia
-  // duas compras (corrigido no PR #11).
-  await page.getByRole('button', { name: 'Finalizar compra' }).dblclick();
+  // duas compras (corrigido no PR #11). Os dois cliques vão no mesmo instante,
+  // antes de o React redesenhar: só a trava do checkout segura o segundo.
+  const purchaseRequests = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && /\/purchases$/.test(new URL(request.url()).pathname)) {
+      purchaseRequests.push(request.url());
+    }
+  });
+  await page.getByRole('button', { name: 'Finalizar compra' }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
   await expect(page.locator('.toast')).toHaveText('Compra concluída com sucesso.');
+  expect(purchaseRequests).toHaveLength(1);
   await expect.poll(async () => parseMoneyText(await goldBadge.textContent())).toBe(goldBefore - 5000);
 
   await nav.getByRole('button', { name: 'Compras' }).click();

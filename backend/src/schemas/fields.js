@@ -43,11 +43,14 @@ export const newPassword = z
   .string({ error: PASSWORD_LENGTH_MESSAGE })
   .min(PASSWORD_MIN_LENGTH, PASSWORD_LENGTH_MESSAGE)
   .max(128, 'Senha deve ter no máximo 128 caracteres.')
+  // Espacos nas pontas nao contam: "        " ou "1234567 " nao passam.
+  .refine((value) => value.trim().length >= PASSWORD_MIN_LENGTH, PASSWORD_LENGTH_MESSAGE)
   .refine((value) => !isCommonPassword(value), 'Essa senha é muito comum. Escolha outra, mais difícil de adivinhar.');
 
 // No login a regra nova nao vale: contas criadas com o minimo antigo (6
-// caracteres) continuam entrando ate trocar a senha.
+// caracteres) continuam entrando ate trocar a senha. O cadastro antigo nao
+// tinha maximo, entao o teto aqui e so contra abuso, bem acima dos 128.
 export const loginPassword = z
   .string({ error: 'Senha é obrigatória.' })
   .min(1, 'Senha é obrigatória.')
-  .max(128, 'Email ou senha inválidos.');
+  .max(1024, 'Email ou senha inválidos.');

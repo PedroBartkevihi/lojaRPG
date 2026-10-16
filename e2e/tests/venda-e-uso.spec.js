@@ -1,5 +1,9 @@
-import { acceptDialogs, expect, login, test } from './fixtures.js';
+import { acceptDialogs, expect, login, resetDemo, test } from './fixtures.js';
 import { parseMoneyText } from './money.js';
+
+// O teste conta com as 2 pocoes do Borin no seed: sem o reset, um retry depois
+// de uma venda ja feita falharia sempre.
+test.beforeEach(() => resetDemo());
 
 test('jogador vende um item à loja e usa outro', async ({ page }) => {
   acceptDialogs(page);
