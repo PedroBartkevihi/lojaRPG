@@ -124,9 +124,10 @@ const ADVENTURING_GEAR = [
   gear('Estrepes (bolsa com 20)', 1 * PO, 2, 'Cobrem um quadrado de 1,5 m e ferem quem passa.', 5),
   gear('Tinta (frasco de 30 ml)', 10 * PO, 0, 'Tinta para escrever.', 5),
   gear('Pergaminho (folha)', 1 * PP, 0, 'Folha de pergaminho.', 20),
+  // O SRD nao da o peso dos pacotes: vale a soma do conteudo (com o odre cheio).
   gear('Pacote de explorador', 10 * PO, 59, 'Mochila, saco de dormir, kit de refeição, isqueiro, 10 tochas, 10 dias de rações, odre e 15 m de corda de cânhamo.', 3),
   gear('Pacote de aventureiro de masmorra', 12 * PO, 61.5, 'Mochila, pé de cabra, martelo, 10 pítons, 10 tochas, isqueiro, 10 dias de rações, odre e 15 m de corda de cânhamo.', 3),
-  gear('Pacote de assaltante', 16 * PO, 44.5, 'Mochila, esferas de metal, barbante, sino, 5 velas, pé de cabra, martelo, 10 pítons, lanterna coberta, 2 frascos de óleo, 5 dias de rações, isqueiro, odre e 15 m de corda de cânhamo.', 3)
+  gear('Pacote de assaltante', 16 * PO, 47.5, 'Mochila, esferas de metal, barbante, sino, 5 velas, pé de cabra, martelo, 10 pítons, lanterna coberta, 2 frascos de óleo, 5 dias de rações, isqueiro, odre e 15 m de corda de cânhamo.', 3)
 ];
 
 const POTIONS_AND_ALCHEMY = [

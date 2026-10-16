@@ -2159,6 +2159,50 @@ describe('encomendas ao Mestre', () => {
     expect(await getPrisma().purchase.count({ where: { characterId: 1 } })).toBe(1);
   });
 
+  it('o limite de pendentes vale por jogador na mesa, mesmo com pedidos simultâneos e outro personagem', async () => {
+    const { master, aria } = await demo();
+    const responses = await Promise.all(
+      Array.from({ length: 15 }, (_, index) => aria.post(REQUESTS, { characterId: 1, description: `Pedido ${index}`, maxPrice: 100 }))
+    );
+
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(10);
+    expect(responses.filter((response) => response.status === 409)).toHaveLength(5);
+    expect(await getPrisma().itemRequest.count({ where: { status: 'PENDENTE' } })).toBe(10);
+
+    // Outro personagem do mesmo jogador não abre mais vagas.
+    const second = await aria.post(`${DEMO}/characters`, { name: 'Aria Reserva', className: 'Ladina', race: 'Elfa', level: 1 });
+    const blocked = await aria.post(REQUESTS, { characterId: second.body.character.id, description: 'Mais um', maxPrice: 100 });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.message).toContain('10 encomendas esperando o Mestre');
+    expect((await master.get(REQUESTS)).body.requests).toHaveLength(10);
+  });
+
+  it('não aprova abaixo do que a loja paga pelo item do catálogo', async () => {
+    const { master, aria } = await demo();
+    const { request } = (await aria.post(REQUESTS, { characterId: 1, description: 'Um anel', maxPrice: 5000 })).body;
+
+    // Anel de Proteção Menor: 260 PO na loja, que paga 130 PO na revenda.
+    const below = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 5000, itemId: 9 });
+    expect(below.status).toBe(400);
+    expect(below.body.message).toContain('A loja compra Anel de Proteção Menor por 13000 PC');
+    expect((await getPrisma().itemRequest.findUnique({ where: { id: request.id } })).status).toBe('PENDENTE');
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(25000n);
+  });
+
+  it('encomenda de quem saiu da mesa some da lista do Mestre e não pode ser aprovada', async () => {
+    const { master, borin } = await demo();
+    const { request } = (await borin.post(REQUESTS, { characterId: 2, description: 'Martelo anão', maxPrice: 5000 })).body;
+    const borinUser = await getPrisma().user.findUnique({ where: { email: 'borin@lojarpg.local' } });
+
+    expect((await borin.delete(`${DEMO}/members/${borinUser.id}`)).status).toBe(200);
+    expect((await master.get(REQUESTS)).body.requests).toEqual([]);
+
+    const approved = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 3500, itemId: 10 });
+    expect(approved.status).toBe(409);
+    expect(approved.body.message).toContain('não está mais na mesa');
+    expect(await getPrisma().purchase.count({ where: { characterId: 2 } })).toBe(0);
+  });
+
   it('jogador cancela a própria encomenda, Mestre recusa com nota e ninguém encomenda por outro', async () => {
     const { master, aria, borin } = await demo();
     const first = (await aria.post(REQUESTS, { characterId: 1, description: 'Capa élfica', maxPrice: 100 })).body.request;
@@ -2283,6 +2327,46 @@ describe('importar catálogo', () => {
     expect(await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Luz' } })).not.toBeNull();
   });
 
+  it('500 linhas com descrição cabem no envio, e duas importações ao mesmo tempo não duplicam nada', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    // Com 400 caracteres de descrição, a lista passa de 200 KB (o limite
+    // padrão do corpo é 100 KB). "armas" e "raro" casam com as da mesa.
+    const rows = Array.from({ length: 500 }, (_, index) => ({
+      name: `Lote ${index}`,
+      category: 'armas',
+      rarity: 'raro',
+      price: 100,
+      stock: 1,
+      weight: 3,
+      damage: '1d8 cortante',
+      description: 'Feito pelos ferreiros do porto. '.repeat(13)
+    }));
+
+    const responses = await Promise.all([
+      master.post(`${DEMO}/items/import`, { items: rows }),
+      master.post(`${DEMO}/items/import`, { items: rows })
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    expect(responses.map((response) => response.body.created).sort()).toEqual([0, 500]);
+    expect(await getPrisma().item.count({ where: { campaignId: 1, name: { startsWith: 'Lote ' } } })).toBe(500);
+
+    const item = await getPrisma().item.findFirst({ where: { campaignId: 1, name: 'Lote 0' }, include: { category: true, rarity: true } });
+    expect([item.category.name, item.rarity.name]).toEqual(['Armas', 'Raro']);
+    expect(await getPrisma().rarity.count({ where: { campaignId: 1, name: 'raro' } })).toBe(0);
+    expect(await getPrisma().category.count({ where: { campaignId: 1, name: 'armas' } })).toBe(0);
+  });
+
+  it('envio grande demais volta 413 com a mensagem em português', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const huge = Array.from({ length: 400 }, (_, index) => ({ name: `Grande ${index}`, category: 'Armas', price: 1, stock: 1, description: 'x'.repeat(3000) }));
+
+    const tooBig = await master.post(`${DEMO}/items/import`, { items: huge });
+    expect(tooBig.status).toBe(413);
+    expect(tooBig.body.message).toContain('Divida a planilha');
+    // O resto da API continua com o limite padrão.
+    expect((await master.post(`${DEMO}/characters`, { name: 'x'.repeat(200000), className: 'Guerreiro', race: 'Humano', level: 1 })).status).toBe(413);
+  });
+
   it('só o Mestre importa, com no máximo 500 itens e exigindo a unidade em PC', async () => {
     const aria = as(await login('aria@lojarpg.local'));
     const master = as(await login('mestre@lojarpg.local', 'mestre123'));
@@ -2328,6 +2412,56 @@ describe('descontos e eventos de preço', () => {
     expect(purchase.body.purchase.totalValue).toBe(8000 + 6750);
     expect(purchase.body.purchase.items.map((item) => item.unitPrice).sort()).toEqual([4000, 6750]);
     expect(purchase.body.character.gold).toBe(25000 - 14750);
+  });
+
+  it('com desconto acima da margem de revenda, comprar e vender de volta não dá lucro', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const { discount } = (await master.post(`${DEMO}/discounts`, { name: 'Liquidação', percent: 60 })).body;
+
+    // Kit de Aventureiro: 3500 PC, sai por 1400 e a loja pagaria 1750 na revenda.
+    const bought = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 10, quantity: 2 }] });
+    expect(bought.body.character.gold).toBe(25000 - 2800);
+
+    const kit = (await aria.get(`${DEMO}/inventory/1`)).body.inventory.find((entry) => entry.itemId === 10);
+    expect(kit.item.effectiveSellPrice).toBe(1400);
+    const sold = await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 10, quantity: 2 });
+    expect(sold.body.character.gold).toBe(25000);
+    const log = await getPrisma().inventoryLog.findFirst({ where: { characterId: 1, type: 'VENDA' }, orderBy: { id: 'desc' } });
+    expect(Number(log.unitPrice)).toBe(1400);
+
+    // Sem o desconto, a revenda volta ao valor normal.
+    await master.patch(`${DEMO}/discounts/${discount.id}`, { isActive: false });
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 10, quantity: 1 })).body.character.gold).toBe(25000 + 1750);
+  });
+
+  it('a faixa de preço filtra pelo preço com desconto, o mesmo que a vitrine mostra', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const potions = await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Poções' } });
+    await master.post(`${DEMO}/discounts`, { name: 'Feira na cidade', percent: 20, categoryId: potions.id });
+
+    const ids = async (query) => (await aria.get(`${DEMO}/items?characterId=1&${query}`)).body.items.map((item) => item.id);
+    // Poção de Cura: 50 PO de tabela, 40 PO na feira.
+    expect(await ids('maxPrice=4500')).toContain(6);
+    expect(await ids('minPrice=4500')).not.toContain(6);
+  });
+
+  it('recusa a compra quando o total visto no carrinho não é o que seria cobrado', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const potions = await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Poções' } });
+    await master.post(`${DEMO}/discounts`, { name: 'Feira na cidade', percent: 20, categoryId: potions.id });
+
+    const stale = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 1 }], expectedTotal: 5000 });
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toContain('Os preços mudaram');
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(25000n);
+
+    const ok = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 1 }], expectedTotal: 4000 });
+    expect(ok.status).toBe(201);
+    expect(ok.body.character.gold).toBe(21000);
+    expect((await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 1 }], expectedTotal: -1 })).status).toBe(400);
   });
 
   it('desligar ou remover o desconto volta ao preço de tabela, e só o Mestre mexe', async () => {

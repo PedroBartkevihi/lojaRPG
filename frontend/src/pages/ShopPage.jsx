@@ -45,6 +45,9 @@ export default function ShopPage({
   // Numero da busca mais recente: com a rede lenta, uma resposta antiga pode
   // chegar depois da atual e nao deve substitui-la.
   const latestItemsRequest = useRef(0);
+  // O carrinho atual, lido na recarga sem fazer dela uma dependencia.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
 
   const selectedShop = shops.find((shop) => shop.id === Number(shopId));
   const cartOpen = cart.every((entry) => shops.some((shop) => shop.id === entry.item.shopId && shop.isOpen));
@@ -77,7 +80,20 @@ export default function ShopPage({
         return;
       }
 
-      const freshItems = new Map(data.items.map((item) => [item.id, item]));
+      let freshItems = new Map(data.items.map((item) => [item.id, item]));
+
+      // Item do carrinho fora do filtro atual: o preco dele (que muda com o
+      // personagem e com os descontos) vem da lista sem filtros.
+      if (cartRef.current.some((entry) => !freshItems.has(entry.item.id))) {
+        const all = await api.listItems({ characterId: priceCharacterId });
+
+        if (!isLatest()) {
+          return;
+        }
+
+        freshItems = new Map([...all.items, ...data.items].map((item) => [item.id, item]));
+      }
+
       setItems(data.items);
       setCart((current) =>
         current.map((entry) => (freshItems.has(entry.item.id) ? { ...entry, item: freshItems.get(entry.item.id) } : entry))
@@ -202,12 +218,15 @@ export default function ShopPage({
     setCheckingOut(true);
 
     try {
+      // O total visto vai junto: se os precos mudaram, a API recusa em vez de
+      // cobrar outro valor.
       const payload = {
         characterId: character.id,
         items: cart.map((entry) => ({
           itemId: entry.item.id,
           quantity: entry.quantity
-        }))
+        })),
+        expectedTotal: cartTotal
       };
       const fingerprint = JSON.stringify(payload);
       if (checkoutIntent.current?.fingerprint !== fingerprint) {
@@ -222,6 +241,8 @@ export default function ShopPage({
       showNotice(data.message);
     } catch (requestError) {
       showNotice(requestError.message);
+      // Preco ou estoque mudou: o carrinho passa a mostrar os valores atuais.
+      loadItems();
     } finally {
       checkoutLock.current = false;
       setCheckingOut(false);

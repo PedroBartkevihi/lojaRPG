@@ -47,6 +47,24 @@ describe('AdminItemForm', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ category: 'Armaduras', rarity: 'Incomum' }));
   });
 
+  it('recusa peso que não é número em vez de salvar o item sem peso', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue();
+    render(<AdminItemForm categories={categories} rarities={rarities} onSave={onSave} />);
+
+    await fillRequired(user);
+    await user.type(screen.getByLabelText('Peso (lb)'), '3 lb');
+    await user.click(screen.getByRole('button', { name: /salvar/i }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText('Peso inválido: use um número em libras, como 3 ou 2,5.')).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Peso (lb)'));
+    await user.type(screen.getByLabelText('Peso (lb)'), '2,5');
+    await user.click(screen.getByRole('button', { name: /salvar/i }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ weight: 2.5 }));
+  });
+
   it('mantém a escolha do Mestre quando as listas são recarregadas', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue();
