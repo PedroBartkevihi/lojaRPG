@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isCommonPassword } from '../utils/commonPasswords.js';
 
 export function requiredText(field, maxLength = 255) {
   const required = `${field} é obrigatório.`;
@@ -33,6 +34,20 @@ export function id(field) {
 
 export const email = requiredText('Email', 255).toLowerCase().pipe(z.email('Email inválido.'));
 
-export const password = z
-  .string({ error: 'Senha deve ter pelo menos 6 caracteres.' })
-  .min(6, 'Senha deve ter pelo menos 6 caracteres.');
+export const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_LENGTH_MESSAGE = `Senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+
+// Senha nova (cadastro e troca): pelo menos 8 caracteres e fora da lista de
+// senhas comuns. O limite de 128 evita gastar o scrypt com textos enormes.
+export const newPassword = z
+  .string({ error: PASSWORD_LENGTH_MESSAGE })
+  .min(PASSWORD_MIN_LENGTH, PASSWORD_LENGTH_MESSAGE)
+  .max(128, 'Senha deve ter no máximo 128 caracteres.')
+  .refine((value) => !isCommonPassword(value), 'Essa senha é muito comum. Escolha outra, mais difícil de adivinhar.');
+
+// No login a regra nova nao vale: contas criadas com o minimo antigo (6
+// caracteres) continuam entrando ate trocar a senha.
+export const loginPassword = z
+  .string({ error: 'Senha é obrigatória.' })
+  .min(1, 'Senha é obrigatória.')
+  .max(128, 'Email ou senha inválidos.');
