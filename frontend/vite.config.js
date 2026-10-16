@@ -1,8 +1,49 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
+
+// App instalavel no celular ("Adicionar a tela inicial"), com icone e tela
+// cheia. O service worker guarda so a casca do app (JS, CSS e icones, que tem
+// hash no nome); a pagina vem sempre da rede quando ha conexao, para um deploy
+// novo nao abrir a versao anterior, e os dados continuam vindo da API.
+const pwa = VitePWA({
+  registerType: 'autoUpdate',
+  // Arquivo externo (registerSW.js), e nao script inline: a CSP do site
+  // bloqueia scripts inline.
+  injectRegister: 'script',
+  includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+  manifest: {
+    name: 'lojaRPG',
+    short_name: 'lojaRPG',
+    description: 'A loja da sua campanha de RPG: catálogo, ouro e inventário da mesa no celular.',
+    lang: 'pt-BR',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#16110d',
+    theme_color: '#16110d',
+    icons: [
+      { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+    ]
+  },
+  workbox: {
+    globPatterns: ['**/*.{js,css,svg,png,webp}'],
+    navigateFallback: null,
+    cleanupOutdatedCaches: true,
+    runtimeCaching: [
+      {
+        urlPattern: ({ request }) => request.mode === 'navigate',
+        handler: 'NetworkFirst',
+        options: { cacheName: 'paginas', expiration: { maxEntries: 5 } }
+      }
+    ]
+  }
+});
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), ...(process.env.VITEST ? [] : [pwa])],
   server: {
     port: 5173
   },
