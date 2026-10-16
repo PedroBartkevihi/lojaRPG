@@ -464,10 +464,35 @@ troque o `DATABASE_URL` no Render.
   liberar a conta (hoje o cadastro já entra na loja); o rate limit do cadastro
   (20 tentativas a cada 15 minutos por IP) limita a varredura de e-mails.
 
-## Logs
+## Logs e erros
 
-- Desenvolvimento: a saída do `npm run dev` no diretório `backend`.
+A API escreve logs em JSON (pino), uma linha por evento, com `reqId`: o id da
+requisição, que também volta no cabeçalho `X-Request-Id` da resposta (um
+`X-Request-Id` válido mandado por um proxy é mantido). Cada requisição gera uma
+linha com método, rota sem a query, status e tempo; `/health` e `/ready` ficam
+de fora. Tokens, cookies, senhas e e-mails nunca vão para o log (aparecem como
+`[omitido]`). `LOG_LEVEL` muda o nível (`info` por padrão; `debug`, `warn`,
+`error`...); um valor que o pino não conhece fica no padrão, com um aviso no
+log.
+
+Erros do navegador (exceções não tratadas e telas que quebram) vão para
+`POST /client-errors` e aparecem no mesmo log, em nível `warn`, com a mensagem,
+a pilha, a rota da tela sem query (e sem o código, em `/convite/:code`) e o
+`requestId` da última resposta, para achar a requisição que veio antes. Uma
+tela que quebra mostra "Algo deu errado nesta tela" em vez de ficar em branco,
+com botões para recarregar ou ir para as mesas; voltar no navegador também
+tenta de novo.
+
+Onde ler:
+
+- Desenvolvimento: a saída do `npm run dev` no diretório `backend` (JSON; para
+  ler formatado, `npm run dev | npx pino-pretty`).
 - Docker: `docker compose logs -f backend` e `docker compose logs -f frontend`.
-- Render: aba Logs de cada serviço no painel.
+- Render: aba Logs da API. Para seguir uma requisição, busque pelo `reqId`;
+  para os erros do site, por `Erro no navegador`; para os 500, por
+  `Erro interno`.
 
-A API evita retornar detalhes internos em erros 500.
+A API não devolve detalhes internos em erros 500. Um serviço externo de
+rastreio de erros (Sentry, por exemplo) não foi incluído para não depender de
+conta de terceiros: os dois lados já registram no log da API, e dá para ligar
+um alerta por palavra-chave no próprio Render ou num serviço de logs.

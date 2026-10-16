@@ -358,9 +358,13 @@ function AppContent() {
     // Quem chegou por um convite precisa de conta propria: a de demonstracao
     // nao entra em outras mesas, entao os botoes dela somem dessa tela.
     const hasPendingInvite = Boolean(inviteCode || readPendingInvite());
+    // Sem sessao, o endereco e sempre o de uma tela de entrada: uma navegacao
+    // da area logada que chegue depois do logout (ex.: /shop) volta para /login.
+    const onAuthPath = ['/login', '/register', '/esqueci-senha', RESET_PATH].includes(location.pathname) || Boolean(inviteCode);
 
     return (
       <main className="auth-screen">
+        {!onAuthPath && !onResetPage && (!token || !user) && <Navigate to="/login" replace />}
         <div className="auth-layout">
           <section className="auth-intro">
             <div className="brand-lockup">

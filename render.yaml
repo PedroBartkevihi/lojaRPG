@@ -11,7 +11,9 @@ services:
     # consultas e a distancia entre os dois pesaria em todas elas.
     region: ohio
     rootDir: backend
-    buildCommand: npm ci --include=dev && npx prisma generate
+    # O CLI do Prisma e dependencia de producao (o inicio aplica as migrations);
+    # testes e lint ficam de fora do build.
+    buildCommand: npm ci --omit=dev && npx prisma generate
     # Com DEMO_RESET_ON_START=true o seed recria a mesa de demonstracao e as
     # contas de exemplo a cada inicio (no plano gratuito, quando a API acorda
     # depois de 15 minutos parada). As outras mesas nao sao tocadas.

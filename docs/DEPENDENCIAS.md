@@ -17,7 +17,8 @@ Isso confirma a presença da dependência vulnerável; não demonstra exploraç�
 Não foi identificado um caminho das entradas HTTP até essa operação de merge.
 O uso localizado está no carregamento de configuração do Prisma. Ainda assim, o CLI
 participa da publicação e das migrações na inicialização (`backend/Dockerfile`);
-o alerta não deve ser descartado apenas por `prisma` constar em `devDependencies`.
+o alerta não deve ser descartado por isso. Desde a imagem Docker menor (D7), `prisma` é
+dependência de produção, e `npm audit --omit=dev` também mostra o alerta.
 
 ## Por que a atualização ficou bloqueada
 

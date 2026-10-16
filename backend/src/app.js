@@ -2,6 +2,8 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { env } from './config/env.js';
+import { errorReason, httpLogger } from './config/logger.js';
+import { clientErrorRoute } from './routes/clientErrorRoute.js';
 import { getPrisma } from './database/connection.js';
 import { errorHandler, notFound } from './middlewares/errorMiddleware.js';
 import { authRoutes } from './routes/authRoutes.js';
@@ -11,6 +13,7 @@ import { ApiError } from './utils/ApiError.js';
 const app = express();
 
 app.set('trust proxy', env.trustProxy);
+app.use(httpLogger);
 
 // Nas primeiras requisicoes vindas de proxy, registra quantos enderecos chegam
 // no X-Forwarded-For (sem os IPs). Sem um cabecalho mandado pelo proprio
@@ -22,7 +25,7 @@ app.use((req, _res, next) => {
 
   if (forwardedFor && forwardedForLogs < 5 && env.nodeEnv !== 'test') {
     forwardedForLogs += 1;
-    console.log(
+    req.log.info(
       `X-Forwarded-For com ${forwardedFor.split(',').length} endereco(s) em ${req.method} ${req.path}; TRUST_PROXY=${env.trustProxy}.`
     );
   }
@@ -43,7 +46,9 @@ app.use(
     },
     // Deixa o site mandar e receber o cookie do refresh token (modo cookie).
     // A lista de origens acima continua sendo a unica liberada.
-    credentials: true
+    credentials: true,
+    // O front le o id da requisicao para mandar junto num relato de erro.
+    exposedHeaders: ['X-Request-Id']
   })
 );
 // A importacao de catalogo manda ate 500 itens de uma vez (com descricoes,
@@ -61,7 +66,7 @@ app.get('/health', (_req, res) => {
 
 const READY_TIMEOUT_MS = 5000;
 
-app.get('/ready', async (_req, res) => {
+app.get('/ready', async (req, res) => {
   let timer;
 
   try {
@@ -73,9 +78,7 @@ app.get('/ready', async (_req, res) => {
     ]);
     res.json({ status: 'ok', database: 'ok' });
   } catch (error) {
-    if (env.nodeEnv !== 'test') {
-      console.warn(`/ready sem banco: ${error.message.split('\n')[0]}`);
-    }
+    req.log.warn(`/ready sem banco: ${errorReason(error)}`);
     res.status(503).json({ status: 'indisponivel', database: 'erro' });
   } finally {
     clearTimeout(timer);
@@ -83,6 +86,7 @@ app.get('/ready', async (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.use('/client-errors', clientErrorRoute);
 app.use('/campaigns', campaignRoutes);
 
 app.use(notFound);

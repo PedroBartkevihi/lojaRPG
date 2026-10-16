@@ -1,5 +1,6 @@
 import { appendFile } from 'node:fs/promises';
 import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
 
 // E-mails dos testes: ficam aqui em vez de sair, e os testes leem o link.
 export const testOutbox = [];
@@ -35,9 +36,10 @@ export async function sendMail({ to, subject, text, html }) {
 
   if (!mailConfigured()) {
     if (env.nodeEnv === 'production') {
-      console.warn(`E-mail "${subject}" não enviado: configure RESEND_API_KEY e EMAIL_FROM.`);
+      logger.warn(`E-mail "${subject}" não enviado: configure RESEND_API_KEY e EMAIL_FROM.`);
     } else {
-      console.log(`[e-mail não enviado, sem RESEND_API_KEY] Para: ${to}\nAssunto: ${subject}\n${text}`);
+      // So fora de producao: o link do e-mail aparece no log para testar o fluxo.
+      logger.info({ mail: { subject, text } }, 'E-mail não enviado (sem RESEND_API_KEY)');
     }
     return;
   }

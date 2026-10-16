@@ -2483,3 +2483,58 @@ describe('descontos e eventos de preço', () => {
     expect((await master.get(`${DEMO}/discounts`)).body.discounts).toEqual([]);
   });
 });
+
+describe('logs e erros do navegador', () => {
+  it('devolve o id da requisição e mantém um X-Request-Id válido de quem chama', async () => {
+    const generated = await request(app).get('/health');
+    expect(generated.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+
+    const kept = await request(app).get('/health').set('X-Request-Id', 'abc12345-proxy');
+    expect(kept.headers['x-request-id']).toBe('abc12345-proxy');
+
+    const replaced = await request(app).get('/health').set('X-Request-Id', 'curto');
+    expect(replaced.headers['x-request-id']).not.toBe('curto');
+  });
+
+  it('recebe relatos de erro do navegador sem login e recusa relato vazio', async () => {
+    const report = { message: 'TypeError: x is undefined', stack: 'at ShopPage', path: '/shop?search=poção', kind: 'error' };
+    expect((await request(app).post('/client-errors').set('X-Forwarded-For', '192.0.2.140').send(report)).status).toBe(204);
+    expect((await request(app).post('/client-errors').set('X-Forwarded-For', '192.0.2.140').send({ message: '' })).status).toBe(400);
+  });
+
+  it('o log não leva token, cookie, senha nem e-mail', async () => {
+    const { createLogger } = await import('../src/config/logger.js');
+    const lines = [];
+    const log = createLogger({ write: (line) => lines.push(line) });
+
+    log.warn({ req: { headers: { authorization: 'Bearer segredo', cookie: 'lojarpg_refresh=abc' } }, body: { password: 'senha-123', email: 'a@b.com' } }, 'teste');
+    const text = lines.join('');
+    expect(text).not.toMatch(/segredo|lojarpg_refresh|senha-123|a@b\.com/);
+    expect(text).toContain('[omitido]');
+  });
+
+  it('a rota do relato sai sem query, fragmento nem código de convite', async () => {
+    const { cleanClientPath } = await import('../src/routes/clientErrorRoute.js');
+    expect(cleanClientPath('/shop?search=poção#topo')).toBe('/shop');
+    expect(cleanClientPath('/convite/ABCD1234?x=1')).toBe('/convite/:code');
+    expect(cleanClientPath(undefined)).toBeUndefined();
+  });
+
+  it('LOG_LEVEL desconhecido volta ao padrão em vez de derrubar a API', async () => {
+    const { resolveLogLevel } = await import('../src/config/logger.js');
+    expect(resolveLogLevel('warning', 'production')).toBe('info');
+    expect(resolveLogLevel(' Debug ', 'production')).toBe('debug');
+    expect(resolveLogLevel('silent', 'production')).toBe('silent');
+    expect(resolveLogLevel(undefined, 'test')).toBe('warn');
+  });
+
+  it('a linha de acesso mostra a rota inteira e o aviso do banco mostra o motivo', async () => {
+    const { errorReason, routeOf } = await import('../src/config/logger.js');
+    expect(routeOf({ originalUrl: '/auth/register?next=1', url: '/register' })).toBe('/auth/register');
+    expect(routeOf({ url: '/health' })).toBe('/health');
+
+    const prismaError = new Error('\nInvalid `prisma.$queryRaw()` invocation:\n\n\nCan\'t reach database server at `db:5432`\n\nPlease make sure your database server is running at `db:5432`.');
+    expect(errorReason(prismaError)).toBe("Can't reach database server at `db:5432`");
+    expect(errorReason(new Error('Tempo esgotado ao consultar o banco.'))).toBe('Tempo esgotado ao consultar o banco.');
+  });
+});

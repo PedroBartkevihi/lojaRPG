@@ -1,3 +1,4 @@
+import { errorReason, logger } from '../config/logger.js';
 import { deleteStaleRefreshTokens } from '../models/refreshTokenModel.js';
 import { deleteStalePasswordResetTokens } from './passwordResetService.js';
 
@@ -12,7 +13,7 @@ export async function runMaintenance(now = new Date()) {
   };
 }
 
-export function startMaintenance(log = console) {
+export function startMaintenance(log = logger) {
   async function run() {
     try {
       const result = await runMaintenance();
@@ -22,7 +23,7 @@ export function startMaintenance(log = console) {
         );
       }
     } catch (error) {
-      log.warn(`Limpeza do banco falhou: ${error.message.split('\n')[0]}`);
+      log.warn(`Limpeza do banco falhou: ${errorReason(error)}`);
     }
   }
 
