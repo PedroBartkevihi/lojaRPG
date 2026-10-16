@@ -2327,6 +2327,46 @@ describe('importar catálogo', () => {
     expect(await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Luz' } })).not.toBeNull();
   });
 
+  it('500 linhas com descrição cabem no envio, e duas importações ao mesmo tempo não duplicam nada', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    // Com 400 caracteres de descrição, a lista passa de 200 KB (o limite
+    // padrão do corpo é 100 KB). "armas" e "raro" casam com as da mesa.
+    const rows = Array.from({ length: 500 }, (_, index) => ({
+      name: `Lote ${index}`,
+      category: 'armas',
+      rarity: 'raro',
+      price: 100,
+      stock: 1,
+      weight: 3,
+      damage: '1d8 cortante',
+      description: 'Feito pelos ferreiros do porto. '.repeat(13)
+    }));
+
+    const responses = await Promise.all([
+      master.post(`${DEMO}/items/import`, { items: rows }),
+      master.post(`${DEMO}/items/import`, { items: rows })
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    expect(responses.map((response) => response.body.created).sort()).toEqual([0, 500]);
+    expect(await getPrisma().item.count({ where: { campaignId: 1, name: { startsWith: 'Lote ' } } })).toBe(500);
+
+    const item = await getPrisma().item.findFirst({ where: { campaignId: 1, name: 'Lote 0' }, include: { category: true, rarity: true } });
+    expect([item.category.name, item.rarity.name]).toEqual(['Armas', 'Raro']);
+    expect(await getPrisma().rarity.count({ where: { campaignId: 1, name: 'raro' } })).toBe(0);
+    expect(await getPrisma().category.count({ where: { campaignId: 1, name: 'armas' } })).toBe(0);
+  });
+
+  it('envio grande demais volta 413 com a mensagem em português', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const huge = Array.from({ length: 400 }, (_, index) => ({ name: `Grande ${index}`, category: 'Armas', price: 1, stock: 1, description: 'x'.repeat(3000) }));
+
+    const tooBig = await master.post(`${DEMO}/items/import`, { items: huge });
+    expect(tooBig.status).toBe(413);
+    expect(tooBig.body.message).toContain('Divida a planilha');
+    // O resto da API continua com o limite padrão.
+    expect((await master.post(`${DEMO}/characters`, { name: 'x'.repeat(200000), className: 'Guerreiro', race: 'Humano', level: 1 })).status).toBe(413);
+  });
+
   it('só o Mestre importa, com no máximo 500 itens e exigindo a unidade em PC', async () => {
     const aria = as(await login('aria@lojarpg.local'));
     const master = as(await login('mestre@lojarpg.local', 'mestre123'));
