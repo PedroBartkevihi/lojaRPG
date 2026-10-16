@@ -121,6 +121,34 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     return data;
   }
 
+  // Envia a imagem direto ao Cloudinary com a assinatura da API e devolve a
+  // URL final, que o formulario guarda em imageUrl.
+  async function uploadItemImage(file) {
+    const { uploadUrl, fields, maxBytes } = await request(campaignPath('/uploads/item-image'), { method: 'POST' });
+
+    if (file.size > maxBytes) {
+      throw new Error(`A imagem tem mais de ${Math.round(maxBytes / 1024 / 1024)} MB. Escolha uma menor.`);
+    }
+
+    const form = new FormData();
+    Object.entries(fields).forEach(([key, value]) => form.append(key, value));
+    form.append('file', file);
+
+    let response;
+    try {
+      response = await fetch(uploadUrl, { method: 'POST', body: form });
+    } catch (_error) {
+      throw new Error('Não foi possível enviar a imagem. Confira a conexão e tente de novo.');
+    }
+    const data = await parseResponse(response);
+
+    if (!response.ok || !data.secure_url) {
+      throw new Error(data.error?.message ? `O envio da imagem falhou: ${data.error.message}` : 'O envio da imagem falhou.');
+    }
+
+    return data.secure_url;
+  }
+
   return {
     register: (body) => request('/auth/register', { method: 'POST', body }),
     login: (body) => request('/auth/login', { method: 'POST', body }),
@@ -171,6 +199,8 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     giveItem: (body) => request(campaignPath('/rewards/items'), { method: 'POST', body }),
     createPurchase: (body) => request(campaignPath('/purchases'), { method: 'POST', body }),
     myPurchases: (params = {}) => request(withQuery(campaignPath('/purchases/me'), params)),
-    listPurchases: (params = {}) => request(withQuery(campaignPath('/purchases'), params))
+    listPurchases: (params = {}) => request(withQuery(campaignPath('/purchases'), params)),
+    uploadConfig: () => request(campaignPath('/uploads/config')),
+    uploadItemImage
   };
 }

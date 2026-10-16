@@ -1756,3 +1756,47 @@ describe('limpeza e limites', () => {
     expect((await api.post('/campaigns', { name: 'Mesa 11' })).status).toBe(201);
   });
 });
+
+describe('envio de imagens dos itens', () => {
+  it('fica desligado sem CLOUDINARY_URL e só o Mestre pede assinatura', async () => {
+    const previous = process.env.CLOUDINARY_URL;
+    delete process.env.CLOUDINARY_URL;
+
+    try {
+      const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+      expect((await master.get(`${DEMO}/uploads/config`)).body).toEqual({ itemImages: false, maxBytes: 5242880 });
+      const signature = await master.post(`${DEMO}/uploads/item-image`, {});
+      expect(signature.status).toBe(503);
+      expect(signature.body.message).toContain('Cole a URL');
+
+      const player = as(await login('aria@lojarpg.local'));
+      expect((await player.post(`${DEMO}/uploads/item-image`, {})).status).toBe(403);
+    } finally {
+      if (previous !== undefined) process.env.CLOUDINARY_URL = previous;
+    }
+  });
+
+  it('assina o envio na pasta da mesa sem expor o segredo', async () => {
+    const { createHash } = await import('node:crypto');
+    const previous = process.env.CLOUDINARY_URL;
+    process.env.CLOUDINARY_URL = 'cloudinary://123456:segredo-do-cloudinary@mesa-demo';
+
+    try {
+      const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+      expect((await master.get(`${DEMO}/uploads/config`)).body.itemImages).toBe(true);
+      const response = await master.post(`${DEMO}/uploads/item-image`, {});
+
+      expect(response.status).toBe(200);
+      expect(response.body.uploadUrl).toBe('https://api.cloudinary.com/v1_1/mesa-demo/image/upload');
+      const { signature, api_key: apiKey, ...signed } = response.body.fields;
+      expect(apiKey).toBe('123456');
+      expect(signed).toMatchObject({ folder: 'lojarpg/mesa-1', allowed_formats: 'jpg,jpeg,png,webp,gif', transformation: 'c_limit,w_800,h_800' });
+      const payload = Object.keys(signed).sort().map((key) => `${key}=${signed[key]}`).join('&');
+      expect(signature).toBe(createHash('sha1').update(`${payload}segredo-do-cloudinary`).digest('hex'));
+      expect(JSON.stringify(response.body)).not.toContain('segredo-do-cloudinary');
+    } finally {
+      if (previous === undefined) delete process.env.CLOUDINARY_URL;
+      else process.env.CLOUDINARY_URL = previous;
+    }
+  });
+});

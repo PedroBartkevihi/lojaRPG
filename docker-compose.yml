@@ -34,6 +34,8 @@ services:
       # Recria a mesa de demonstracao a cada inicio (os botoes da tela de
       # entrada usam as contas dela); as outras mesas nao sao tocadas.
       DEMO_RESET_ON_START: "true"
+      # Opcional: envio de imagens dos itens (veja o DEPLOY.md).
+      CLOUDINARY_URL: "${CLOUDINARY_URL:-}"
     depends_on:
       db:
         condition: service_healthy
