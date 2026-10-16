@@ -4,12 +4,17 @@ import { promisify } from 'node:util';
 const scryptAsync = promisify(scrypt);
 const KEY_LENGTH = 64;
 
+/** @param {string} password */
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString('base64url');
   const key = await scryptAsync(password, salt, KEY_LENGTH);
   return `scrypt$${salt}$${key.toString('base64url')}`;
 }
 
+/**
+ * @param {string} password
+ * @param {string} storedHash
+ */
 export async function verifyPassword(password, storedHash) {
   const [algorithm, salt, storedKey] = storedHash.split('$');
   if (algorithm !== 'scrypt' || !salt || !storedKey) {

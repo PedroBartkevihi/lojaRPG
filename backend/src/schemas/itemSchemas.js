@@ -40,6 +40,7 @@ export const expectedStockSchema = integer('Estoque esperado', { min: 0, max: 10
 // quebrava o .trim), e um preco com letras virava NaN na consulta: os dois
 // eram erro 500.
 const queryText = z.string({ error: 'Filtro inválido.' }).trim().max(120, 'Filtro muito longo.').optional();
+/** @param {string} field */
 const queryPrice = (field) => integer(field, { min: 0, max: 100000000 }).optional();
 
 export const itemQuerySchema = z

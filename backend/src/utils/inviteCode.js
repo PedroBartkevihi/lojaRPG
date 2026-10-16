@@ -16,6 +16,7 @@ export function createInviteCode() {
 }
 
 // Aceita o codigo digitado com hifen, espacos ou letras minusculas.
+/** @param {unknown} value */
 export function normalizeInviteCode(value) {
   return String(value ?? '')
     .toUpperCase()

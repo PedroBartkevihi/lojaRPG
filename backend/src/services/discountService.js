@@ -3,6 +3,8 @@ import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { findCharacterById } from '../models/characterModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
+export { priceWithDiscount } from '../utils/pricing.js';
+
 function mapDiscount(discount) {
   return {
     id: discount.id,
@@ -30,23 +32,6 @@ export async function activeDiscounts(campaignId, characterId, prisma = getPrism
     },
     include: includeDiscount
   });
-}
-
-// Vale o maior desconto que se aplica ao item, sem somar descontos. O desconto
-// arredonda para baixo em cobre (o jogador paga o centavo que sobra).
-export function priceWithDiscount(item, discounts) {
-  const best = discounts
-    .filter((discount) => discount.categoryId === null || discount.categoryId === item.categoryId)
-    .reduce((current, discount) => (!current || discount.percent > current.percent ? discount : current), null);
-
-  if (!best) {
-    return { finalPrice: item.price, discount: null };
-  }
-
-  return {
-    finalPrice: item.price - Math.floor((item.price * best.percent) / 100),
-    discount: { id: best.id, name: best.name, percent: best.percent }
-  };
 }
 
 // O personagem da vitrine: o Mestre ve qualquer um da mesa; o jogador, so os

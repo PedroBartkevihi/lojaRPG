@@ -1,6 +1,15 @@
+/** @typedef {'PC' | 'PP' | 'PO' | 'PL'} Coin */
+
+/** @type {Record<Coin, number>} */
 export const COINS = { PC: 1, PP: 10, PO: 100, PL: 1000 };
 
 // String/BigInt arithmetic avoids rounding 0.29 PO to 28 copper pieces.
+/**
+ * Valor digitado ("2,5") na moeda escolhida, em PC; NaN se nao der PC inteiro.
+ * @param {string | number} text
+ * @param {Coin} [unit]
+ * @returns {number}
+ */
 export function parseMoney(text, unit = 'PC') {
   const value = String(text).trim().replace(',', '.');
   if (!/^-?\d+(\.\d+)?$/.test(value) || !COINS[unit]) return NaN;
@@ -14,6 +23,11 @@ export function parseMoney(text, unit = 'PC') {
   return Number.isSafeInteger(result) ? result : NaN;
 }
 
+/**
+ * @param {number} value Valor em PC.
+ * @param {Coin} unit
+ * @returns {string}
+ */
 export function moneyInUnit(value, unit) {
   if (!Number.isSafeInteger(value)) return '';
   const rate = COINS[unit];
@@ -24,8 +38,13 @@ export function moneyInUnit(value, unit) {
 
 // Na tela a maior moeda e a PO, como nos precos do SRD: 250 PO, e nao 25 PL.
 // A PL continua valendo nos campos de valor.
+/** @type {Coin[]} */
 const DISPLAY_COINS = ['PO', 'PP', 'PC'];
 
+/**
+ * @param {number} value Valor em PC.
+ * @returns {string} Ex.: "248 PO 5 PP".
+ */
 export function formatMoney(value) {
   if (!Number.isSafeInteger(value)) return '—';
   let remaining = Math.abs(value);

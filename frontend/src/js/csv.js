@@ -3,6 +3,10 @@ import { parseMoney } from './money.js';
 // Le um CSV (RFC 4180): campos entre aspas podem ter separador, quebra de
 // linha e aspas dobradas. O separador e o que aparece na primeira linha: ";"
 // (o Excel em portugues), "," ou tabulacao.
+/**
+ * @param {string} text
+ * @returns {string[][]}
+ */
 export function parseCsv(text) {
   const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   const firstLine = source.split(/\r?\n/, 1)[0] || '';
@@ -10,7 +14,9 @@ export function parseCsv(text) {
     (best, candidate) => (firstLine.split(candidate).length > firstLine.split(best).length ? candidate : best),
     ';'
   );
+  /** @type {string[][]} */
   const rows = [];
+  /** @type {string[]} */
   let row = [];
   let field = '';
   let quoted = false;
@@ -51,6 +57,7 @@ export function parseCsv(text) {
   return rows.filter((cells) => cells.some((cell) => cell.trim() !== ''));
 }
 
+/** @param {string} value */
 function normalizeHeader(value) {
   return value
     .normalize('NFD')
@@ -61,6 +68,9 @@ function normalizeHeader(value) {
 }
 
 // Nomes de coluna aceitos (sem acento, minusculas) para cada campo do item.
+/** @typedef {'name' | 'category' | 'rarity' | 'price' | 'stock' | 'description' | 'sellPrice' | 'weight' | 'damage' | 'armorClass' | 'requiresAttunement' | 'imageUrl'} Column */
+
+/** @type {Record<Column, string[]>} */
 const COLUMNS = {
   name: ['nome', 'name', 'item'],
   category: ['categoria', 'category'],
@@ -76,7 +86,8 @@ const COLUMNS = {
   imageUrl: ['imagem', 'image', 'image url', 'url da imagem']
 };
 
-const REQUIRED = { name: 'nome', category: 'categoria', price: 'preco' };
+/** @type {[Column, string][]} */
+const REQUIRED = [['name', 'nome'], ['category', 'categoria'], ['price', 'preco']];
 
 const YES = ['sim', 's', 'x', 'true', 'yes', '1'];
 const NO = ['nao', 'n', 'false', 'no', '0', ''];
@@ -91,6 +102,10 @@ export const CSV_TEMPLATE = [
 // Transforma a planilha em itens para a API. Precos vem em PO (aceitando
 // virgula: 2,5 PO) e vao em PC; peso em libras. Cada item leva a linha da
 // planilha (line) para os erros apontarem o lugar certo.
+/**
+ * @param {string} text
+ * @returns {{ items: import('../types').ImportRow[], errors: import('../types').LineError[] }}
+ */
 export function csvToItems(text) {
   const rows = parseCsv(text);
 
@@ -99,25 +114,33 @@ export function csvToItems(text) {
   }
 
   const headers = rows[0].map(normalizeHeader);
+  /** @type {Partial<Record<Column, number>>} */
   const columnOf = {};
 
-  for (const [field, aliases] of Object.entries(COLUMNS)) {
+  for (const [field, aliases] of /** @type {[Column, string[]][]} */ (Object.entries(COLUMNS))) {
     const index = headers.findIndex((header) => aliases.includes(header));
     if (index !== -1) columnOf[field] = index;
   }
 
-  const missing = Object.entries(REQUIRED).filter(([field]) => columnOf[field] === undefined).map(([, label]) => label);
+  const missing = REQUIRED.filter(([field]) => columnOf[field] === undefined).map(([, label]) => label);
 
   if (missing.length > 0) {
     return { items: [], errors: [{ line: 1, message: `Faltam as colunas: ${missing.join(', ')}.` }] };
   }
 
+  /** @type {import('../types').ImportRow[]} */
   const items = [];
+  /** @type {import('../types').LineError[]} */
   const errors = [];
 
   rows.slice(1).forEach((cells, index) => {
     const line = index + 2;
-    const cell = (field) => (columnOf[field] === undefined ? '' : String(cells[columnOf[field]] ?? '').trim());
+    /** @param {Column} field */
+    const cell = (field) => {
+      const index = columnOf[field];
+      return index === undefined ? '' : String(cells[index] ?? '').trim();
+    };
+    /** @param {string} message */
     const fail = (message) => errors.push({ line, message });
 
     const price = parseMoney(cell('price'), 'PO');
