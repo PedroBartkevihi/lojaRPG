@@ -232,6 +232,13 @@ pede participa da mesa e qual é o papel dele nela.
   na demonstração porque site e API estão em subdomínios do `onrender.com`,
   que contam como sites diferentes; vale com um domínio próprio. Os testes de
   ponta a ponta rodam nos dois modos.
+- **Logs estruturados.** A API registra em JSON (pino), com um id por
+  requisição devolvido em `X-Request-Id`, sem tokens, cookies, senhas ou
+  e-mails. Erros do navegador vão para o mesmo log por `POST /client-errors`,
+  com o id da última requisição.
+- **Imagem Docker da API enxuta.** Build em duas etapas, só com dependências
+  de produção (o CLI do Prisma, que aplica as migrations no início, passou para
+  elas) e sem root: de cerca de 1 GB para 600 MB.
 - **Limpeza e limites.** Refresh tokens vencidos ou revogados são apagados
   no início da API e a cada 6 horas, e uma conta mestra no máximo 10 mesas ao
   mesmo tempo (`MAX_CAMPAIGNS_PER_USER`).
@@ -354,6 +361,8 @@ Disponibilidade (sem autenticação):
 
 - `GET /health`: o processo responde (usado pelo Render)
 - `GET /ready`: o banco responde; 503 quando não (usado pelo monitor)
+- `POST /client-errors`: relato de erro do navegador (`message`, `stack`,
+  `path`, `requestId`, `kind`), com limite por IP
 
 Autenticação:
 
