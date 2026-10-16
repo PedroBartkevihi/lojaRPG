@@ -205,7 +205,9 @@ pede participa da mesa e qual é o papel dele nela.
   mesmo tempo) para e-mail cadastrado ou não, tem limite por IP e no máximo um
   e-mail por minuto para a conta. O token vai no fragmento do link (`#token=`),
   que não chega a servidores nem a logs, fica guardado só como hash, vale 30
-  minutos e uma vez.
+  minutos e uma vez. A troca de senha sobe a versão da sessão da conta, que
+  vai nos dois tokens: access e refresh tokens emitidos antes dela são
+  recusados, mesmo os de um login ou renovação que correu junto com a troca.
 - **Refresh token em cookie httpOnly, opcional.** Com `VITE_REFRESH_COOKIE=true`,
   o refresh token sai do `localStorage` e fica num cookie que o JavaScript da
   página não lê (`HttpOnly`, `Path=/auth`, `SameSite`), pedido pelo cabeçalho

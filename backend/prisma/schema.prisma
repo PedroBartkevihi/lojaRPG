@@ -12,6 +12,8 @@ model User {
   name           String
   email          String           @unique
   passwordHash   String           @map("password_hash")
+  // Sobe a cada troca de senha: tokens emitidos antes dela deixam de valer.
+  sessionVersion Int              @default(0) @map("session_version")
   createdAt      DateTime         @default(now()) @map("created_at")
   memberships    CampaignMember[]
   characters     Character[]
@@ -280,6 +282,8 @@ model RefreshToken {
   tokenHash String    @unique @map("token_hash")
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
+  // Versao da sessao da conta quando o token foi emitido.
+  sessionVersion Int  @default(0) @map("session_version")
   createdAt DateTime  @default(now()) @map("created_at")
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 

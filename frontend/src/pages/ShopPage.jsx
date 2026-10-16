@@ -7,6 +7,8 @@ import ItemCard from '../components/ItemCard.jsx';
 import ItemRequestsPanel from '../components/ItemRequestsPanel.jsx';
 import { SkeletonCards } from '../components/Skeleton.jsx';
 
+
+const MAX_PRICE_FILTER = 100000000;
 export default function ShopPage({
   api,
   liveKey,
@@ -96,10 +98,14 @@ export default function ShopPage({
   const priceMin = priceText.min === '' ? '' : parseMoney(priceText.min, 'PO');
   const priceMax = priceText.max === '' ? '' : parseMoney(priceText.max, 'PO');
   const invalidPrice = [priceMin, priceMax].some((value) => value !== '' && (!Number.isSafeInteger(value) || value < 0));
+  // O mesmo teto da API (100.000.000 PC), dito em PO.
+  const tooHighPrice = !invalidPrice && [priceMin, priceMax].some((value) => value !== '' && value > MAX_PRICE_FILTER);
   const invertedPrice = !invalidPrice && priceMin !== '' && priceMax !== '' && priceMin > priceMax;
   const priceError = invalidPrice
     ? 'Use um valor em PO, como 10 ou 2,5.'
-    : invertedPrice
+    : tooHighPrice
+      ? 'O preço vai até 1.000.000 PO.'
+      : invertedPrice
       ? 'O preço mínimo é maior que o máximo.'
       : '';
 

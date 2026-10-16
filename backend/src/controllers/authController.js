@@ -1,6 +1,8 @@
 import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from '../schemas/authSchemas.js';
 import { loginUser, logoutSession, refreshSession, registerUser } from '../services/authService.js';
 import { FORGOT_PASSWORD_MESSAGE, requestPasswordReset, resetPassword } from '../services/passwordResetService.js';
+import { mailEnabled } from '../services/mailService.js';
+import { ApiError } from '../utils/ApiError.js';
 import { clearRefreshCookie, readRefreshCookie, setRefreshCookie, wantsRefreshCookie } from '../utils/refreshCookie.js';
 import { parse } from '../utils/validation.js';
 
@@ -37,20 +39,20 @@ export async function login(req, res) {
   sendSession(req, res, await loginUser(email, password));
 }
 
+// Uma renovacao recusada nao apaga o cookie: com duas abas renovando juntas,
+// o 401 da que perde chegaria depois do cookie novo da que ganhou e o
+// apagaria. Um cookie recusado fica sem uso ate o proximo login trocar.
 export async function refresh(req, res) {
-  try {
-    sendSession(req, res, await refreshSession(refreshTokenFrom(req)));
-  } catch (error) {
-    // Cookie recusado nao serve mais: some do navegador. Uma falha passageira
-    // (banco fora) mantem o cookie para a proxima tentativa.
-    if (wantsRefreshCookie(req) && error.statusCode === 401) clearRefreshCookie(res);
-    throw error;
-  }
+  sendSession(req, res, await refreshSession(refreshTokenFrom(req)));
 }
 
+// Quem saiu perde o cookie mesmo se a revogacao falhar (banco fora).
 export async function logout(req, res) {
-  await logoutSession(refreshTokenFrom(req));
-  if (wantsRefreshCookie(req)) clearRefreshCookie(res);
+  try {
+    await logoutSession(refreshTokenFrom(req));
+  } finally {
+    if (wantsRefreshCookie(req)) clearRefreshCookie(res);
+  }
   res.json({ message: 'Logout realizado.' });
 }
 
@@ -62,6 +64,13 @@ export async function me(req, res) {
 // para e-mail cadastrado ou nao. Uma falha no envio fica so no log.
 export async function forgotPassword(req, res) {
   const { email } = parse(forgotPasswordSchema, req.body);
+
+  // Sem servico de e-mail o link nao sairia: a tela diz isso em vez de
+  // prometer um e-mail. Depende so da configuracao, nao da conta.
+  if (!mailEnabled()) {
+    throw new ApiError(503, 'A recuperação de senha por e-mail ainda não foi configurada neste site.');
+  }
+
   res.status(202).json({ message: FORGOT_PASSWORD_MESSAGE });
 
   requestPasswordReset(email).catch((error) => {

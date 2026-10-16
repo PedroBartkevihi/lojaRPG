@@ -26,6 +26,9 @@ function fakeApi() {
     },
     'GET /campaigns/7/characters/me': () => ({ characters: [] }),
     'GET /campaigns/7/items': () => ({ items: [] }),
+    // Sem esta rota a loja recebia {} e quebrava em shops.find quando a resposta
+    // chegava antes do fim do teste (falha intermitente no CI).
+    'GET /campaigns/7/shops': () => ({ shops: [] }),
     'GET /campaigns/7/catalog/categories': () => ({ categories: [] })
   };
 
@@ -182,5 +185,48 @@ describe('mesa por aba', () => {
 
     await waitFor(() => expect(paths).toContain('/campaigns/7'));
     expect(paths.some((path) => path.startsWith('/campaigns/8'))).toBe(false);
+  });
+});
+
+describe('senha nova pelo link do e-mail', () => {
+  it('com uma sessão vencida no aparelho, a tela fica aberta e guarda o token do link', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('lojaRpgToken', 'access-vencido');
+    localStorage.setItem('lojaRpgRefreshToken', 'refresh-vencido');
+    localStorage.setItem('lojaRpgUser', JSON.stringify({ id: 9, name: 'Lia', email: 'lia@exemplo.com' }));
+    const calls = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url, options = {}) => {
+        const { pathname } = new URL(url);
+        calls.push({ route: `${options.method || 'GET'} ${pathname}`, body: options.body ? JSON.parse(options.body) : undefined });
+
+        if (pathname === '/auth/reset-password') {
+          return { ok: true, status: 200, text: async () => JSON.stringify({ message: 'Senha alterada. Entre com a senha nova.' }) };
+        }
+
+        // A sessão guardada no aparelho venceu: o resto é recusado, inclusive a renovação.
+        return { ok: false, status: 401, text: async () => JSON.stringify({ message: 'Token inválido ou expirado.' }) };
+      })
+    );
+    window.history.pushState({}, '', '/redefinir-senha#token=abc_DEF-123');
+    render(<App />);
+
+    await waitFor(() => expect(calls.map((call) => call.route)).toContain('POST /auth/refresh'));
+    await waitFor(() => expect(localStorage.getItem('lojaRpgToken')).toBeNull());
+    expect(window.location.pathname).toBe('/redefinir-senha');
+
+    await fillAndSubmit(
+      user,
+      { 'Senha nova': 'farol-da-baia-azul', 'Repita a senha nova': 'farol-da-baia-azul' },
+      'Salvar senha nova'
+    );
+    expect(calls).toContainEqual({
+      route: 'POST /auth/reset-password',
+      body: { token: 'abc_DEF-123', password: 'farol-da-baia-azul' }
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Entrar' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
   });
 });

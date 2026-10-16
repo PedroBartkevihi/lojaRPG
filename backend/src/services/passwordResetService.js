@@ -17,25 +17,24 @@ export const FORGOT_PASSWORD_MESSAGE =
 
 const INVALID_LINK_MESSAGE = 'Link inválido ou vencido. Peça um novo na tela de entrada.';
 
+// O e-mail nao leva o nome da conta: o cadastro nao confirma o e-mail, entao
+// quem cadastrou um endereco alheio poria o texto que quisesse ("sua conta
+// foi bloqueada, acesse...") num e-mail enviado pela lojaRPG.
 function resetEmail(user, link) {
   const text = [
-    `Olá, ${user.name}.`,
+    'Olá.',
     '',
     'Recebemos um pedido para criar uma senha nova na lojaRPG. Abra o link abaixo:',
     link,
     '',
     `O link vale por ${RESET_TOKEN_MINUTES} minutos e só pode ser usado uma vez. Se você não pediu, ignore este e-mail: a senha atual continua valendo.`
   ].join('\n');
-  const html = `<p>Olá, ${escapeHtml(user.name)}.</p>
+  const html = `<p>Olá.</p>
 <p>Recebemos um pedido para criar uma senha nova na lojaRPG.</p>
 <p><a href="${link}">Criar uma senha nova</a></p>
 <p>O link vale por ${RESET_TOKEN_MINUTES} minutos e só pode ser usado uma vez. Se você não pediu, ignore este e-mail: a senha atual continua valendo.</p>`;
 
   return { to: user.email, subject: 'Criar uma senha nova na lojaRPG', text, html };
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }
 
 // Cria o token e manda o e-mail. Quem chama responde antes de esperar por
@@ -61,8 +60,10 @@ export async function requestPasswordReset(email) {
       return false;
     }
 
-    // So o link mais recente vale.
-    await tx.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
+    // Os links anteriores continuam valendo ate vencer (todos foram para a
+    // mesma caixa). Se um pedido novo os anulasse, qualquer pessoa que
+    // soubesse o e-mail travaria a recuperacao do dono pedindo um link por
+    // minuto. A troca de senha anula todos os pendentes.
     const now = Date.now();
     await tx.passwordResetToken.create({
       data: {
@@ -86,7 +87,9 @@ export async function requestPasswordReset(email) {
 }
 
 // Troca a senha e encerra as sessoes abertas da conta (quem pediu a troca
-// pode estar tirando alguem de dentro dela).
+// pode estar tirando alguem de dentro dela): sobe a versao da sessao, o que
+// derruba os access tokens e os refresh tokens emitidos antes, e revoga os
+// refresh tokens.
 export async function resetPassword(token, password) {
   if (typeof token !== 'string' || token.length < 20 || token.length > 200) {
     throw new ApiError(400, INVALID_LINK_MESSAGE);
@@ -102,6 +105,13 @@ export async function resetPassword(token, password) {
       throw new ApiError(400, INVALID_LINK_MESSAGE);
     }
 
+    // A conta e travada antes do link, na mesma ordem do pedido de link
+    // novo; em ordens opostas, os dois podiam travar um ao outro (deadlock).
+    // NO KEY UPDATE, e nao FOR UPDATE: uma renovacao em andamento ainda grava
+    // o token novo (a chave estrangeira so pede KEY SHARE). Com FOR UPDATE,
+    // ela esperaria pela troca, e a troca pela linha do token que ela revogou.
+    await prisma.$queryRaw`SELECT id FROM users WHERE id = ${stored.userId} FOR NO KEY UPDATE`;
+
     // Dois envios do mesmo link ao mesmo tempo: so um marca o uso.
     const { count } = await prisma.passwordResetToken.updateMany({
       where: { id: stored.id, usedAt: null },
@@ -112,10 +122,18 @@ export async function resetPassword(token, password) {
       throw new ApiError(400, INVALID_LINK_MESSAGE);
     }
 
-    await prisma.user.update({ where: { id: stored.userId }, data: { passwordHash } });
+    await prisma.user.update({
+      where: { id: stored.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } }
+    });
     await prisma.refreshToken.updateMany({
       where: { userId: stored.userId, revokedAt: null },
       data: { revokedAt: new Date() }
+    });
+    // Os outros links pendentes da conta nao servem mais.
+    await prisma.passwordResetToken.updateMany({
+      where: { userId: stored.userId, usedAt: null },
+      data: { usedAt: new Date() }
     });
   });
 }

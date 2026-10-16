@@ -14,5 +14,8 @@ backend/data/
 .DS_Store
 Thumbs.db
 
-# Backups do banco (tem e-mails e hashes de senha)
+# Backups do banco (tem e-mails e hashes de senha), em qualquer pasta
 backups/
+*.dump
+*.dump.gpg
+*.dump.partial

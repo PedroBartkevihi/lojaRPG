@@ -10,38 +10,45 @@ import {
 import {
   createUser,
   findUserByEmail,
-  findUserByEmailWithPassword,
-  findUserById
+  findSessionUser,
+  findUserByEmailWithPassword
 } from '../models/userModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { createOpaqueToken, daysFromNow, hashToken } from '../utils/tokens.js';
 
-function createAccessToken(user) {
+// Os dois tokens levam a versao da sessao da conta (sv). A troca de senha
+// sobe a versao, e o authenticate e a renovacao recusam a versao antiga.
+// Isso vale tambem para um login ou uma renovacao que correu junto com a
+// troca: a versao lida antes dela fica velha assim que ela termina.
+function createAccessToken(user, sessionVersion) {
   return jwt.sign(
     {
-      sub: user.id
+      sub: user.id,
+      sv: sessionVersion
     },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn }
   );
 }
 
-async function issueRefreshToken(userId, db) {
+async function issueRefreshToken(userId, sessionVersion, db) {
   const refreshToken = createOpaqueToken();
   await createRefreshToken(
     {
       userId,
       tokenHash: hashToken(refreshToken),
-      expiresAt: daysFromNow(env.refreshTokenExpiresInDays)
+      expiresAt: daysFromNow(env.refreshTokenExpiresInDays),
+      sessionVersion
     },
     db
   );
   return refreshToken;
 }
 
-function authPayload(user, refreshToken) {
-  const accessToken = createAccessToken(user);
+async function startSession(user, sessionVersion, db) {
+  const refreshToken = await issueRefreshToken(user.id, sessionVersion, db);
+  const accessToken = createAccessToken(user, sessionVersion);
 
   return {
     // isDemo deixa o front esconder o que a conta de demonstracao nao pode fazer.
@@ -71,7 +78,8 @@ export async function registerUser(data) {
       prisma
     );
 
-    return authPayload(user, await issueRefreshToken(user.id, prisma));
+    // Conta nova comeca na versao 0, o padrao da coluna.
+    return startSession(user, 0, prisma);
   });
 }
 
@@ -95,7 +103,8 @@ export async function loginUser(email, password) {
     createdAt: user.createdAt
   };
 
-  return withTransaction(async (prisma) => authPayload(safeUser, await issueRefreshToken(safeUser.id, prisma)));
+  // A versao foi lida junto com a senha conferida.
+  return withTransaction(async (prisma) => startSession(safeUser, user.sessionVersion, prisma));
 }
 
 export async function refreshSession(refreshToken) {
@@ -118,13 +127,19 @@ export async function refreshSession(refreshToken) {
       throw new ApiError(401, 'Refresh token inválido ou expirado.');
     }
 
-    const safeUser = await findUserById(storedToken.userId, prisma);
+    const session = await findSessionUser(storedToken.userId, prisma);
 
-    if (!safeUser) {
+    if (!session) {
       throw new ApiError(401, 'Usuário não encontrado.');
     }
 
-    return authPayload(safeUser, await issueRefreshToken(safeUser.id, prisma));
+    // Token de antes de uma troca de senha, inclusive um emitido por uma
+    // renovacao que correu junto com ela: a sessao acabou.
+    if (storedToken.sessionVersion !== session.sessionVersion) {
+      throw new ApiError(401, 'Refresh token inválido ou expirado.');
+    }
+
+    return startSession(session.user, session.sessionVersion, prisma);
   });
 }
 

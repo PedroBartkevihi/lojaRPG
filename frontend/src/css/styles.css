@@ -1478,12 +1478,6 @@ a.primary-action {
   object-fit: cover;
 }
 
-/* Formulario sozinho no meio da tela (senha nova com a sessao aberta). */
-.narrow-form {
-  max-width: 520px;
-  margin: 0 auto;
-}
-
 /* Encomendas ao Mestre. */
 .item-requests {
   margin-top: 1rem;

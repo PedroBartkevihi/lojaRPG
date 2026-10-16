@@ -387,6 +387,12 @@ describe('validação das entradas', () => {
     expect(short.status).toBe(400);
     expect(short.body.message).toBe('Senha deve ter pelo menos 8 caracteres.');
 
+    for (const [index, password] of ['        ', '1234567 '].entries()) {
+      const padded = await attempt(password, index + 20);
+      expect(padded.status).toBe(400);
+      expect(padded.body.message).toBe('Senha deve ter pelo menos 8 caracteres.');
+    }
+
     for (const [index, password] of ['12345678', 'Senha123', 'aaaaaaaa', 'abababab'].entries()) {
       const common = await attempt(password, index + 2);
       expect(common.status).toBe(400);
@@ -407,6 +413,17 @@ describe('validação das entradas', () => {
       .set('X-Forwarded-For', '192.0.2.50')
       .send({ email: 'antiga@exemplo.com', password: 'abc123' });
     expect(response.status).toBe(200);
+
+    // O cadastro antigo nao tinha maximo: senha longa de gerenciador continua valendo.
+    const longPassword = 'x'.repeat(200);
+    await getPrisma().user.create({
+      data: { name: 'Longa', email: 'longa@exemplo.com', passwordHash: await hashPassword(longPassword) }
+    });
+    const long = await request(app)
+      .post('/auth/login')
+      .set('X-Forwarded-For', '192.0.2.51')
+      .send({ email: 'longa@exemplo.com', password: longPassword });
+    expect(long.status).toBe(200);
   });
 
   it('recusa personagem incompleto', async () => {
@@ -1790,7 +1807,16 @@ describe('envio de imagens dos itens', () => {
       expect(response.body.uploadUrl).toBe('https://api.cloudinary.com/v1_1/mesa-demo/image/upload');
       const { signature, api_key: apiKey, ...signed } = response.body.fields;
       expect(apiKey).toBe('123456');
-      expect(signed).toMatchObject({ folder: 'lojarpg/mesa-1', allowed_formats: 'jpg,jpeg,png,webp,gif', transformation: 'c_limit,w_800,h_800' });
+      expect(signed).toMatchObject({
+        folder: 'lojarpg/mesa-1',
+        allowed_formats: 'jpg,jpeg,png,webp,gif',
+        transformation: 'c_limit,w_800,h_800',
+        overwrite: 'false'
+      });
+      // Nome do arquivo gerado na API: a mesma assinatura nao cria outro arquivo.
+      expect(signed.public_id).toMatch(/^item-[0-9a-f-]{36}$/);
+      const again = await master.post(`${DEMO}/uploads/item-image`, {});
+      expect(again.body.fields.public_id).not.toBe(signed.public_id);
       const payload = Object.keys(signed).sort().map((key) => `${key}=${signed[key]}`).join('&');
       expect(signature).toBe(createHash('sha1').update(`${payload}segredo-do-cloudinary`).digest('hex'));
       expect(JSON.stringify(response.body)).not.toContain('segredo-do-cloudinary');
@@ -1831,6 +1857,9 @@ describe('recuperar senha por e-mail', () => {
     await vi.waitFor(() => expect(mails).toHaveLength(1));
     expect(mails[0].to).toBe(user.email);
     expect(mails[0].text).toContain('http://localhost:5173/redefinir-senha#token=');
+    // O nome é texto livre de quem cadastrou: não vai no e-mail.
+    expect(mails[0].text.startsWith('Olá.\n')).toBe(true);
+    expect(`${mails[0].text}${mails[0].html}`).not.toContain('Esquecida');
     const stored = await getPrisma().passwordResetToken.findFirst({ where: { userId: user.id } });
     expect(stored.tokenHash).not.toBe(linkToken(mails[0]));
     expect(stored.expiresAt.getTime() - stored.createdAt.getTime()).toBe(30 * 60 * 1000);
@@ -1859,6 +1888,8 @@ describe('recuperar senha por e-mail', () => {
     expect((await reset({ token, password: 'outra-senha-nova' }, '192.0.2.114')).status).toBe(400);
 
     expect((await request(app).post('/auth/refresh').send({ refreshToken: oldLogin.body.refreshToken })).status).toBe(401);
+    // O access token de antes da troca também deixa de valer, sem esperar vencer.
+    expect((await as(oldLogin.body.accessToken).get('/auth/me')).status).toBe(401);
     const login = (password) =>
       request(app).post('/auth/login').set('X-Forwarded-For', '192.0.2.115').send({ email: user.email, password });
     expect((await login('segredo1')).status).toBe(401);
@@ -1871,6 +1902,73 @@ describe('recuperar senha por e-mail', () => {
     const expired = await reset({ token: 't'.repeat(64), password: 'mais-uma-senha-boa' }, '192.0.2.116');
     expect(expired.status).toBe(400);
     expect(expired.body.message).toContain('vencido');
+  });
+
+  it('tokens emitidos com a versão de antes da troca são recusados, mesmo criados depois dela', async () => {
+    const mails = await outbox();
+    mails.length = 0;
+    const { user } = await newAccount('Corrida');
+    await forgot(user.email, '192.0.2.140');
+    await vi.waitFor(() => expect(mails).toHaveLength(1));
+    const { hashToken } = await import('../src/utils/tokens.js');
+    const { default: jwt } = await import('jsonwebtoken');
+
+    expect(
+      (await request(app).post('/auth/reset-password').set('X-Forwarded-For', '192.0.2.141').send({ token: linkToken(mails[0]), password: 'farol-da-baia-azul' })).status
+    ).toBe(200);
+
+    // O que um login com a senha antiga ou uma renovação que correu junto com
+    // a troca deixaria para trás: tokens novos, mas com a versão 0.
+    await getPrisma().refreshToken.create({
+      data: { userId: user.id, tokenHash: hashToken('r'.repeat(64)), expiresAt: new Date(Date.now() + 60000), sessionVersion: 0 }
+    });
+    const lateRefresh = await request(app).post('/auth/refresh').send({ refreshToken: 'r'.repeat(64) });
+    expect(lateRefresh.status).toBe(401);
+    const lateAccess = jwt.sign({ sub: user.id, sv: 0 }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    expect((await as(lateAccess).get('/auth/me')).status).toBe(401);
+
+    // Com a senha nova, a sessão nasce na versão atual e funciona.
+    const fresh = await request(app)
+      .post('/auth/login')
+      .set('X-Forwarded-For', '192.0.2.142')
+      .send({ email: user.email, password: 'farol-da-baia-azul' });
+    expect((await as(fresh.body.accessToken).get('/auth/me')).status).toBe(200);
+    expect((await request(app).post('/auth/refresh').send({ refreshToken: fresh.body.refreshToken })).status).toBe(200);
+  });
+
+  it('um link novo não anula o anterior, e a troca de senha anula todos', async () => {
+    const mails = await outbox();
+    mails.length = 0;
+    const { user } = await newAccount('Dupla');
+    await forgot(user.email, '192.0.2.150');
+    await vi.waitFor(() => expect(mails).toHaveLength(1));
+    // O intervalo de um minuto por conta já passou para o primeiro link.
+    await getPrisma().passwordResetToken.updateMany({
+      where: { userId: user.id },
+      data: { createdAt: new Date(Date.now() - 2 * 60 * 1000) }
+    });
+    await forgot(user.email, '192.0.2.150');
+    await vi.waitFor(() => expect(mails).toHaveLength(2));
+
+    const reset = (token) =>
+      request(app).post('/auth/reset-password').set('X-Forwarded-For', '192.0.2.151').send({ token, password: 'farol-da-baia-azul' });
+    expect((await reset(linkToken(mails[0]))).status).toBe(200);
+    expect((await reset(linkToken(mails[1]))).status).toBe(400);
+  });
+
+  it('em produção sem serviço de e-mail, avisa que a recuperação não está configurada', async () => {
+    const { env } = await import('../src/config/env.js');
+    const previous = { nodeEnv: env.nodeEnv, resendApiKey: env.resendApiKey };
+    env.nodeEnv = 'production';
+    env.resendApiKey = '';
+
+    try {
+      const response = await forgot('qualquer@exemplo.com', '192.0.2.160');
+      expect(response.status).toBe(503);
+      expect(response.body.message).toContain('não foi configurada');
+    } finally {
+      Object.assign(env, previous);
+    }
   });
 
   it('limita os pedidos por IP e manda no máximo um e-mail por minuto para a conta', async () => {
@@ -1916,15 +2014,30 @@ describe('refresh token em cookie httpOnly', () => {
     const rotated = refreshCookie(refreshed).split(';')[0];
     expect(rotated).not.toBe(first);
 
-    // O cookie antigo foi trocado: usar de novo é recusado e apaga o cookie.
+    // O cookie antigo foi trocado: usar de novo é recusado, mas a resposta não
+    // apaga o cookie (ela pode chegar depois do cookie novo de outra aba).
     const reused = await request(app).post('/auth/refresh').set(COOKIE_MODE).set('Cookie', first).send({});
     expect(reused.status).toBe(401);
-    expect(refreshCookie(reused)).toMatch(/^lojarpg_refresh=;.*Max-Age=0/);
+    expect(refreshCookie(reused)).toBeUndefined();
 
     const logout = await request(app).post('/auth/logout').set(COOKIE_MODE).set('Cookie', rotated).send({});
     expect(logout.status).toBe(200);
     expect(refreshCookie(logout)).toMatch(/Max-Age=0/);
     expect((await request(app).post('/auth/refresh').set(COOKIE_MODE).set('Cookie', rotated).send({})).status).toBe(401);
+  });
+
+  it('duas renovações juntas com o mesmo cookie: uma ganha e a outra não apaga o cookie novo', async () => {
+    const login = await request(app)
+      .post('/auth/login')
+      .set(COOKIE_MODE)
+      .send({ email: 'lia@lojarpg.local', password: 'jogador123' });
+    const cookie = refreshCookie(login).split(';')[0];
+    const renew = () => request(app).post('/auth/refresh').set(COOKIE_MODE).set('Cookie', cookie).send({});
+
+    const responses = await Promise.all([renew(), renew()]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
+    const loser = responses.find((response) => response.status === 401);
+    expect(refreshCookie(loser)).toBeUndefined();
   });
 
   it('sem o cabeçalho do modo cookie, ignora o cookie e mantém o modo antigo', async () => {
