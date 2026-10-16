@@ -4,6 +4,7 @@ import { Coins, Search, ShoppingCart, X } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
 import ItemCard from '../components/ItemCard.jsx';
+import ItemRequestsPanel from '../components/ItemRequestsPanel.jsx';
 import { SkeletonCards } from '../components/Skeleton.jsx';
 
 export default function ShopPage({
@@ -331,6 +332,16 @@ export default function ShopPage({
                 shopOpen={cartOpen}
               />
             </div>
+            {character && (
+              <ItemRequestsPanel
+                key={character.id}
+                api={api}
+                character={character}
+                liveKey={liveKey}
+                showNotice={showNotice}
+                onRefreshSession={onRefreshSession}
+              />
+            )}
           </>
         ) : (
           <div className="surface-panel">

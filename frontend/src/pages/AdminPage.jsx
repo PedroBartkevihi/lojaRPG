@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Coins, History, PackagePlus, RefreshCcw, Tags } from 'lucide-react';
+import { Coins, History, PackagePlus, RefreshCcw, ScrollText, Tags } from 'lucide-react';
 import CatalogTab from '../components/admin/CatalogTab.jsx';
 import HistoryTab from '../components/admin/HistoryTab.jsx';
 import ItemsTab from '../components/admin/ItemsTab.jsx';
 import MasterGuide, { markCatalogReviewed } from '../components/admin/MasterGuide.jsx';
 import PartyTab from '../components/admin/PartyTab.jsx';
+import RequestsTab from '../components/admin/RequestsTab.jsx';
 import ShopsTab from '../components/admin/ShopsTab.jsx';
 
 // A aba fica no endereco (?aba=itens) para sobreviver a um recarregamento.
@@ -14,6 +15,7 @@ const TABS = [
   { key: 'vendedores', label: 'Vendedores', Icon: Tags },
   { key: 'itens', label: 'Itens', Icon: PackagePlus },
   { key: 'catalogo', label: 'Catálogo', Icon: Tags },
+  { key: 'encomendas', label: 'Encomendas', Icon: ScrollText },
   { key: 'historicos', label: 'Históricos', Icon: History }
 ];
 
@@ -25,6 +27,7 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
   const [characters, setCharacters] = useState([]);
   const [categories, setCategories] = useState([]);
   const [rarities, setRarities] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [historyVersion, setHistoryVersion] = useState(0);
   const requestVersion = useRef(0);
@@ -47,6 +50,12 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
         vendedores: [() => api.listShops()],
         itens: [() => api.listShops(), () => api.listItems({ includeInactive: true }), () => api.listCategories(), () => api.listRarities()],
         catalogo: [() => api.listCategories(), () => api.listRarities()],
+        encomendas: [
+          () => api.listItemRequests(),
+          () => api.listItems({ includeInactive: true }),
+          () => api.listCategories(),
+          () => api.listRarities()
+        ],
         historicos: []
       };
       const data = Object.assign({}, ...await Promise.all(sources[activeTab].map((load) => load())));
@@ -56,6 +65,7 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
       if (data.characters) setCharacters(data.characters);
       if (data.categories) setCategories(data.categories);
       if (data.rarities) setRarities(data.rarities);
+      if (data.requests) setRequests(data.requests);
       loadedTab.current = activeTab;
     } catch (error) {
       if (request === requestVersion.current) throw error;
@@ -149,6 +159,18 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
       {activeTab === 'catalogo' && (
         <CatalogTab
           api={api}
+          categories={categories}
+          rarities={rarities}
+          loading={loading}
+          reload={reload}
+          showNotice={showNotice}
+        />
+      )}
+      {activeTab === 'encomendas' && (
+        <RequestsTab
+          api={api}
+          requests={requests}
+          items={items}
           categories={categories}
           rarities={rarities}
           loading={loading}
