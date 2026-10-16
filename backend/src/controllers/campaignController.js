@@ -1,3 +1,4 @@
+import { publishCampaignChange } from '../services/liveEvents.js';
 import { isDemoAccount } from '../config/demo.js';
 import { listCampaignsByUserId, listMembers } from '../models/campaignModel.js';
 import { getPrisma } from '../database/connection.js';
@@ -27,6 +28,8 @@ export async function join(req, res) {
     ? `Você entrou na mesa "${result.campaign.name}".`
     : `Você já participa da mesa "${result.campaign.name}".`;
 
+  // A tela do Mestre (grupo e convite) atualiza quando alguem entra.
+  if (result.joined) publishCampaignChange(result.campaign.id);
   res.status(result.joined ? 201 : 200).json({ message, campaign: result.campaign });
 }
 

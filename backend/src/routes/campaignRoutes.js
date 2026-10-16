@@ -17,6 +17,8 @@ import { sessionRoutes } from './sessionRoutes.js';
 import { uploadRoutes } from './uploadRoutes.js';
 import { itemRequestRoutes } from './itemRequestRoutes.js';
 import { discountRoutes } from './discountRoutes.js';
+import { eventRoutes } from './eventRoutes.js';
+import { notifyCampaignWrites } from '../services/liveEvents.js';
 
 export const campaignRoutes = Router();
 
@@ -28,6 +30,8 @@ campaignRoutes.post('/join', inviteRateLimiter, asyncHandler(controller.join));
 // Tudo abaixo de /campaigns/:campaignId exige participar da mesa.
 campaignRoutes.use('/:campaignId', asyncHandler(loadCampaign));
 campaignRoutes.use(requireCopperUnit);
+campaignRoutes.use(notifyCampaignWrites);
+campaignRoutes.use('/:campaignId/events', eventRoutes);
 campaignRoutes.get('/:campaignId', asyncHandler(controller.show));
 campaignRoutes.patch('/:campaignId/shop', requireGameMaster, asyncHandler(controller.setShopState));
 campaignRoutes.delete('/:campaignId', requireGameMaster, asyncHandler(controller.remove));
