@@ -232,6 +232,15 @@ pede participa da mesa e qual é o papel dele nela.
   na demonstração porque site e API estão em subdomínios do `onrender.com`,
   que contam como sites diferentes; vale com um domínio próprio. Os testes de
   ponta a ponta rodam nos dois modos.
+- **TypeScript gradual.** O código segue em JavaScript; o `tsc` confere, com
+  `strict`, os módulos listados em cada `tsconfig.json` (no back, schemas,
+  validação, senhas, convites e o cálculo de desconto, com tipos tirados dos
+  schemas Zod por `z.infer`; no front, dinheiro, peso e a leitura do CSV, pelos
+  contratos de `frontend/src/types.d.ts`). Para tipar mais um módulo, basta
+  acrescentá-lo ao `include`. O CI roda `npm run typecheck` nos dois.
+- **App.jsx dividido.** Sessão (`useSession`), mesa ativa e personagens
+  (`useActiveCampaign`), convite pendente (`usePendingInvite`) e um contexto da
+  mesa ativa lido pelo topo do app; a tela de entrada tem componente próprio.
 - **Logs estruturados.** A API registra em JSON (pino), com um id por
   requisição devolvido em `X-Request-Id`, sem tokens, cookies, senhas ou
   e-mails. Erros do navegador vão para o mesmo log por `POST /client-errors`,
@@ -308,10 +317,12 @@ Scripts do diretório `backend`:
 ```bash
 cd backend
 npm run lint
+npm run typecheck
 npm test
 
 cd frontend
 npm run lint
+npm run typecheck
 npm test
 ```
 
@@ -533,7 +544,9 @@ lojaRPG/
     src/
       pages/       telas (loja, mesas, painel do Mestre...)
       components/  cards, painéis e as abas do painel do Mestre (admin/)
-      js/          cliente da API e hooks
+      hooks/       sessão, mesa ativa, convite pendente e o contexto da mesa
+      js/          cliente da API, dinheiro, peso, CSV e hooks de tela
+      types.d.ts   contratos entre o front e a API (TypeScript gradual)
   e2e/             testes de ponta a ponta (Playwright)
   docker/          inicialização do PostgreSQL local
   docs/images/     capturas de tela
