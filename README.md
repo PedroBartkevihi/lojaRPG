@@ -120,7 +120,10 @@ personagem.
 - Importação de vários itens de uma vez: pacotes prontos do SRD 5.1
   (equipamento de aventura, armas, armaduras, poções e alquimia) ou uma
   planilha CSV do Mestre, lida no navegador com prévia e os erros de cada linha
-  antes do envio. Itens com nome já existente no vendedor ficam de fora.
+  antes do envio. A planilha pode vir do Excel em UTF-8 ou no CSV comum
+  (Windows-1252), com números no formato brasileiro (1.500 ou 2,5). Itens com
+  nome já existente no vendedor ficam de fora, e categoria ou raridade com
+  outra caixa ("raro") usa a que a mesa já tem.
 - Encomendas dos jogadores: aprovar entregando um item do catálogo ou um item
   novo, feito para a encomenda, cobrando até o valor que o jogador aceitou
   pagar, ou recusar com uma nota.

@@ -5,6 +5,11 @@ export function notFound(_req, _res, next) {
 }
 
 export function errorHandler(error, _req, res, _next) {
+  // Corpo acima do limite do express.json (100 KB; 1 MB na importacao).
+  if (error.type === 'entity.too.large') {
+    return res.status(413).json({ message: 'Envio grande demais. Divida a planilha em partes menores e importe cada uma.' });
+  }
+
   if (error.code === 'P2002') {
     return res.status(409).json({ message: 'Registro duplicado.' });
   }
