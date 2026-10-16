@@ -66,12 +66,15 @@ export interface Campaign {
   createdAt?: string;
 }
 
+/** Item como vem no inventario (mapInventoryItem): sem estoque nem dados de venda da loja. */
+export type InventoryItem = Omit<Item, 'campaignId' | 'rarityId' | 'sellPrice' | 'isSellable' | 'finalPrice' | 'discount' | 'stock'>;
+
 export interface InventoryEntry {
   id: number;
   characterId: number;
   itemId: number;
   quantity: number;
-  item: Item;
+  item: InventoryItem;
 }
 
 /** Linha de uma planilha CSV ja convertida para a importacao (POST /items/import). */

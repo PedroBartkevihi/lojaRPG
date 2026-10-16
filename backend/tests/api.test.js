@@ -2512,6 +2512,31 @@ describe('logs e erros do navegador', () => {
     expect(text).not.toMatch(/segredo|lojarpg_refresh|senha-123|a@b\.com/);
     expect(text).toContain('[omitido]');
   });
+
+  it('a rota do relato sai sem query, fragmento nem código de convite', async () => {
+    const { cleanClientPath } = await import('../src/routes/clientErrorRoute.js');
+    expect(cleanClientPath('/shop?search=poção#topo')).toBe('/shop');
+    expect(cleanClientPath('/convite/ABCD1234?x=1')).toBe('/convite/:code');
+    expect(cleanClientPath(undefined)).toBeUndefined();
+  });
+
+  it('LOG_LEVEL desconhecido volta ao padrão em vez de derrubar a API', async () => {
+    const { resolveLogLevel } = await import('../src/config/logger.js');
+    expect(resolveLogLevel('warning', 'production')).toBe('info');
+    expect(resolveLogLevel(' Debug ', 'production')).toBe('debug');
+    expect(resolveLogLevel('silent', 'production')).toBe('silent');
+    expect(resolveLogLevel(undefined, 'test')).toBe('warn');
+  });
+
+  it('a linha de acesso mostra a rota inteira e o aviso do banco mostra o motivo', async () => {
+    const { errorReason, routeOf } = await import('../src/config/logger.js');
+    expect(routeOf({ originalUrl: '/auth/register?next=1', url: '/register' })).toBe('/auth/register');
+    expect(routeOf({ url: '/health' })).toBe('/health');
+
+    const prismaError = new Error('\nInvalid `prisma.$queryRaw()` invocation:\n\n\nCan\'t reach database server at `db:5432`\n\nPlease make sure your database server is running at `db:5432`.');
+    expect(errorReason(prismaError)).toBe("Can't reach database server at `db:5432`");
+    expect(errorReason(new Error('Tempo esgotado ao consultar o banco.'))).toBe('Tempo esgotado ao consultar o banco.');
+  });
 });
 
 describe('atualização em tempo real (SSE)', () => {

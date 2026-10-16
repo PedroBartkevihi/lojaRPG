@@ -10,8 +10,25 @@ export function createLogger(destination) {
   return pino(LOGGER_OPTIONS, destination);
 }
 
+// Um LOG_LEVEL que o pino nao conhece ("warning", ou com espaco colado no
+// painel) derrubaria a API no inicio; nesse caso fica o nivel padrao.
+export function resolveLogLevel(value, nodeEnv = env.nodeEnv) {
+  const wanted = value?.trim().toLowerCase();
+  if (wanted && (wanted === 'silent' || wanted in pino.levels.values)) {
+    return wanted;
+  }
+  return nodeEnv === 'test' ? 'warn' : 'info';
+}
+
+// Uma linha que explica um erro. As mensagens do Prisma comecam com uma
+// quebra de linha e "Invalid `prisma.x()` invocation:"; o motivo vem depois.
+export function errorReason(error) {
+  const lines = String(error?.message ?? error).split('\n').map((line) => line.trim()).filter(Boolean);
+  return lines.find((line) => !/^Invalid `.+` invocation:?$/.test(line)) || lines[0] || 'sem mensagem';
+}
+
 const LOGGER_OPTIONS = {
-  level: process.env.LOG_LEVEL || (env.nodeEnv === 'test' ? 'warn' : 'info'),
+  level: resolveLogLevel(process.env.LOG_LEVEL),
   base: { service: 'lojarpg-api' },
   // Nada de credenciais nem dados pessoais no log: tokens, cookies, senhas e
   // e-mails sao trocados por [omitido].
@@ -31,6 +48,10 @@ const LOGGER_OPTIONS = {
 };
 
 export const logger = createLogger();
+
+if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.trim().toLowerCase() !== logger.level) {
+  logger.warn(`LOG_LEVEL "${process.env.LOG_LEVEL}" ignorado; usando ${logger.level}.`);
+}
 
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
 
@@ -53,6 +74,12 @@ export const httpLogger = pinoHttp({
   customLogLevel: (_req, res, error) => (error || res.statusCode >= 500 ? 'error' : 'info'),
   // Health checks a cada poucos segundos so poluiriam o log.
   autoLogging: { ignore: (req) => req.url === '/health' || req.url === '/ready' },
-  customSuccessMessage: (req, res, responseTime) => `${req.method} ${req.url.split('?')[0]} ${res.statusCode} ${Math.round(responseTime)}ms`,
-  customErrorMessage: (req, res) => `${req.method} ${req.url.split('?')[0]} ${res.statusCode}`
+  // originalUrl: dentro de um router (/auth, /campaigns...) o Express deixa em
+  // req.url so o pedaco depois do prefixo, e a mensagem sairia "POST / 201".
+  customSuccessMessage: (req, res, responseTime) => `${req.method} ${routeOf(req)} ${res.statusCode} ${Math.round(responseTime)}ms`,
+  customErrorMessage: (req, res) => `${req.method} ${routeOf(req)} ${res.statusCode}`
 });
+
+export function routeOf(req) {
+  return (req.originalUrl || req.url).split('?')[0];
+}

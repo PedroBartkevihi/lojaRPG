@@ -11,7 +11,9 @@ RUN npm ci --omit=dev
 
 COPY backend/prisma.config.js ./
 COPY backend/prisma ./prisma
-RUN npx prisma generate
+# O typescript entra no --omit=dev como peer opcional do Prisma (~24 MB) e so
+# serve para o npm run typecheck; o prisma generate nao precisa dele.
+RUN npx prisma generate && rm -rf node_modules/typescript node_modules/.bin/tsc node_modules/.bin/tsserver
 
 FROM node:24-alpine
 

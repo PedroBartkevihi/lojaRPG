@@ -5,8 +5,8 @@ import { parse } from '../utils/validation.js';
 
 // Erros do navegador (excecoes nao tratadas e telas que quebram) chegam aqui e
 // vao para o mesmo log da API, com o reqId da ultima resposta quando ha. Sem
-// dados pessoais: so mensagem, pilha, a rota da tela (sem query nem
-// fragmento) e o navegador. Sem login, porque a tela de entrada tambem pode
+// dados pessoais: so mensagem, pilha, a rota da tela (sem query, fragmento
+// nem o codigo de um convite, que da entrada na mesa) e o navegador. Sem login, porque a tela de entrada tambem pode
 // quebrar; o limite por IP segura abuso.
 const clientErrorLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -24,6 +24,10 @@ const clientErrorSchema = z.object({
   kind: z.enum(['error', 'unhandledrejection', 'render']).optional()
 });
 
+export function cleanClientPath(path) {
+  return path?.split(/[?#]/)[0].replace(/^\/convite\/[^/]+/, '/convite/:code');
+}
+
 export const clientErrorRoute = Router();
 
 clientErrorRoute.post('/', clientErrorLimiter, (req, res) => {
@@ -32,7 +36,7 @@ clientErrorRoute.post('/', clientErrorLimiter, (req, res) => {
     {
       client: {
         ...report,
-        path: report.path?.split(/[?#]/)[0],
+        path: cleanClientPath(report.path),
         userAgent: req.get('user-agent')?.slice(0, 200)
       }
     },

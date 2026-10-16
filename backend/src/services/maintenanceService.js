@@ -1,4 +1,4 @@
-import { logger } from '../config/logger.js';
+import { errorReason, logger } from '../config/logger.js';
 import { deleteStaleRefreshTokens } from '../models/refreshTokenModel.js';
 import { deleteStalePasswordResetTokens } from './passwordResetService.js';
 
@@ -23,7 +23,7 @@ export function startMaintenance(log = logger) {
         );
       }
     } catch (error) {
-      log.warn(`Limpeza do banco falhou: ${error.message.split('\n')[0]}`);
+      log.warn(`Limpeza do banco falhou: ${errorReason(error)}`);
     }
   }
 

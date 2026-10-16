@@ -487,13 +487,17 @@ requisição, que também volta no cabeçalho `X-Request-Id` da resposta (um
 `X-Request-Id` válido mandado por um proxy é mantido). Cada requisição gera uma
 linha com método, rota sem a query, status e tempo; `/health` e `/ready` ficam
 de fora. Tokens, cookies, senhas e e-mails nunca vão para o log (aparecem como
-`[omitido]`). `LOG_LEVEL` muda o nível (`info` por padrão; `debug`, `warn`...).
+`[omitido]`). `LOG_LEVEL` muda o nível (`info` por padrão; `debug`, `warn`,
+`error`...); um valor que o pino não conhece fica no padrão, com um aviso no
+log.
 
 Erros do navegador (exceções não tratadas e telas que quebram) vão para
 `POST /client-errors` e aparecem no mesmo log, em nível `warn`, com a mensagem,
-a pilha, a rota da tela sem query e o `requestId` da última resposta, para
-achar a requisição que veio antes. Uma tela que quebra mostra "Algo deu errado
-nesta tela" em vez de ficar em branco.
+a pilha, a rota da tela sem query (e sem o código, em `/convite/:code`) e o
+`requestId` da última resposta, para achar a requisição que veio antes. Uma
+tela que quebra mostra "Algo deu errado nesta tela" em vez de ficar em branco,
+com botões para recarregar ou ir para as mesas; voltar no navegador também
+tenta de novo.
 
 Onde ler:
 
