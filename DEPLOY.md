@@ -54,6 +54,59 @@ Limites do plano gratuito:
   usam as contas da demonstração. Sem demonstração, defina
   `VITE_DEMO_LOGIN=false` no front-end e refaça o deploy dele para escondê-los.
 
+## E-mail de "Esqueci minha senha"
+
+A API manda o link de senha nova pela API HTTP do
+[Resend](https://resend.com) (plano gratuito). Sem configuração, o e-mail não
+sai: em desenvolvimento o texto aparece no log da API, e em produção o pedido
+responde que a recuperação por e-mail ainda não foi configurada (503), em vez
+de prometer um e-mail que não vai chegar.
+
+1. Crie a conta no Resend e verifique um domínio seu (sem domínio, o Resend
+   só entrega para o seu próprio e-mail, o que serve só para testar).
+2. Crie uma API key com permissão de envio.
+3. No Render, defina na API: `RESEND_API_KEY` com a chave e `EMAIL_FROM` com o
+   remetente, por exemplo `lojaRPG <nao-responda@seudominio.com.br>`. As duas
+   já estão no `render.yaml` como opcionais.
+4. O link usa o endereço do site: por padrão, a primeira origem do
+   `CORS_ORIGIN`. Para outro endereço, defina `APP_URL`.
+
+O link vale 30 minutos e uma vez; trocar a senha encerra na hora as sessões
+abertas da conta, inclusive o access token de até 15 minutos, e anula os outros
+links pendentes. O e-mail não leva o nome da conta, que é texto livre de quem
+cadastrou. As contas da demonstração não recebem link. Os pedidos de link têm
+limite de 5 a cada 15 minutos por IP, e cada conta recebe no máximo um e-mail
+por minuto.
+
+## Refresh token em cookie httpOnly (domínio próprio)
+
+Por padrão o refresh token fica no `localStorage`, onde um script injetado na
+página conseguiria lê-lo. O modo cookie guarda o token num cookie `HttpOnly`
+da API, que o JavaScript não lê. Ele está pronto, mas **desligado**, porque o
+site (`lojarpg-web.onrender.com`) e a API (`lojarpg-api.onrender.com`) estão
+em subdomínios do `onrender.com`, que os navegadores tratam como sites
+diferentes: o Safari e outros que bloqueiam cookies de terceiros recusariam o
+cookie, e quem joga no iPhone perderia a sessão a cada 15 minutos.
+
+Para ligar, coloque os dois sob um domínio seu:
+
+1. Registre um domínio e, no Render, adicione `app.seudominio.com.br` ao site
+   e `api.seudominio.com.br` à API (*Settings > Custom Domains*), criando os
+   registros DNS que o Render indicar.
+2. Na API: `CORS_ORIGIN=https://app.seudominio.com.br` e
+   `REFRESH_COOKIE_SAMESITE=lax` (o padrão).
+3. No site: `VITE_API_URL=https://api.seudominio.com.br` e
+   `VITE_REFRESH_COOKIE=true`; no `render.yaml`, troque a URL da API em
+   `connect-src` pelo endereço novo.
+4. Publique a API antes do site. Quem já estava logado não precisa entrar de
+   novo: na primeira renovação, o refresh token antigo do `localStorage` é
+   trocado pelo cookie e apagado.
+
+`REFRESH_COOKIE_SAMESITE=none` faz o cookie funcionar entre domínios
+diferentes nos navegadores que ainda aceitam cookies de terceiros; não é
+recomendado. Para voltar ao modo antigo, basta `VITE_REFRESH_COOKIE=false`
+no site.
+
 ## Envio de imagens dos itens (opcional)
 
 Sem configuração, o Mestre cola a URL da imagem, como antes. Para ele enviar a

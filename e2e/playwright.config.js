@@ -1,3 +1,6 @@
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 import { databaseUrl } from './database.js';
 
@@ -8,6 +11,12 @@ const WEB_PORT = 4173;
 const API_URL = `http://127.0.0.1:${API_PORT}`;
 const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 const CI = Boolean(process.env.CI);
+// E-mails da API (recuperar senha) vao para este arquivo; os testes leem o link.
+export const MAIL_OUTBOX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'test-results', 'emails.jsonl');
+
+// O arquivo nao e apagado entre execucoes: cada teste procura o e-mail da
+// propria conta, que tem endereco unico.
+mkdirSync(path.dirname(MAIL_OUTBOX), { recursive: true });
 
 export default defineConfig({
   testDir: './tests',
@@ -52,7 +61,8 @@ export default defineConfig({
         CORS_ORIGIN: WEB_URL,
         // Cada teste manda um X-Forwarded-For proprio (veja fixtures.js), para
         // os cadastros e logins nao dividirem o mesmo limite de tentativas.
-        TRUST_PROXY: '1'
+        TRUST_PROXY: '1',
+        MAIL_OUTBOX_FILE: MAIL_OUTBOX
       }
     },
     {
@@ -66,6 +76,9 @@ export default defineConfig({
       env: {
         VITE_API_URL: API_URL,
         VITE_DEMO_LOGIN: 'true',
+        // E2E_REFRESH_COOKIE=true testa o modo do refresh token em cookie
+        // httpOnly (site e API no mesmo host, como com um dominio proprio).
+        VITE_REFRESH_COOKIE: process.env.E2E_REFRESH_COOKIE === 'true' ? 'true' : 'false',
         E2E_API_URL: API_URL,
         PORT: String(WEB_PORT)
       }

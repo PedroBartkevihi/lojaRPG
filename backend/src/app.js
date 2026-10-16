@@ -40,7 +40,10 @@ app.use(
 
       // 403 e nao 500: a origem e recusada de proposito, nao e erro da API.
       return callback(new ApiError(403, 'Origem não permitida pelo CORS.'));
-    }
+    },
+    // Deixa o site mandar e receber o cookie do refresh token (modo cookie).
+    // A lista de origens acima continua sendo a unica liberada.
+    credentials: true
   })
 );
 app.use(express.json());

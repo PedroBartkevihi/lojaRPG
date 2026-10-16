@@ -22,13 +22,15 @@ import {
   useNavigate,
   useParams
 } from 'react-router-dom';
-import { createApi } from './js/api.js';
+import { createApi, REFRESH_COOKIE_MODE } from './js/api.js';
 import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
 import { SkeletonCards } from './components/Skeleton.jsx';
 import { useLiveTick } from './js/useLiveTick.js';
 import { useNotice } from './js/useNotice.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import CampaignsPage from './pages/CampaignsPage.jsx';
 import CampaignPage from './pages/CampaignPage.jsx';
 import ShopPage from './pages/ShopPage.jsx';
@@ -42,6 +44,7 @@ const REFRESH_TOKEN_KEY = 'lojaRpgRefreshToken';
 const USER_KEY = 'lojaRpgUser';
 const CAMPAIGN_KEY = 'lojaRpgCampaign';
 const INVITE_KEY = 'lojaRpgInvite';
+const RESET_PATH = '/redefinir-senha';
 
 function readStoredUser() {
   try {
@@ -112,7 +115,6 @@ function AppContent() {
   const [characters, setCharacters] = useState([]);
   const [charactersLoaded, setCharactersLoaded] = useState(false);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
-  const [authView, setAuthView] = useState('login');
   const [notice, showNotice] = useNotice();
   const [refreshCount, setRefreshCount] = useState(0);
 
@@ -126,10 +128,12 @@ function AppContent() {
   // ele nao recria a API a cada navegacao; com uma API so, as requisicoes
   // dividem a mesma renovacao de sessao e as cargas abaixo nao se repetem.
   const navigateRef = useRef(navigate);
+  const pathnameRef = useRef(location.pathname);
 
   useEffect(() => {
     navigateRef.current = navigate;
-  }, [navigate]);
+    pathnameRef.current = location.pathname;
+  }, [navigate, location.pathname]);
 
   // A API le a mesa deste ref, que acompanha a tela. O localStorage so guarda
   // a escolha para o proximo carregamento: ele e dividido entre as abas, e
@@ -159,7 +163,13 @@ function AppContent() {
     setCharacters([]);
     setCharactersLoaded(false);
     setSelectedCharacterId(null);
-    navigateRef.current('/login', { replace: true });
+
+    // A tela de senha nova fica aberta quando a sessao do aparelho acaba no
+    // meio (sessao vencida ou a propria troca de senha): o token do link ja
+    // saiu da barra de endereco e se perderia.
+    if (pathnameRef.current !== RESET_PATH) {
+      navigateRef.current('/login', { replace: true });
+    }
   }, [setActiveCampaign]);
 
   const storeTokens = useCallback((data) => {
@@ -170,7 +180,11 @@ function AppContent() {
       setToken(accessToken);
     }
 
-    if (data.refreshToken) {
+    if (REFRESH_COOKIE_MODE) {
+      // O refresh token esta no cookie httpOnly; um antigo guardado aqui
+      // (de antes do modo cookie) ja foi trocado pelo cookie e sai.
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    } else if (data.refreshToken) {
       localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
     }
 
@@ -326,7 +340,20 @@ function AppContent() {
     }
   }, [api, clearSession, token]);
 
-  if (!token || !user) {
+  // Depois da senha nova, a sessao deste aparelho (se havia) tambem sai.
+  const finishPasswordReset = useCallback(async () => {
+    if (token) {
+      await handleLogout();
+    }
+
+    navigate('/login', { replace: true });
+  }, [handleLogout, navigate, token]);
+
+  // A tela de senha nova e a mesma com ou sem sessao no aparelho: assim ela
+  // nao e remontada (perdendo o token do link) quando a sessao acaba.
+  const onResetPage = location.pathname === RESET_PATH;
+
+  if (!token || !user || onResetPage) {
     const isRegisterRoute = location.pathname === '/register';
     // Quem chegou por um convite precisa de conta propria: a de demonstracao
     // nao entra em outras mesas, entao os botoes dela somem dessa tela.
@@ -368,23 +395,22 @@ function AppContent() {
             {hasPendingInvite && (
               <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
             )}
-            {isRegisterRoute || authView === 'register' ? (
+            {onResetPage ? (
+              <ResetPasswordPage api={api} onDone={finishPasswordReset} />
+            ) : location.pathname === '/esqueci-senha' ? (
+              <ForgotPasswordPage api={api} onBack={() => navigate('/login')} />
+            ) : isRegisterRoute ? (
               <RegisterPage
                 api={api}
                 onRegister={saveSession}
-                onSwitch={() => {
-                  setAuthView('login');
-                  navigate('/login');
-                }}
+                onSwitch={() => navigate('/login')}
               />
             ) : (
               <LoginPage
                 api={api}
                 onLogin={saveSession}
-                onSwitch={() => {
-                  setAuthView('register');
-                  navigate('/register');
-                }}
+                onSwitch={() => navigate('/register')}
+                onForgot={() => navigate('/esqueci-senha')}
               />
             )}
           </section>

@@ -39,6 +39,12 @@ services:
       # Formato cloudinary://<api_key>:<api_secret>@<cloud_name>; veja o DEPLOY.md.
       - key: CLOUDINARY_URL
         sync: false
+      # Opcionais: e-mail de "Esqueci minha senha" pelo Resend (veja o
+      # DEPLOY.md). Sem eles, o pedido responde igual, mas o e-mail nao sai.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
 
   - type: web
     name: lojarpg-web

@@ -14,6 +14,14 @@ async function parseResponse(response) {
 
 const RENEWAL_UNAVAILABLE_MESSAGE = 'Não foi possível renovar a sessão agora. Tente de novo em instantes.';
 
+// Com VITE_REFRESH_COOKIE=true, o refresh token fica num cookie httpOnly da
+// API, que o JavaScript da pagina nao le, em vez do localStorage. So vale com
+// o site e a API no mesmo dominio (veja o DEPLOY.md): em dominios diferentes,
+// navegadores que bloqueiam cookies de terceiros recusariam o cookie.
+export const REFRESH_COOKIE_MODE = import.meta.env.VITE_REFRESH_COOKIE === 'true';
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function withQuery(path, params = {}) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -27,7 +35,7 @@ function withQuery(path, params = {}) {
 
 // `getCampaignId` devolve a mesa ativa; as rotas da loja ficam todas abaixo
 // de /campaigns/:id.
-export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefresh, getCampaignId) {
+export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefresh, getCampaignId, { refreshCookie = REFRESH_COOKIE_MODE } = {}) {
   const campaignPath = (path = '') => `/campaigns/${getCampaignId?.()}${path}`;
   let renewing = null;
 
@@ -41,21 +49,33 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
       return 'renewed';
     }
 
+    // No modo cookie o navegador manda o cookie sozinho. Um refresh token
+    // antigo do localStorage (de antes do modo cookie) ainda vai uma vez no
+    // corpo, e a API responde com o cookie: ninguem precisa entrar de novo.
     const refreshToken = getRefreshToken?.();
 
-    if (!refreshToken) {
+    if (!refreshToken && !refreshCookie) {
       return 'rejected';
     }
 
     if (!renewing) {
-      renewing = request('/auth/refresh', { method: 'POST', body: { refreshToken }, retry: false })
+      renewing = request('/auth/refresh', { method: 'POST', body: refreshToken ? { refreshToken } : {}, retry: false })
         .then((refreshed) => {
           onTokenRefresh?.(refreshed);
           return 'renewed';
         })
-        .catch((error) => {
-          if (getRefreshToken?.() !== refreshToken) {
+        .catch(async (error) => {
+          if (refreshToken && getRefreshToken?.() !== refreshToken) {
             return 'renewed';
+          }
+
+          // Outra aba pode ter girado o mesmo cookie um instante antes; o
+          // token novo dela chega pelo localStorage.
+          if (refreshCookie && error.status === 401) {
+            await wait(500);
+            if (getToken() !== usedToken) {
+              return 'renewed';
+            }
           }
 
           // So a recusa do refresh token (401) encerra a sessao.
@@ -89,10 +109,18 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
       body = JSON.stringify(body);
     }
 
+    // So as rotas de autenticacao usam o cookie (ele tem Path=/auth).
+    const authCookie = refreshCookie && path.startsWith('/auth/');
+
+    if (authCookie) {
+      headers['X-Refresh-Transport'] = 'cookie';
+    }
+
     const response = await fetch(`${API_URL}${path}`, {
       ...options,
       headers,
-      body
+      body,
+      ...(authCookie ? { credentials: 'include' } : {})
     });
     const data = await parseResponse(response);
 
@@ -153,6 +181,8 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     register: (body) => request('/auth/register', { method: 'POST', body }),
     login: (body) => request('/auth/login', { method: 'POST', body }),
     logout: (body) => request('/auth/logout', { method: 'POST', body, retry: false }),
+    forgotPassword: (body) => request('/auth/forgot-password', { method: 'POST', body }),
+    resetPassword: (body) => request('/auth/reset-password', { method: 'POST', body }),
     listCampaigns: () => request('/campaigns'),
     createCampaign: (body) => request('/campaigns', { method: 'POST', body }),
     joinCampaign: (body) => request('/campaigns/join', { method: 'POST', body }),

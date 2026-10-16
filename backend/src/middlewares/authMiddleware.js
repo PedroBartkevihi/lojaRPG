@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
-import { findUserById } from '../models/userModel.js';
+import { findSessionUser } from '../models/userModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export async function authenticate(req, _res, next) {
@@ -22,13 +22,19 @@ export async function authenticate(req, _res, next) {
   // Uma falha do banco aqui e indisponibilidade, nao credencial ruim: vai para
   // o tratamento de erros em vez de virar 401, que faria o front deslogar.
   try {
-    const user = await findUserById(payload.sub);
+    const session = await findSessionUser(payload.sub);
 
-    if (!user) {
+    if (!session) {
       return next(new ApiError(401, 'Usuário não encontrado.'));
     }
 
-    req.user = user;
+    // Token emitido antes da ultima troca de senha: a sessao foi encerrada.
+    // Tokens de antes desta versao nao tem sv e contam como versao 0.
+    if ((payload.sv ?? 0) !== session.sessionVersion) {
+      return next(new ApiError(401, 'Sessão encerrada. Entre de novo.'));
+    }
+
+    req.user = session.user;
     return next();
   } catch (error) {
     return next(error);
