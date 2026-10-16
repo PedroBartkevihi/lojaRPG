@@ -107,6 +107,22 @@ diferentes nos navegadores que ainda aceitam cookies de terceiros; não é
 recomendado. Para voltar ao modo antigo, basta `VITE_REFRESH_COOKIE=false`
 no site.
 
+## Atualização em tempo real (SSE)
+
+O canal `GET /campaigns/:id/events` funciona no Render sem configuração: a API
+manda `X-Accel-Buffering: no` e um comentário a cada 25 segundos, para os
+proxies não segurarem nem fecharem a conexão. Pontos de atenção:
+
+- Os avisos ficam na memória do processo. Com uma instância só (o plano
+  gratuito e o pago mais simples) está tudo certo; ao escalar para mais de uma
+  instância, troque `src/services/liveEvents.js` por `LISTEN/NOTIFY` do
+  PostgreSQL ou um Redis.
+- Cada aba visível mantém uma conexão aberta (limite de 500 por processo;
+  acima disso a API responde 503 e a tela segue com a consulta de 10 s). Uma
+  aba escondida fecha o canal.
+- No plano gratuito, a API ainda dorme depois de 15 minutos sem ninguém com o
+  site aberto; quando acorda, o canal reconecta sozinho.
+
 ## Envio de imagens dos itens (opcional)
 
 Sem configuração, o Mestre cola a URL da imagem, como antes. Para ele enviar a
