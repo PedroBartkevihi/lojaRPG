@@ -10,6 +10,12 @@ export function mailConfigured() {
   return Boolean(env.resendApiKey && env.emailFrom);
 }
 
+// Fora de producao o e-mail sempre "sai" (testes, arquivo ou log); em
+// producao, so com o Resend configurado.
+export function mailEnabled() {
+  return env.nodeEnv !== 'production' || mailConfigured();
+}
+
 // Envia um e-mail transacional pela API HTTP do Resend (plano gratuito). Sem
 // configuracao, o e-mail nao sai: nos testes ele vai para testOutbox, em
 // desenvolvimento o texto aparece no log da API (para testar o fluxo sem

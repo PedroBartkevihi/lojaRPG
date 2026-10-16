@@ -11,6 +11,7 @@ function mapRefreshToken(token) {
     tokenHash: token.tokenHash,
     expiresAt: token.expiresAt,
     revokedAt: token.revokedAt,
+    sessionVersion: token.sessionVersion,
     createdAt: token.createdAt
   };
 }
@@ -21,7 +22,8 @@ export async function createRefreshToken(data, prisma = getPrisma()) {
       data: {
         userId: Number(data.userId),
         tokenHash: data.tokenHash,
-        expiresAt: data.expiresAt
+        expiresAt: data.expiresAt,
+        sessionVersion: data.sessionVersion
       }
     })
   );

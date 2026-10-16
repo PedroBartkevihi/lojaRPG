@@ -1477,9 +1477,3 @@ a.primary-action {
   border: 1px solid var(--line);
   object-fit: cover;
 }
-
-/* Formulario sozinho no meio da tela (senha nova com a sessao aberta). */
-.narrow-form {
-  max-width: 520px;
-  margin: 0 auto;
-}

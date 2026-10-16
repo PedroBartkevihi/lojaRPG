@@ -57,9 +57,10 @@ Limites do plano gratuito:
 ## E-mail de "Esqueci minha senha"
 
 A API manda o link de senha nova pela API HTTP do
-[Resend](https://resend.com) (plano gratuito). Sem configuração, o pedido
-responde igual, mas o e-mail não sai: em desenvolvimento o texto aparece no
-log da API, e em produção fica só um aviso no log.
+[Resend](https://resend.com) (plano gratuito). Sem configuração, o e-mail não
+sai: em desenvolvimento o texto aparece no log da API, e em produção o pedido
+responde que a recuperação por e-mail ainda não foi configurada (503), em vez
+de prometer um e-mail que não vai chegar.
 
 1. Crie a conta no Resend e verifique um domínio seu (sem domínio, o Resend
    só entrega para o seu próprio e-mail, o que serve só para testar).
@@ -70,8 +71,10 @@ log da API, e em produção fica só um aviso no log.
 4. O link usa o endereço do site: por padrão, a primeira origem do
    `CORS_ORIGIN`. Para outro endereço, defina `APP_URL`.
 
-O link vale 30 minutos e uma vez; trocar a senha encerra as sessões abertas da
-conta. As contas da demonstração não recebem link. Os pedidos de link têm
+O link vale 30 minutos e uma vez; trocar a senha encerra na hora as sessões
+abertas da conta, inclusive o access token de até 15 minutos, e anula os outros
+links pendentes. O e-mail não leva o nome da conta, que é texto livre de quem
+cadastrou. As contas da demonstração não recebem link. Os pedidos de link têm
 limite de 5 a cada 15 minutos por IP, e cada conta recebe no máximo um e-mail
 por minuto.
 
