@@ -23,7 +23,12 @@ test('jogador esquece a senha, cria outra pelo link do e-mail e entra com ela', 
   await page.getByRole('button', { name: 'Esqueci minha senha' }).click();
   await page.getByLabel('Email').fill(email);
   await page.getByRole('button', { name: 'Enviar link' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Se o e-mail estiver cadastrado' })).toBeVisible();
+  const sent = page.getByRole('status').filter({ hasText: 'Se o e-mail estiver cadastrado' });
+  const formError = page.locator('.form-error');
+  await expect(sent.or(formError)).toBeVisible();
+  if (await formError.isVisible()) {
+    throw new Error(`O pedido de senha nova mostrou o erro: ${await formError.textContent()}`);
+  }
 
   await expect.poll(() => resetLinkFor(email)).not.toBeNull();
   const link = new URL(resetLinkFor(email));
