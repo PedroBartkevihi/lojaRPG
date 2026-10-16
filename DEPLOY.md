@@ -66,10 +66,13 @@ foto direto do celular:
    Ela já está no `render.yaml` como opcional (`sync: false`). No Docker,
    coloque-a no `.env` da raiz, que o `docker-compose.yml` repassa à API.
 
-A API só assina cada envio (pasta `lojarpg/mesa-<id>`, formatos JPG, PNG,
-WebP e GIF, redução para no máximo 800 x 800 px); o arquivo vai do navegador
-direto ao Cloudinary, e o segredo não sai da API. O formulário recusa arquivos
-acima de 5 MB. A CSP do site já libera `https://api.cloudinary.com` para o
+A API só assina cada envio (pasta `lojarpg/mesa-<id>`, nome de arquivo gerado
+por ela, sem sobrescrever, formatos JPG, PNG, WebP e GIF, redução para no
+máximo 800 x 800 px); o arquivo vai do navegador direto ao Cloudinary, e o
+segredo não sai da API. Cada assinatura cria no máximo um arquivo, e cada conta
+pede até 30 por hora (a conta de Mestre da demonstração é pública). O
+formulário recusa arquivos acima de 5 MB; no servidor do Cloudinary vale o
+teto do plano. A CSP do site já libera `https://api.cloudinary.com` para o
 envio e qualquer imagem HTTPS para exibição.
 
 ## App instalável (PWA)

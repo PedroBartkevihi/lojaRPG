@@ -1807,7 +1807,16 @@ describe('envio de imagens dos itens', () => {
       expect(response.body.uploadUrl).toBe('https://api.cloudinary.com/v1_1/mesa-demo/image/upload');
       const { signature, api_key: apiKey, ...signed } = response.body.fields;
       expect(apiKey).toBe('123456');
-      expect(signed).toMatchObject({ folder: 'lojarpg/mesa-1', allowed_formats: 'jpg,jpeg,png,webp,gif', transformation: 'c_limit,w_800,h_800' });
+      expect(signed).toMatchObject({
+        folder: 'lojarpg/mesa-1',
+        allowed_formats: 'jpg,jpeg,png,webp,gif',
+        transformation: 'c_limit,w_800,h_800',
+        overwrite: 'false'
+      });
+      // Nome do arquivo gerado na API: a mesma assinatura nao cria outro arquivo.
+      expect(signed.public_id).toMatch(/^item-[0-9a-f-]{36}$/);
+      const again = await master.post(`${DEMO}/uploads/item-image`, {});
+      expect(again.body.fields.public_id).not.toBe(signed.public_id);
       const payload = Object.keys(signed).sort().map((key) => `${key}=${signed[key]}`).join('&');
       expect(signature).toBe(createHash('sha1').update(`${payload}segredo-do-cloudinary`).digest('hex'));
       expect(JSON.stringify(response.body)).not.toContain('segredo-do-cloudinary');

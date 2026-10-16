@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { getCloudinaryConfig, ITEM_IMAGE_UPLOAD } from '../config/uploads.js';
+import { itemImageRateLimiter } from '../middlewares/rateLimiters.js';
 import { requireGameMaster } from '../middlewares/roleMiddleware.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -24,10 +25,14 @@ uploadRoutes.get('/config', (_req, res) => {
   res.json({ itemImages: Boolean(getCloudinaryConfig()), maxBytes: ITEM_IMAGE_UPLOAD.maxBytes });
 });
 
-// Cada assinatura vale para um envio na pasta da mesa, com os limites de
-// formato e tamanho; o Cloudinary recusa um envio que mude esses campos.
+// A assinatura cobre pasta, nome do arquivo (gerado aqui), formatos e a
+// reducao para 800 px, e o Cloudinary recusa um envio que mude qualquer um
+// deles. Com o nome fixo e overwrite=false, cada assinatura cria no maximo um
+// arquivo, mesmo reenviada durante a hora em que vale. O limite de 5 MB e do
+// formulario; no servidor do Cloudinary vale o teto do plano.
 uploadRoutes.post(
   '/item-image',
+  itemImageRateLimiter,
   asyncHandler(async (req, res) => {
     const config = getCloudinaryConfig();
 
@@ -38,6 +43,8 @@ uploadRoutes.post(
     const params = {
       allowed_formats: ITEM_IMAGE_UPLOAD.allowedFormats,
       folder: `lojarpg/mesa-${req.campaign.id}`,
+      overwrite: 'false',
+      public_id: `item-${randomUUID()}`,
       timestamp: Math.floor(Date.now() / 1000),
       transformation: ITEM_IMAGE_UPLOAD.transformation
     };

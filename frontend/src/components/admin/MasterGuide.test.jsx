@@ -41,6 +41,22 @@ describe('MasterGuide', () => {
     expect(onNavigate).toHaveBeenCalledWith('itens');
   });
 
+  it('só marca o ouro inicial quando todos os jogadores já têm personagem', () => {
+    const campaign = { ...newCampaign, memberCount: 3 };
+    render(<MasterGuide campaign={campaign} items={[starterItem]} characters={[{ id: 1, userId: 2, gold: 5000 }]} onNavigate={vi.fn()} />);
+
+    const [, , waiting, gold] = steps();
+    expect(waiting).toContain('1 de 2 jogadores criaram personagem');
+    expect(gold).toContain('(pendente)');
+  });
+
+  it('não conta compra ou venda de jogador (estoque mudando) como revisão do catálogo', () => {
+    const touchedByStock = { ...starterItem, updatedAt: '2026-10-17T10:00:00.000Z' };
+    render(<MasterGuide campaign={newCampaign} items={[touchedByStock]} characters={[]} onNavigate={vi.fn()} />);
+
+    expect(steps()[0]).toContain('(pendente)');
+  });
+
   it('some com tudo feito e não volta se o ouro for gasto depois', () => {
     markCatalogReviewed(newCampaign.id);
     const campaign = { ...newCampaign, memberCount: 2 };
