@@ -387,6 +387,12 @@ describe('validação das entradas', () => {
     expect(short.status).toBe(400);
     expect(short.body.message).toBe('Senha deve ter pelo menos 8 caracteres.');
 
+    for (const [index, password] of ['        ', '1234567 '].entries()) {
+      const padded = await attempt(password, index + 20);
+      expect(padded.status).toBe(400);
+      expect(padded.body.message).toBe('Senha deve ter pelo menos 8 caracteres.');
+    }
+
     for (const [index, password] of ['12345678', 'Senha123', 'aaaaaaaa', 'abababab'].entries()) {
       const common = await attempt(password, index + 2);
       expect(common.status).toBe(400);
@@ -407,6 +413,17 @@ describe('validação das entradas', () => {
       .set('X-Forwarded-For', '192.0.2.50')
       .send({ email: 'antiga@exemplo.com', password: 'abc123' });
     expect(response.status).toBe(200);
+
+    // O cadastro antigo nao tinha maximo: senha longa de gerenciador continua valendo.
+    const longPassword = 'x'.repeat(200);
+    await getPrisma().user.create({
+      data: { name: 'Longa', email: 'longa@exemplo.com', passwordHash: await hashPassword(longPassword) }
+    });
+    const long = await request(app)
+      .post('/auth/login')
+      .set('X-Forwarded-For', '192.0.2.51')
+      .send({ email: 'longa@exemplo.com', password: longPassword });
+    expect(long.status).toBe(200);
   });
 
   it('recusa personagem incompleto', async () => {
@@ -1790,7 +1807,16 @@ describe('envio de imagens dos itens', () => {
       expect(response.body.uploadUrl).toBe('https://api.cloudinary.com/v1_1/mesa-demo/image/upload');
       const { signature, api_key: apiKey, ...signed } = response.body.fields;
       expect(apiKey).toBe('123456');
-      expect(signed).toMatchObject({ folder: 'lojarpg/mesa-1', allowed_formats: 'jpg,jpeg,png,webp,gif', transformation: 'c_limit,w_800,h_800' });
+      expect(signed).toMatchObject({
+        folder: 'lojarpg/mesa-1',
+        allowed_formats: 'jpg,jpeg,png,webp,gif',
+        transformation: 'c_limit,w_800,h_800',
+        overwrite: 'false'
+      });
+      // Nome do arquivo gerado na API: a mesma assinatura nao cria outro arquivo.
+      expect(signed.public_id).toMatch(/^item-[0-9a-f-]{36}$/);
+      const again = await master.post(`${DEMO}/uploads/item-image`, {});
+      expect(again.body.fields.public_id).not.toBe(signed.public_id);
       const payload = Object.keys(signed).sort().map((key) => `${key}=${signed[key]}`).join('&');
       expect(signature).toBe(createHash('sha1').update(`${payload}segredo-do-cloudinary`).digest('hex'));
       expect(JSON.stringify(response.body)).not.toContain('segredo-do-cloudinary');

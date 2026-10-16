@@ -55,9 +55,16 @@ const TYPES = {
 };
 
 function resolveFile(urlPath) {
-  const file = path.normalize(path.join(dist, decodeURIComponent(urlPath)));
+  let decoded;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch (_error) {
+    // "%E0" e afins: o Render devolve o index.html em vez de cair.
+    return path.join(dist, 'index.html');
+  }
+  const file = path.normalize(path.join(dist, decoded));
 
-  if (file.startsWith(dist)) {
+  if (file.startsWith(dist + path.sep)) {
     try {
       if (statSync(file).isFile()) {
         return file;

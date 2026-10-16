@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // App instalavel no celular ("Adicionar a tela inicial"), com icone e tela
-// cheia. O service worker guarda so a casca do app (JS, CSS e icones, que tem
-// hash no nome); a pagina vem sempre da rede quando ha conexao, para um deploy
-// novo nao abrir a versao anterior, e os dados continuam vindo da API.
+// cheia. O service worker guarda so a casca do app (JS, CSS e icones); a
+// pagina nao passa por ele e vem sempre da rede, para um deploy novo nao abrir
+// a versao anterior, e os dados continuam vindo da API. Sem modo offline.
 const pwa = VitePWA({
   registerType: 'autoUpdate',
   // Arquivo externo (registerSW.js), e nao script inline: a CSP do site
@@ -32,13 +32,12 @@ const pwa = VitePWA({
     globPatterns: ['**/*.{js,css,svg,png,webp}'],
     navigateFallback: null,
     cleanupOutdatedCaches: true,
-    runtimeCaching: [
-      {
-        urlPattern: ({ request }) => request.mode === 'navigate',
-        handler: 'NetworkFirst',
-        options: { cacheName: 'paginas', expiration: { maxEntries: 5 } }
-      }
-    ]
+    // O autoUpdate so liga estes dois sozinho com o registro automatico; com o
+    // registerSW.js (por causa da CSP) eles ficam aqui. Sem eles, o SW novo de
+    // um deploy espera todas as abas fecharem, e o antigo segue servindo
+    // manifesto e icones velhos para quem deixa o app aberto.
+    skipWaiting: true,
+    clientsClaim: true
   }
 });
 

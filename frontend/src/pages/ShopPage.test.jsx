@@ -90,7 +90,13 @@ describe('ShopPage', () => {
     await user.clear(screen.getByRole('textbox', { name: 'Preço máximo em PO' }));
     await user.type(screen.getByRole('textbox', { name: 'Preço máximo em PO' }), '0,001');
     expect(await screen.findByRole('alert')).toHaveTextContent('Use um valor em PO');
+
+    // Acima do teto da API: o aviso diz o limite em PO, sem ir para a API.
+    await user.clear(screen.getByRole('textbox', { name: 'Preço máximo em PO' }));
+    await user.type(screen.getByRole('textbox', { name: 'Preço máximo em PO' }), '2000000');
+    expect(await screen.findByRole('alert')).toHaveTextContent('O preço vai até 1.000.000 PO.');
     await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(api.listItems).not.toHaveBeenCalledWith(expect.objectContaining({ maxPrice: 200000000 }));
     expect(api.listItems).not.toHaveBeenCalledWith(expect.objectContaining({ maxPrice: 1000 }));
     expect(api.listItems).not.toHaveBeenCalledWith(expect.objectContaining({ minPrice: 5000, maxPrice: 1000 }));
   });

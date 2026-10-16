@@ -42,17 +42,19 @@ export default function MasterGuide({ campaign, items, characters, onNavigate })
   const owners = new Set(characters.map((character) => character.userId)).size;
   const signals = useMemo(
     () => ({
-      // Um item editado, criado depois da mesa ou tirado da loja mostra que o
-      // catalogo de exemplo ja foi mexido.
+      // Um item criado depois da mesa ou tirado da loja mostra que o catalogo
+      // de exemplo ja foi mexido. O updatedAt nao serve: muda com o estoque a
+      // cada compra ou venda de jogador. Editar um item passa pelas abas, que
+      // marcam o passo (markCatalogReviewed).
       catalog: items.some(
         (item) =>
-          !item.isActive ||
-          new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime() > 1000 ||
-          new Date(item.createdAt).getTime() - new Date(campaign?.createdAt).getTime() > 60000
+          !item.isActive || new Date(item.createdAt).getTime() - new Date(campaign?.createdAt).getTime() > 60000
       ),
       invite: players > 0,
       characters: players > 0 && owners >= players,
-      gold: characters.length > 0 && characters.every((character) => character.gold > 0)
+      // So depois de todos terem personagem: senao o ouro do primeiro jogador
+      // marcava o passo e o guia sumia antes de o ultimo criar o dele.
+      gold: players > 0 && owners >= players && characters.every((character) => character.gold > 0)
     }),
     [items, characters, players, owners, campaign?.createdAt]
   );
