@@ -1688,3 +1688,11 @@ a.primary-action {
 .discounts-panel {
   margin-top: 1rem;
 }
+
+/* Tela de erro inesperado. */
+.crash-panel {
+  max-width: 480px;
+  margin: 15vh auto 0;
+  display: grid;
+  gap: 0.8rem;
+}

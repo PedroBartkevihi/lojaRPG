@@ -1,10 +1,11 @@
+import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export function notFound(_req, _res, next) {
   next(new ApiError(404, 'Rota não encontrada.'));
 }
 
-export function errorHandler(error, _req, res, _next) {
+export function errorHandler(error, req, res, _next) {
   if (error.code === 'P2002') {
     return res.status(409).json({ message: 'Registro duplicado.' });
   }
@@ -23,7 +24,7 @@ export function errorHandler(error, _req, res, _next) {
   const postgresDeadlock = error.name === 'PrismaClientUnknownRequestError' &&
     /PostgresError\s*\{\s*code:\s*"40P01"/.test(error.message);
   if (error.code === 'P2034' || error.code === 'P2028' || postgresDeadlock) {
-    console.warn(`Transação desfeita (${error.code || '40P01'}): ${error.message.split('\n')[0]}`);
+    (req.log || logger).warn(`Transação desfeita (${error.code || '40P01'}): ${error.message.split('\n')[0]}`);
     return res.status(409).json({ message: 'Outra operação usava os mesmos dados. Tente de novo.' });
   }
 
@@ -31,7 +32,8 @@ export function errorHandler(error, _req, res, _next) {
   const message = statusCode === 500 ? 'Erro interno do servidor.' : error.message;
 
   if (statusCode === 500) {
-    console.error(error);
+    // Com o reqId da requisicao; o pino-http ja registra a linha do 500.
+    (req.log || logger).error({ err: error }, 'Erro interno');
   }
 
   return res.status(statusCode).json(statusCode !== 500 && error.details ? { message, errors: error.details } : { message });

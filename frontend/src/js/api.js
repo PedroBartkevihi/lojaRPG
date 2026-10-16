@@ -1,4 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Id da ultima resposta da API, mandado junto num relato de erro do navegador
+// para achar a requisicao no log.
+let lastRequestId = null;
+
+export function getLastRequestId() {
+  return lastRequestId;
+}
 
 // Uma pagina de erro do proxy (HTML) vira resposta sem corpo, e quem chamou
 // recebe a mensagem generica em vez de um erro de JSON.
@@ -122,6 +130,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
       body,
       ...(authCookie ? { credentials: 'include' } : {})
     });
+    lastRequestId = response.headers?.get?.('X-Request-Id') || lastRequestId;
     const data = await parseResponse(response);
 
     // So e sessao vencida quando a requisicao levava um token. Um 401 sem token

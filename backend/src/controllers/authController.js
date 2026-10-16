@@ -74,7 +74,7 @@ export async function forgotPassword(req, res) {
   res.status(202).json({ message: FORGOT_PASSWORD_MESSAGE });
 
   requestPasswordReset(email).catch((error) => {
-    console.error(`Pedido de senha nova falhou: ${error.message}`);
+    req.log.error(`Pedido de senha nova falhou: ${error.message}`);
   });
 }
 
