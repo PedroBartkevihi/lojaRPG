@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { databaseUrl } from './database.js';
 
 // Os testes sobem a API e o site de verdade, com um banco proprio. O inicio da
 // API aplica as migrations e recria a mesa de demonstracao, como no Render.
@@ -6,14 +7,7 @@ const API_PORT = 3101;
 const WEB_PORT = 4173;
 const API_URL = `http://127.0.0.1:${API_PORT}`;
 const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
-const databaseUrl = process.env.E2E_DATABASE_URL || 'postgresql://lojarpg:lojarpg@127.0.0.1:5432/lojarpg_e2e';
 const CI = Boolean(process.env.CI);
-
-// Os testes criam contas e mesas: a trava evita apontar para o banco de
-// desenvolvimento ou de producao por engano.
-if (!/_(e2e|review)$/.test(new URL(databaseUrl).pathname)) {
-  throw new Error('E2E_DATABASE_URL precisa apontar para um banco cujo nome termina em _e2e ou _review.');
-}
 
 export default defineConfig({
   testDir: './tests',

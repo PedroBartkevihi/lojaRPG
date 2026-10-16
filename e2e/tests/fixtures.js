@@ -1,4 +1,10 @@
 import { test as base, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { databaseUrl } from '../database.js';
+
+const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../backend');
 
 let sequence = 0;
 
@@ -44,6 +50,17 @@ export async function register(page, { name, email, password = NEW_PASSWORD }) {
 // O aviso (toast) fica na regiao viva do topo da tela.
 export function toast(page) {
   return page.getByRole('status').filter({ has: page.locator('.toast') });
+}
+
+// Volta a mesa de demonstracao ao estado do seed (o mesmo reset do inicio da
+// API), para um teste que depende das quantidades iniciais poder ser repetido
+// e passar no retry do CI.
+export function resetDemo() {
+  execFileSync(process.execPath, ['prisma/seed.js'], {
+    cwd: backendDir,
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    stdio: 'inherit'
+  });
 }
 
 // Os confirm() das acoes destrutivas sao aceitos.
