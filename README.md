@@ -164,14 +164,21 @@ pede participa da mesa e qual é o papel dele nela.
 - **Segredo verificado na inicialização:** em produção, a API não sobe com um
   `JWT_SECRET` curto ou igual aos exemplos do repositório.
 - **CI no GitHub Actions** a cada push: lint (ESLint) e testes do back-end
-  com PostgreSQL; lint, testes e build do front-end.
+  com PostgreSQL; lint, testes e build do front-end; e testes de ponta a ponta
+  com Playwright, que sobem a API, o site de produção e um PostgreSQL e passam
+  pelos fluxos principais num Chromium, guardando print, vídeo e trace quando
+  algo falha.
+- **`/health` e `/ready` separados.** O Render reinicia a API pelo `/health`,
+  que só diz que o processo responde; o `/ready` consulta o banco e serve para
+  o monitor de disponibilidade. Assim um banco lento não derruba uma API
+  saudável.
 
 ## Stack
 
 - Front-end: React, Vite e React Router.
 - Back-end: Node.js, Express, Zod, JWT (access + refresh token).
 - Banco: PostgreSQL com Prisma e migrations versionadas.
-- Testes e qualidade: Vitest, Supertest, Testing Library e ESLint.
+- Testes e qualidade: Vitest, Supertest, Testing Library, Playwright e ESLint.
 - Infra: Docker Compose, GitHub Actions, Render e Neon.
 
 ## Como rodar localmente
@@ -203,8 +210,8 @@ Git Bash, `cp` funciona.
 - Front-end: <http://localhost:5173>
 - API: <http://localhost:3001>
 
-O container do banco cria o `lojarpg` (desenvolvimento) e o `lojarpg_test`
-(testes). Os usuários de exemplo são os da tabela acima, mais os jogadores
+O container do banco cria o `lojarpg` (desenvolvimento), o `lojarpg_test`
+(testes do back-end) e o `lojarpg_e2e` (testes de ponta a ponta). Os usuários de exemplo são os da tabela acima, mais os jogadores
 `borin@lojarpg.local` e `lia@lojarpg.local` (senha `jogador123`).
 
 Scripts do diretório `backend`:
@@ -214,6 +221,8 @@ Scripts do diretório `backend`:
   `prisma/seed.js`, sem tocar nas outras mesas.
 - `npm run db:reset`: apaga o banco local, reaplica as migrations e roda o
   seed.
+- `npm run db:backup` e `npm run db:restore-check`: backup do banco e ensaio
+  de restauração (veja "Backup e restauração" no DEPLOY.md).
 
 ## Testes
 
@@ -235,9 +244,39 @@ itens e catálogo, vendedores, compras, vendas, uso de itens, entregas e
 recompensas, compras, vendas e ajustes simultâneos, repetição de compras e
 entregas, sessões e paginação dos históricos, validação das entradas, regras
 `CHECK` do banco, as migrações de vendedores e de moedas, o reset da
-demonstração e a verificação dos segredos de produção.
+demonstração, a verificação dos segredos de produção e o `/ready`.
+
+### Ponta a ponta (Playwright)
+
+```bash
+docker compose up -d db
+# Só num volume criado antes desta versão (o container novo já cria o banco):
+docker compose exec db psql -U lojarpg -c "CREATE DATABASE lojarpg_e2e"
+
+cd e2e
+npm install
+npx playwright install chromium
+npm test
+```
+
+O Playwright sobe sozinho a API (porta 3101, com migrations e a mesa de
+demonstração) e o site de produção (`vite build` e `vite preview`, porta 4173)
+apontando para o banco `lojarpg_e2e`. Por segurança, só roda em bancos cujo
+nome termina em `_e2e` ou `_review` (mude com `E2E_DATABASE_URL`). Sem baixar
+o Chromium do Playwright, `E2E_BROWSER_CHANNEL=chrome npm test` usa o Chrome
+instalado. Os fluxos: compra (com clique duplo, que não pode cobrar duas
+vezes), venda e uso de itens, convite por link com cadastro no caminho,
+criação de personagem, recompensa do Mestre aparecendo na tela do jogador, loja
+fechada, remoção de jogador e sessão vencida (renovada sem sair da loja, ou
+recusada, voltando para a tela de entrada). `npm run report` abre o relatório
+da última execução.
 
 ## Rotas da API
+
+Disponibilidade (sem autenticação):
+
+- `GET /health`: o processo responde (usado pelo Render)
+- `GET /ready`: o banco responde; 503 quando não (usado pelo monitor)
 
 Autenticação:
 
@@ -363,15 +402,17 @@ lojaRPG/
       services/    regras de negócio e transações
       models/      consultas pelo Prisma
       middlewares/ autenticação, mesa e papel, erros e rate limit
+    scripts/       backup e ensaio de restauração do banco
     tests/
   frontend/
     src/
       pages/       telas (loja, mesas, painel do Mestre...)
       components/  cards, painéis e as abas do painel do Mestre (admin/)
       js/          cliente da API e hooks
+  e2e/             testes de ponta a ponta (Playwright)
   docker/          inicialização do PostgreSQL local
   docs/images/     capturas de tela
-  .github/         workflow de CI
+  .github/         workflows de CI, backup e da API acordada
   render.yaml      deploy no Render
   DEPLOY.md
 ```
@@ -379,7 +420,8 @@ lojaRPG/
 ## Deploy
 
 O [DEPLOY.md](./DEPLOY.md) explica o deploy no Render com Neon, a produção
-local com Docker, as variáveis de ambiente e o backup do banco.
+local com Docker, as variáveis de ambiente, o monitoramento, a API acordada
+no dia de jogo e o backup do banco com o ensaio de restauração.
 
 ## Licença
 
