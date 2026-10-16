@@ -34,5 +34,5 @@ export function errorHandler(error, _req, res, _next) {
     console.error(error);
   }
 
-  return res.status(statusCode).json({ message });
+  return res.status(statusCode).json(statusCode !== 500 && error.details ? { message, errors: error.details } : { message });
 }

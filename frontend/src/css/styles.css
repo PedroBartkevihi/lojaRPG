@@ -1548,3 +1548,106 @@ a.primary-action {
   flex-wrap: wrap;
   gap: 1rem;
 }
+
+/* Atributos do item (peso, dano, CA, sintonizacao) e carga do personagem. */
+.item-attributes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.item-attributes li {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.item-attributes-fields {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.item-attributes-fields legend {
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 0 0.3rem;
+}
+
+.carry-total {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.carry-total.overloaded,
+.character-stats .carry.overloaded dd,
+.carry-warning {
+  color: #f0a35e;
+}
+
+.character-stats .carry {
+  grid-column: 1 / -1;
+}
+
+/* Importacao de itens (pacotes do SRD e planilha CSV). */
+.items-tab-main {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.import-panel summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.import-panel[open] summary {
+  margin-bottom: 0.9rem;
+}
+
+.import-panel .attribution {
+  font-size: 0.8rem;
+}
+
+.import-panel .form-error ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.import-preview {
+  overflow-x: auto;
+}
+
+.import-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.import-preview caption {
+  text-align: left;
+  color: var(--muted);
+  padding-bottom: 0.4rem;
+}
+
+.import-preview th,
+.import-preview td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}

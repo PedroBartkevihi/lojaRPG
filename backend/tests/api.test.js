@@ -2177,3 +2177,126 @@ describe('encomendas ao Mestre', () => {
     expect((await aria.post(REQUESTS, { characterId: 1, description: '', maxPrice: 1 })).status).toBe(400);
   });
 });
+
+describe('atributos de item e capacidade de carga', () => {
+  it('guarda peso, dano, CA e sintonização e soma a carga do personagem', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+
+    const hammer = await master.post(`${DEMO}/items`, {
+      name: 'Martelo de Guerra', category: 'Armas', rarity: 'Comum', price: 1500, stock: 3,
+      weight: 2.5, damage: '1d8 contundente', armorClass: '', requiresAttunement: false
+    });
+    expect(hammer.status).toBe(201);
+    expect(hammer.body.item).toMatchObject({ weight: 2.5, damage: '1d8 contundente', armorClass: '', requiresAttunement: false });
+
+    const plate = await master.post(`${DEMO}/items`, {
+      name: 'Placas', category: 'Armaduras', rarity: 'Comum', price: 150000, stock: 1, weight: 65, armorClass: '18', requiresAttunement: true
+    });
+    expect(plate.body.item).toMatchObject({ weight: 65, armorClass: '18', requiresAttunement: true });
+
+    // Editar só o preço mantém os atributos.
+    const edited = await master.put(`${DEMO}/items/${hammer.body.item.id}`, { price: 1600 });
+    expect(edited.body.item).toMatchObject({ price: 1600, weight: 2.5, damage: '1d8 contundente' });
+    expect((await master.put(`${DEMO}/items/${hammer.body.item.id}`, { weight: 1.234 })).status).toBe(400);
+    expect((await master.put(`${DEMO}/items/${hammer.body.item.id}`, { weight: -1 })).status).toBe(400);
+
+    await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: hammer.body.item.id, quantity: 2 }] });
+    const me = (await aria.get(`${DEMO}/characters/me`)).body.characters[0];
+    expect(me).toMatchObject({ strength: 10, carryCapacity: 150, carriedWeight: 5 });
+
+    const inventory = (await aria.get(`${DEMO}/inventory/me?characterId=1&includeLogs=false`)).body.inventory;
+    expect(inventory.find((entry) => entry.itemId === hammer.body.item.id).item).toMatchObject({ weight: 2.5, damage: '1d8 contundente' });
+
+    const gm = (await master.get(`${DEMO}/characters`)).body.characters.find((character) => character.id === 1);
+    expect(gm.carriedWeight).toBe(5);
+  });
+
+  it('jogador informa a força do personagem e a capacidade acompanha', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+
+    const updated = await aria.put(`${DEMO}/characters/1`, { strength: 8 });
+    expect(updated.body.character).toMatchObject({ strength: 8, carryCapacity: 120, level: 4 });
+    expect((await aria.put(`${DEMO}/characters/1`, { strength: 31 })).status).toBe(400);
+
+    const created = await aria.post(`${DEMO}/characters`, { name: 'Sombra', className: 'Ladino', race: 'Elfo', level: 1 });
+    expect(created.body.character).toMatchObject({ strength: 10, carryCapacity: 150 });
+  });
+});
+
+describe('importar catálogo', () => {
+  it('importa os pacotes do SRD 5.1 com atribuição e não duplica numa segunda importação', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const packs = await master.get(`${DEMO}/catalog/packs`);
+    expect(packs.status).toBe(200);
+    expect(packs.body.attribution).toContain('SRD 5.1');
+    expect(packs.body.attribution).toContain('Creative Commons Attribution 4.0');
+    expect(packs.body.packs.map((pack) => pack.id)).toEqual(['equipamento', 'armas', 'armaduras', 'pocoes']);
+
+    const weapons = packs.body.packs.find((pack) => pack.id === 'armas').items;
+    expect(weapons.find((item) => item.name === 'Espada longa')).toMatchObject({ price: 1500, damage: '1d8 cortante', weight: 3 });
+
+    // Todos os itens de todos os pacotes passam pela validação da importação.
+    const all = packs.body.packs.flatMap((pack) => pack.items);
+    const first = await master.post(`${DEMO}/items/import`, { items: all });
+    expect(first.status).toBe(201);
+    // Quatro já estão no catálogo de exemplo da mesa (o nome compara sem
+    // diferenciar maiúsculas).
+    expect(first.body.skipped.sort()).toEqual(['Arco curto', 'Armadura de couro batido', 'Espada longa', 'Poção de cura']);
+    expect(first.body.created).toBe(all.length - 4);
+
+    const plate = await getPrisma().item.findFirst({ where: { campaignId: 1, name: 'Armadura de placas' }, include: { category: true } });
+    expect(plate).toMatchObject({ price: 150000n, armorClass: '18', stock: 1 });
+    expect(plate.category.name).toBe('Armaduras');
+
+    const again = await master.post(`${DEMO}/items/import`, { items: weapons });
+    expect(again.body).toMatchObject({ created: 0 });
+    expect(again.body.skipped).toHaveLength(weapons.length);
+  });
+
+  it('recusa a planilha inteira com o número das linhas erradas e cria categorias novas', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const before = await getPrisma().item.count({ where: { campaignId: 1 } });
+
+    const invalid = await master.post(`${DEMO}/items/import`, {
+      items: [
+        { name: 'Tocha élfica', category: 'Luz', rarity: 'Comum', price: 5, stock: 3 },
+        { name: '', category: 'Luz', rarity: 'Comum', price: 5, stock: 3 },
+        { name: 'Lampião', category: 'Luz', rarity: 'Comum', price: -1, stock: 3 }
+      ]
+    });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.errors).toEqual([
+      { row: 2, message: 'Nome do item é obrigatório.' },
+      { row: 3, message: expect.stringContaining('Preço') }
+    ]);
+    expect(await getPrisma().item.count({ where: { campaignId: 1 } })).toBe(before);
+
+    const ok = await master.post(`${DEMO}/items/import`, {
+      items: [
+        { name: 'Tocha élfica', category: 'Luz', rarity: 'Lendário', price: 5, stock: 3, weight: 0.5 },
+        { name: 'tocha élfica', category: 'Luz', rarity: 'Comum', price: 7, stock: 1 }
+      ]
+    });
+    expect(ok.status).toBe(201);
+    expect(ok.body).toMatchObject({ created: 1, skipped: ['tocha élfica'] });
+    expect(await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Luz' } })).not.toBeNull();
+  });
+
+  it('só o Mestre importa, com no máximo 500 itens e exigindo a unidade em PC', async () => {
+    const aria = as(await login('aria@lojarpg.local'));
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const row = { name: 'Item', category: 'Armas', rarity: 'Comum', price: 1, stock: 1 };
+
+    expect((await aria.post(`${DEMO}/items/import`, { items: [row] })).status).toBe(403);
+    expect((await aria.get(`${DEMO}/catalog/packs`)).status).toBe(403);
+    expect((await master.post(`${DEMO}/items/import`, { items: Array.from({ length: 501 }, (_, index) => ({ ...row, name: `Item ${index}` })) })).status).toBe(400);
+    expect((await master.post(`${DEMO}/items/import`, { items: [] })).status).toBe(400);
+
+    const legacy = await request(app)
+      .post(`${DEMO}/items/import`)
+      .set('Authorization', `Bearer ${await login('mestre@lojarpg.local', 'mestre123')}`)
+      .send({ items: [row] });
+    expect(legacy.status).toBe(428);
+  });
+});

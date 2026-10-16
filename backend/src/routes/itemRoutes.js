@@ -6,6 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 export const itemRoutes = Router();
 
 itemRoutes.get('/', asyncHandler(controller.index));
+itemRoutes.post('/import', requireGameMaster, asyncHandler(controller.importAction));
 itemRoutes.get('/:id', asyncHandler(controller.show));
 itemRoutes.post('/', requireGameMaster, asyncHandler(controller.create));
 itemRoutes.put('/:id', requireGameMaster, asyncHandler(controller.update));
