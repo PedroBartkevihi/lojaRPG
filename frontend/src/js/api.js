@@ -29,6 +29,8 @@ const RENEWAL_UNAVAILABLE_MESSAGE = 'Não foi possível renovar a sessão agora.
 export const REFRESH_COOKIE_MODE = import.meta.env.VITE_REFRESH_COOKIE === 'true';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Mais que o dobro do comentario de 25 s que a API manda no canal de eventos.
+export const STREAM_IDLE_MS = 60000;
 
 function withQuery(path, params = {}) {
   const search = new URLSearchParams();
@@ -162,6 +164,87 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
 
   // Envia a imagem direto ao Cloudinary com a assinatura da API e devolve a
   // URL final, que o formulario guarda em imageUrl.
+  // Canal de eventos da mesa (SSE). Le o stream pelo fetch, e nao pelo
+  // EventSource, para mandar o token no cabecalho; um 401 renova a sessao uma
+  // vez, como nas outras requisicoes. Termina quando a API fecha o canal.
+  async function streamCampaignEvents({ onEvent, signal }) {
+    // A API manda um comentario a cada 25 s. Sem nenhum byte por mais tempo
+    // (notebook que hibernou, rede trocada), a conexao morreu sem avisar:
+    // fecha para quem chamou reconectar.
+    const watchdog = new AbortController();
+    const stop = () => watchdog.abort();
+    let idle;
+    const arm = () => {
+      window.clearTimeout(idle);
+      idle = window.setTimeout(stop, STREAM_IDLE_MS);
+    };
+
+    if (signal?.aborted) stop();
+    signal?.addEventListener('abort', stop);
+
+    try {
+      await readCampaignEvents({ onEvent, signal: watchdog.signal, arm });
+    } finally {
+      window.clearTimeout(idle);
+      signal?.removeEventListener('abort', stop);
+    }
+  }
+
+  async function readCampaignEvents({ onEvent, signal, arm }) {
+    let renewed = false;
+
+    for (;;) {
+      const token = getToken();
+      const response = await fetch(`${API_URL}${campaignPath('/events')}`, {
+        headers: { Accept: 'text/event-stream', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        signal
+      });
+
+      if (response.status === 401 && token && !renewed) {
+        renewed = true;
+        const renewal = await renewSession(token);
+
+        if (renewal === 'renewed') {
+          continue;
+        }
+
+        if (renewal === 'rejected') {
+          onUnauthorized?.();
+        }
+      }
+
+      if (!response.ok || !response.body) {
+        const error = new Error('Canal de eventos indisponível.');
+        error.status = response.status;
+        throw error;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      arm();
+
+      for (;;) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          return;
+        }
+
+        arm();
+        buffer += decoder.decode(value, { stream: true });
+        let end = buffer.indexOf('\n\n');
+
+        while (end !== -1) {
+          const name = buffer.slice(0, end).match(/^event: (.+)$/m)?.[1];
+          buffer = buffer.slice(end + 2);
+          if (name) onEvent(name.trim());
+          end = buffer.indexOf('\n\n');
+        }
+      }
+    }
+  }
+
   async function uploadItemImage(file) {
     const { uploadUrl, fields, maxBytes } = await request(campaignPath('/uploads/item-image'), { method: 'POST' });
 
@@ -253,6 +336,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     cancelItemRequest: (id) => request(campaignPath(`/requests/${id}/cancel`), { method: 'POST' }),
     approveItemRequest: (id, body) => request(campaignPath(`/requests/${id}/approve`), { method: 'POST', body }),
     rejectItemRequest: (id, body) => request(campaignPath(`/requests/${id}/reject`), { method: 'POST', body }),
-    uploadItemImage
+    uploadItemImage,
+    streamCampaignEvents
   };
 }

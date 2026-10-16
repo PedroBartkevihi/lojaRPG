@@ -8,12 +8,16 @@ export function usePagedHistory(loadPage, refreshKey, enabled = true) {
   const [expanded, setExpanded] = useState(false);
   const expandedRef = useRef(false);
   const pending = useRef(false);
+  // Aviso de mudanca que chegou com uma carga em andamento: a carga pode ter
+  // lido o banco antes da mudanca, entao roda mais uma ao terminar.
+  const stale = useRef(false);
   const version = useRef(0);
   const lastRefresh = useRef(refreshKey);
 
   const load = useCallback(async (cursor, append = false) => {
     const request = ++version.current;
     pending.current = true;
+    stale.current = false;
     setLoading(true);
     setError('');
     try {
@@ -27,6 +31,7 @@ export function usePagedHistory(loadPage, refreshKey, enabled = true) {
       if (request === version.current) {
         pending.current = false;
         setLoading(false);
+        if (stale.current && !expandedRef.current) load();
       }
     }
   }, [loadPage]);
@@ -48,7 +53,12 @@ export function usePagedHistory(loadPage, refreshKey, enabled = true) {
     if (lastRefresh.current === refreshKey) return;
     lastRefresh.current = refreshKey;
     // O polling nao esconde registros antigos enquanto o usuario os le.
-    if (enabled && !expandedRef.current && !pending.current) load();
+    if (!enabled || expandedRef.current) return;
+    if (pending.current) {
+      stale.current = true;
+      return;
+    }
+    load();
   }, [enabled, load, refreshKey]);
 
   function loadMore() {

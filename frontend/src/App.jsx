@@ -1,7 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, matchPath, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { createApi } from './js/api.js';
-import { useLiveTick } from './js/useLiveTick.js';
+import { LIVE_REFRESH_MS, useLiveTick } from './js/useLiveTick.js';
 import { useNotice } from './js/useNotice.js';
 import { ActiveCampaignContext } from './hooks/ActiveCampaignContext.js';
 import { readStoredCampaignId, useActiveCampaign } from './hooks/useActiveCampaign.js';
@@ -17,6 +17,8 @@ import CampaignPage from './pages/CampaignPage.jsx';
 import ShopPage from './pages/ShopPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import SessionDiary from './pages/SessionDiary.jsx';
+
+const LIVE_RESERVE_MS = 30000;
 
 // Entra na mesa do link de convite assim que existe uma sessao.
 function InviteRoute({ onJoin }) {
@@ -42,7 +44,10 @@ function AppContent() {
   const inviteCode = matchPath('/convite/:code', location.pathname)?.params.code;
   // A renovacao do token troca o valor dele; as cargas so dependem de haver
   // sessao, para nao recarregar tudo a cada renovacao.
-  const liveTick = useLiveTick(loggedIn);
+  // Com o canal em tempo real aberto, a consulta periodica fica so de reserva
+  // e passa de 10 para 30 segundos.
+  const [liveConnected, setLiveConnected] = useState(false);
+  const pollTick = useLiveTick(loggedIn, liveConnected ? LIVE_RESERVE_MS : LIVE_REFRESH_MS);
   usePendingInvite(loggedIn, inviteCode);
 
   // O navigate do React Router muda a cada troca de pagina. Guardado num ref,
@@ -67,7 +72,16 @@ function AppContent() {
     [storeTokens]
   );
 
-  const active = useActiveCampaign({ api, campaignIdRef, loggedIn, liveTick, showNotice });
+  const active = useActiveCampaign({
+    api,
+    campaignIdRef,
+    loggedIn,
+    liveTick: pollTick,
+    showNotice,
+    onLiveConnectedChange: setLiveConnected
+  });
+  // As paginas recarregam a cada batida da consulta e a cada aviso do canal.
+  const liveTick = pollTick + active.eventTick;
   const { campaign, isMaster, loadCampaigns, refreshSession, setActiveCampaign, reset } = active;
 
   const clearSession = useCallback(() => {

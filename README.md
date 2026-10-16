@@ -47,7 +47,7 @@ blocos de carregamento e avisa que a API está acordando.
 - "Esqueci minha senha": um link por e-mail, válido por 30 minutos e uma
   vez, cria a senha nova e encerra as sessões abertas da conta.
 - As telas se atualizam sozinhas durante a sessão: o ouro que o Mestre dá ou
-  o item que outro jogador compra aparecem sem recarregar a página.
+  o item que outro jogador compra aparecem na hora, sem recarregar a página.
 - Moedas do D&D: preços e saldos aparecem em PO, PP e PC, como no livro
   (248 PO 5 PP), e os campos de valor aceitam também PL (1 PL = 10 PO,
   1 PO = 10 PP, 1 PP = 10 PC).
@@ -197,10 +197,18 @@ pede participa da mesa e qual é o papel dele nela.
   revogação, rate limit nas rotas de autenticação e Helmet. Atrás do proxy do
   Render, o rate limit usa o IP de cada usuário (`TRUST_PROXY`), e não o do
   proxy, que todos compartilhariam.
-- **Atualização por consulta periódica, não por WebSocket.** Com a aba
-  visível, o front recarrega os dados a cada 10 segundos; aba escondida não faz
-  requisições. Para quatro pessoas numa mesa isso basta, e funciona no plano
-  gratuito do Render, que dorme e derrubaria conexões abertas.
+- **Tempo real por SSE, com a consulta periódica de reserva.** Cada aba
+  visível abre um canal Server-Sent Events da mesa (`GET /campaigns/:id/events`)
+  que só avisa "algo mudou"; a tela recarrega o que precisa pela API, com as
+  permissões de sempre. Qualquer escrita bem-sucedida numa mesa gera o aviso.
+  O canal é lido por `fetch` (para mandar o token no cabeçalho), reconecta com
+  espera crescente e fecha a cada 10 minutos para conferir de novo o acesso;
+  ao reconectar, a tela recarrega o que pode ter mudado no intervalo, e um
+  canal mudo por mais de 60 segundos é dado como caído.
+  Com ele aberto, a consulta periódica cai de 10 para 30 segundos; sem ele
+  (API dormindo, rede ruim), volta aos 10. Aba escondida não abre canal nem
+  consulta. Os avisos ficam na memória do processo, o que basta para uma
+  instância só.
 - **Primeira impressão no plano gratuito.** Enquanto a API acorda, a tela
   mostra blocos no formato do conteúdo e, depois de 4 segundos, explica a
   demora, em vez de parecer travada.
@@ -495,6 +503,12 @@ Recompensas (Mestre):
 - `POST /rewards/gold`: `characterIds`, `total`, `mode` (`split` divide,
   `each` dá o valor a cada um) e `reason`
 - `POST /rewards/items`: `characterId`, `itemId`, `quantity` e `reason`
+
+Tempo real:
+
+- `GET /events`: canal SSE da mesa (`text/event-stream`), com os eventos
+  `ready` e `changed` e um comentário a cada 25 s; fecha sozinho a cada 10 min
+  (até 10 canais por conta: 429 acima disso)
 
 Encomendas:
 

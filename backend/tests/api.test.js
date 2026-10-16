@@ -2538,3 +2538,193 @@ describe('logs e erros do navegador', () => {
     expect(errorReason(new Error('Tempo esgotado ao consultar o banco.'))).toBe('Tempo esgotado ao consultar o banco.');
   });
 });
+
+describe('atualização em tempo real (SSE)', () => {
+  async function openStream(server, token, campaignPath = DEMO) {
+    const { port } = server.address();
+    const controller = new AbortController();
+    const response = await fetch(`http://127.0.0.1:${port}${campaignPath}/events`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal
+    });
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    async function nextEvent() {
+      while (!buffer.includes('\n\n') || !/event: /.test(buffer.split('\n\n')[0])) {
+        if (buffer.includes('\n\n') && !/event: /.test(buffer.split('\n\n')[0])) {
+          buffer = buffer.slice(buffer.indexOf('\n\n') + 2);
+          continue;
+        }
+        const { value, done } = await reader.read();
+        if (done) throw new Error('canal fechado');
+        buffer += decoder.decode(value, { stream: true });
+      }
+      const [block] = buffer.split('\n\n');
+      buffer = buffer.slice(block.length + 2);
+      return block.match(/event: (\w+)/)[1];
+    }
+
+    return { response, nextEvent, close: () => controller.abort() };
+  }
+
+  it('avisa a mesa quando algo muda e não vaza para outra mesa', async () => {
+    const server = app.listen(0);
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      const stream = await openStream(server, aria);
+      expect(stream.response.status).toBe(200);
+      expect(stream.response.headers.get('content-type')).toContain('text/event-stream');
+      expect(await stream.nextEvent()).toBe('ready');
+
+      const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+      expect((await master.post(`${DEMO}/rewards/gold`, { characterIds: [1], total: 100, mode: 'each', reason: 'Tempo real' })).status).toBe(200);
+      expect(await stream.nextEvent()).toBe('changed');
+
+      // Mudança em outra mesa não chega aqui; a próxima da mesa demo chega.
+      const { subscribeCampaign } = await import('../src/services/liveEvents.js');
+      let demoEvents = 0;
+      const unsubscribe = subscribeCampaign(1, () => { demoEvents += 1; });
+      const { token } = await newAccount('Outra');
+      const other = await createCampaign(token, 'Outra mesa');
+      expect((await as(token).post(`/campaigns/${other.id}/shops`, { name: 'Ferreiro' })).status).toBe(201);
+      unsubscribe();
+      expect(demoEvents).toBe(0);
+      const [demoShop] = (await master.get(`${DEMO}/shops`)).body.shops;
+      expect((await master.patch(`${DEMO}/shops/${demoShop.id}`, { isOpen: false })).status).toBe(200);
+      expect(await stream.nextEvent()).toBe('changed');
+      stream.close();
+    } finally {
+      server.close();
+    }
+  });
+
+  it('exige login e participação na mesa', async () => {
+    const server = app.listen(0);
+
+    try {
+      expect((await openStream(server, null)).response.status).toBe(401);
+      const { token } = await newAccount('Intrusa');
+      expect((await openStream(server, token)).response.status).toBe(404);
+    } finally {
+      server.close();
+    }
+  });
+
+  // Socket cru: manda a requisição e fecha (ou para de ler) quando quiser.
+  async function rawRequest(server, text, { keepOpen = false } = {}) {
+    const net = await import('node:net');
+    const { port } = server.address();
+    return new Promise((resolve) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.write(text);
+        if (!keepOpen) socket.destroy();
+        resolve(socket);
+      });
+    });
+  }
+
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('conexão que cai antes de o canal abrir não prende vaga', async () => {
+    const { openStreamCount } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      const before = openStreamCount();
+      for (let i = 0; i < 5; i += 1) {
+        await rawRequest(server, `GET ${DEMO}/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${aria}\r\n\r\n`);
+      }
+      // O login e a mesa sao conferidos no banco antes do canal abrir.
+      await pause(500);
+      expect(openStreamCount()).toBe(before);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('quem não lê o canal é desligado em vez de acumular avisos na memória', async () => {
+    const { openStreamCount, publishCampaignChange } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      const before = openStreamCount();
+      const socket = await rawRequest(server, `GET ${DEMO}/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${aria}\r\n\r\n`, { keepOpen: true });
+      await new Promise((resolve) => socket.once('data', resolve));
+      socket.pause();
+      expect(openStreamCount()).toBe(before + 1);
+
+      for (let i = 0; i < 200000 && openStreamCount() > before; i += 1) {
+        publishCampaignChange(1);
+      }
+
+      expect(openStreamCount()).toBe(before);
+      socket.destroy();
+    } finally {
+      server.close();
+    }
+  });
+
+  it('HEAD não abre canal nem segura vaga', async () => {
+    const { openStreamCount } = await import('../src/services/liveEvents.js');
+    const aria = await login('aria@lojarpg.local');
+    const before = openStreamCount();
+
+    const response = await request(app).head(`${DEMO}/events`).set('Authorization', `Bearer ${aria}`);
+    expect(response.status).toBe(405);
+    expect(response.headers.allow).toBe('GET');
+    expect(openStreamCount()).toBe(before);
+  });
+
+  it('limita os canais abertos por conta', async () => {
+    const { MAX_STREAMS_PER_USER } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+    const streams = [];
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      for (let i = 0; i < MAX_STREAMS_PER_USER; i += 1) {
+        const stream = await openStream(server, aria);
+        streams.push(stream);
+        expect(await stream.nextEvent()).toBe('ready');
+      }
+
+      const extra = await openStream(server, aria);
+      expect(extra.response.status).toBe(429);
+
+      streams.pop().close();
+      await pause(100);
+      const again = await openStream(server, aria);
+      streams.push(again);
+      expect(again.response.status).toBe(200);
+    } finally {
+      streams.forEach((stream) => stream.close());
+      server.close();
+    }
+  });
+
+  it('avisa a mesa mesmo se quem escreveu fechar a conexão antes da resposta', async () => {
+    const { subscribeCampaign } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+    let events = 0;
+    const unsubscribe = subscribeCampaign(1, () => { events += 1; });
+
+    try {
+      const master = await login('mestre@lojarpg.local', 'mestre123');
+      const body = JSON.stringify({ characterIds: [1], total: 100, mode: 'each', reason: 'Fechou a aba' });
+      await rawRequest(
+        server,
+        `POST ${DEMO}/rewards/gold HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${master}\r\nX-Currency-Unit: PC\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`
+      );
+      await pause(1000);
+      expect(events).toBe(1);
+    } finally {
+      unsubscribe();
+      server.close();
+    }
+  });
+});

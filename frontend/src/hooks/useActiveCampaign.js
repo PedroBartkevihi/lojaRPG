@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCampaignEvents } from './useCampaignEvents.js';
 
 const CAMPAIGN_KEY = 'lojaRpgCampaign';
 
@@ -12,7 +13,7 @@ export function readStoredCampaignId() {
 // A API le a mesa de `campaignIdRef`, que acompanha a tela. O localStorage so
 // guarda a escolha para o proximo carregamento: ele e dividido entre as abas,
 // e outra aba que trocasse de mesa mudaria a mesa das requisicoes desta.
-export function useActiveCampaign({ api, campaignIdRef, loggedIn, liveTick, showNotice }) {
+export function useActiveCampaign({ api, campaignIdRef, loggedIn, liveTick, showNotice, onLiveConnectedChange }) {
   const [campaigns, setCampaigns] = useState([]);
   const [campaignsLoaded, setCampaignsLoaded] = useState(false);
   const [campaignId, setCampaignId] = useState(() => campaignIdRef.current);
@@ -97,15 +98,18 @@ export function useActiveCampaign({ api, campaignIdRef, loggedIn, liveTick, show
     }
   }, [loggedIn, campaignId, refreshSession]);
 
-  // A cada batida, recarrega as mesas (alguem pode ter sido removido) e os
-  // personagens; a atualizacao da sessao tambem recarrega inventario e compras.
-  // Falhas aqui ficam quietas para nao encher a tela de avisos.
+  // Aviso do canal em tempo real (SSE) de que algo mudou na mesa ativa.
+  const eventTick = useCampaignEvents({ api, campaignId, enabled: loggedIn, onConnectedChange: onLiveConnectedChange });
+
+  // A cada batida (ou aviso do canal), recarrega as mesas (alguem pode ter
+  // sido removido) e os personagens; a atualizacao da sessao tambem recarrega
+  // inventario e compras. Falhas aqui ficam quietas para nao encher a tela.
   useEffect(() => {
-    if (liveTick > 0) {
+    if (liveTick + eventTick > 0) {
       loadCampaigns().catch(() => {});
       refreshSession().catch(() => {});
     }
-  }, [liveTick, loadCampaigns, refreshSession]);
+  }, [liveTick, eventTick, loadCampaigns, refreshSession]);
 
   const campaign = campaigns.find((entry) => entry.id === campaignId) || null;
 
@@ -140,6 +144,7 @@ export function useActiveCampaign({ api, campaignIdRef, loggedIn, liveTick, show
     // Quem so participa de uma mesa: ela abre sozinha, sem passar por /mesas.
     autoSelecting: campaignsLoaded && !campaignId && campaigns.length === 1,
     refreshCount,
+    eventTick,
     setActiveCampaign,
     loadCampaigns,
     refreshSession,
