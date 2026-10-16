@@ -29,11 +29,11 @@ export default function LoginPage({ api, onLogin, onSwitch }) {
       <h2>Entrar na loja</h2>
       <label>
         Email
-        <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
+        <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required />
       </label>
       <label>
         Senha
-        <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
+        <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" required />
       </label>
       {slow && <p className="form-hint slow-hint">{SLOW_API_MESSAGE}</p>}
       {error && <p className="form-error">{error}</p>}

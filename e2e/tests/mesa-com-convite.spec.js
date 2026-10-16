@@ -1,10 +1,10 @@
-import { acceptDialogs, expect, register, test, uniqueEmail } from './fixtures.js';
+import { acceptDialogs, expect, register, test, uniqueEmail, watchCsp } from './fixtures.js';
 
 // Uma mesa de verdade do começo ao fim: o Mestre cria a mesa, o jogador entra
 // pelo link (cadastrando a conta no caminho), cria o personagem, recebe moedas,
 // encontra a loja fechada e é removido. As telas do jogador mudam pela
 // atualização automática de 10 s, sem recarregar a página.
-test('convite por link, recompensa, loja fechada e remoção do jogador', async ({ page, browser }) => {
+test('convite por link, recompensa, loja fechada e remoção do jogador', async ({ page, browser, cspViolations }) => {
   test.setTimeout(150000);
   acceptDialogs(page);
 
@@ -20,6 +20,7 @@ test('convite por link, recompensa, loja fechada e remoção do jogador', async 
   const inviteLink = await page.getByLabel('Link de convite').inputValue();
   const playerContext = await browser.newContext({ extraHTTPHeaders: { 'X-Forwarded-For': '203.0.113.77' } });
   const player = await playerContext.newPage();
+  watchCsp(player, cspViolations);
   acceptDialogs(player);
 
   await test.step('jogador abre o link sem conta, cadastra-se e cai na mesa', async () => {
