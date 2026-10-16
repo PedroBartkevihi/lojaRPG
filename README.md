@@ -76,6 +76,8 @@ personagem.
 - Venda de itens ao vendedor de origem pela regra do D&D 5e (metade do preço)
   ou pelo valor que o Mestre definir; o item volta ao estoque.
 - Uso de itens consumíveis, como poções, que saem do inventário.
+- Encomendas ao Mestre: pedir um item que não está no catálogo ("um arco
+  élfico, pago até 300 PO") e acompanhar a resposta na própria loja.
 - Entrega de itens e moedas a outro personagem da mesa, sem passar pelo
   Mestre; os dois lados ficam registrados no histórico.
 - Inventário, histórico de compras e de vendas, usos, entregas e recompensas
@@ -103,6 +105,9 @@ personagem.
   divisão) ou o mesmo valor para cada um, e itens entregues direto no
   inventário, inclusive itens que não estão à venda.
 - Preço de venda por item e itens que a loja não compra, como itens de missão.
+- Encomendas dos jogadores: aprovar entregando um item do catálogo ou um item
+  novo, feito para a encomenda, cobrando até o valor que o jogador aceitou
+  pagar, ou recusar com uma nota.
 - Ajuste de saldo com motivo obrigatório e auditoria de cada alteração.
 - Histórico de movimentações de estoque.
 
@@ -151,6 +156,12 @@ pede participa da mesa e qual é o papel dele nela.
   seguem o [SRD 5.1](https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf).
   Uma aba aberta antes da troca de unidade recebe 428 ao gravar, em vez de
   mandar valores em PO para uma API que espera PC.
+- **Encomenda aprovada numa transação só.** O status muda primeiro, com o
+  mesmo update condicional das outras operações (duas aprovações ao mesmo
+  tempo: uma passa, a outra recebe 409), o ouro sai com o débito condicional
+  da compra, e a encomenda vira uma compra no histórico e no diário da
+  sessão. Se faltar ouro, tudo volta e a encomenda continua pendente. O item
+  feito sob medida entra no catálogo fora da loja, sem estoque.
 - **Compra e entrega sem cobrança dupla.** Cada compra e cada entrega levam
   uma `idempotencyKey`, gravada na mesma transação da operação. Se a resposta
   se perder e o front repetir o pedido, a API devolve o resultado original em
@@ -440,6 +451,16 @@ Recompensas (Mestre):
 - `POST /rewards/gold`: `characterIds`, `total`, `mode` (`split` divide,
   `each` dá o valor a cada um) e `reason`
 - `POST /rewards/items`: `characterId`, `itemId`, `quantity` e `reason`
+
+Encomendas:
+
+- `GET /requests`: o Mestre vê todas; o jogador, as dos seus personagens
+- `POST /requests`: `characterId`, `description` e `maxPrice` (em PC)
+- `POST /requests/:id/cancel`: o jogador cancela uma encomenda pendente
+- `POST /requests/:id/approve` (Mestre): `price` (até o `maxPrice`), `itemId`
+  de um item da mesa ou `newItem` (`name`, `category`, `rarity`,
+  `description`), e `note`
+- `POST /requests/:id/reject` (Mestre): `note`
 
 Imagens dos itens (Mestre):
 
