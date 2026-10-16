@@ -376,6 +376,39 @@ describe('validação das entradas', () => {
     expect(missingName.body.message).toBe('Nome é obrigatório.');
   });
 
+  it('exige senha nova com 8 caracteres e fora da lista de senhas comuns', async () => {
+    const attempt = (password, index) =>
+      request(app)
+        .post('/auth/register')
+        .set('X-Forwarded-For', `192.0.2.${index}`)
+        .send({ name: 'Teste', email: `senha${index}@exemplo.com`, password });
+
+    const short = await attempt('abc1234', 1);
+    expect(short.status).toBe(400);
+    expect(short.body.message).toBe('Senha deve ter pelo menos 8 caracteres.');
+
+    for (const [index, password] of ['12345678', 'Senha123', 'aaaaaaaa', 'abababab'].entries()) {
+      const common = await attempt(password, index + 2);
+      expect(common.status).toBe(400);
+      expect(common.body.message).toContain('muito comum');
+    }
+
+    expect((await attempt('lanterna-de-vidro', 9)).status).toBe(201);
+  });
+
+  it('mantém o login de contas criadas com o mínimo antigo de 6 caracteres', async () => {
+    const { hashPassword } = await import('../src/utils/password.js');
+    await getPrisma().user.create({
+      data: { name: 'Antiga', email: 'antiga@exemplo.com', passwordHash: await hashPassword('abc123') }
+    });
+
+    const response = await request(app)
+      .post('/auth/login')
+      .set('X-Forwarded-For', '192.0.2.50')
+      .send({ email: 'antiga@exemplo.com', password: 'abc123' });
+    expect(response.status).toBe(200);
+  });
+
   it('recusa personagem incompleto', async () => {
     const playerToken = await login('lia@lojarpg.local');
 
@@ -1685,5 +1718,41 @@ describe('disponibilidade', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe('limpeza e limites', () => {
+  it('apaga refresh tokens vencidos e revogados, mantendo os válidos', async () => {
+    const { runMaintenance } = await import('../src/services/maintenanceService.js');
+    const now = new Date();
+    const hour = 60 * 60 * 1000;
+    const tokens = [
+      { tokenHash: 'valido', expiresAt: new Date(now.getTime() + 24 * hour) },
+      { tokenHash: 'vencido', expiresAt: new Date(now.getTime() - hour) },
+      { tokenHash: 'revogado-antigo', expiresAt: new Date(now.getTime() + 24 * hour), revokedAt: new Date(now.getTime() - 2 * hour) },
+      { tokenHash: 'revogado-agora', expiresAt: new Date(now.getTime() + 24 * hour), revokedAt: now }
+    ];
+    await getPrisma().refreshToken.createMany({ data: tokens.map((token) => ({ userId: 2, ...token })) });
+
+    expect(await runMaintenance(now)).toEqual({ refreshTokens: 2 });
+    const left = await getPrisma().refreshToken.findMany({ where: { userId: 2 }, select: { tokenHash: true } });
+    expect(left.map((token) => token.tokenHash).sort()).toEqual(['revogado-agora', 'valido']);
+  });
+
+  it('limita quantas mesas uma conta mestra e libera a vaga ao excluir uma', async () => {
+    const { token } = await newAccount('Colecionador');
+    const api = as(token);
+    const created = [];
+
+    for (let index = 0; index < 10; index += 1) {
+      created.push(await createCampaign(token, `Mesa ${index + 1}`));
+    }
+
+    const blocked = await api.post('/campaigns', { name: 'Mesa 11' });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.message).toContain('limite por conta');
+
+    expect((await api.delete(`/campaigns/${created[0].id}`)).status).toBe(200);
+    expect((await api.post('/campaigns', { name: 'Mesa 11' })).status).toBe(201);
   });
 });

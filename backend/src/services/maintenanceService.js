@@ -1,0 +1,26 @@
+import { deleteStaleRefreshTokens } from '../models/refreshTokenModel.js';
+
+const MAINTENANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+// Limpezas periodicas do banco. Rodam no inicio da API (no plano gratuito do
+// Render, a cada vez que ela acorda) e depois a cada 6 horas.
+export async function runMaintenance(now = new Date()) {
+  return { refreshTokens: await deleteStaleRefreshTokens(now) };
+}
+
+export function startMaintenance(log = console) {
+  async function run() {
+    try {
+      const result = await runMaintenance();
+      if (result.refreshTokens > 0) {
+        log.info(`Limpeza: ${result.refreshTokens} refresh token(s) vencido(s) ou revogado(s) apagado(s).`);
+      }
+    } catch (error) {
+      log.warn(`Limpeza do banco falhou: ${error.message.split('\n')[0]}`);
+    }
+  }
+
+  run();
+  // unref: o timer nao segura o processo aberto num desligamento.
+  return setInterval(run, MAINTENANCE_INTERVAL_MS).unref();
+}

@@ -20,7 +20,10 @@ export const env = {
   // Quantos proxies ficam entre o usuario e a API. Atras de um proxy, sem esse
   // numero, a API ve o IP do proxy e todos os usuarios dividem o mesmo rate
   // limit; um numero maior que o real deixa o cliente forjar o proprio IP.
-  trustProxy: Number.parseInt(process.env.TRUST_PROXY || '0', 10) || 0
+  trustProxy: Number.parseInt(process.env.TRUST_PROXY || '0', 10) || 0,
+  // Quantas mesas uma conta pode mestrar ao mesmo tempo, para a loja nao virar
+  // deposito de dados de terceiros. Excluir uma mesa libera a vaga.
+  maxCampaignsPerUser: Number.parseInt(process.env.MAX_CAMPAIGNS_PER_USER || '10', 10) || 10
 };
 
 // Valores de exemplo que aparecem no repositorio (defaults, .env.*.example e

@@ -45,3 +45,17 @@ export async function revokeRefreshToken(tokenHash, prisma = getPrisma()) {
 
   return count;
 }
+
+// Apaga os tokens vencidos e os revogados ha mais de uma hora (a folga cobre
+// uma renovacao que ainda esteja terminando). Cada login cria um token, entao
+// sem a limpeza a tabela so cresce. Devolve quantos foram apagados.
+export async function deleteStaleRefreshTokens(now = new Date(), prisma = getPrisma()) {
+  const revokedBefore = new Date(now.getTime() - 60 * 60 * 1000);
+  const { count } = await prisma.refreshToken.deleteMany({
+    where: {
+      OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedBefore } }]
+    }
+  });
+
+  return count;
+}
