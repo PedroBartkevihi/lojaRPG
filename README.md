@@ -163,6 +163,18 @@ pede participa da mesa e qual é o papel dele nela.
   demora, em vez de parecer travada.
 - **Segredo verificado na inicialização:** em produção, a API não sobe com um
   `JWT_SECRET` curto ou igual aos exemplos do repositório.
+- **Senhas novas com pelo menos 8 caracteres** e fora de uma lista local de
+  senhas comuns ("12345678", "senha123", repetições como "aaaaaaaa"). A lista
+  fica no código, sem consulta a serviço externo. Contas criadas com o mínimo
+  antigo (6) continuam entrando até trocar a senha.
+- **Cabeçalhos de segurança no site estático.** O `render.yaml` manda
+  Content-Security-Policy (só a própria origem, a API, as fontes do Google e
+  imagens HTTPS), `X-Content-Type-Options`, `Referrer-Policy`,
+  `frame-ancestors 'none'` e HSTS. Os testes de ponta a ponta servem o site
+  com esses mesmos cabeçalhos e reprovam se o navegador bloquear algo.
+- **Limpeza e limites.** Refresh tokens vencidos ou revogados são apagados
+  no início da API e a cada 6 horas, e uma conta mestra no máximo 10 mesas ao
+  mesmo tempo (`MAX_CAMPAIGNS_PER_USER`).
 - **CI no GitHub Actions** a cada push: lint (ESLint) e testes do back-end
   com PostgreSQL; lint, testes e build do front-end; e testes de ponta a ponta
   com Playwright, que sobem a API, o site de produção e um PostgreSQL e passam
