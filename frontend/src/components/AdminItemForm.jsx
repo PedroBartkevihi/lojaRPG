@@ -13,6 +13,10 @@ const emptyForm = {
   rarity: '',
   stock: 0,
   imageUrl: '',
+  weight: '',
+  damage: '',
+  armorClass: '',
+  requiresAttunement: false,
   stockReason: ''
 };
 
@@ -33,7 +37,7 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
 
   useEffect(() => {
     // Preco de venda vazio segue a regra padrao (metade do preco).
-    setForm(item ? { ...item, sellPrice: item.sellPrice ?? '' } : emptyForm);
+    setForm(item ? { ...item, sellPrice: item.sellPrice ?? '', weight: item.weight ?? '' } : emptyForm);
     setError('');
   }, [item]);
 
@@ -86,7 +90,9 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
       shopId: Number(form.shopId || shops[0]?.id) || undefined,
       price: Number(form.price),
       sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
-      stock: Number(form.stock)
+      stock: Number(form.stock),
+      // Vazio fica sem peso; aceita virgula (2,5).
+      weight: String(form.weight ?? '').trim() === '' ? null : Number(String(form.weight).replace(',', '.'))
     };
 
     // Na edicao, o estoque so vai se o Mestre mexeu nele, junto com o valor que
@@ -208,6 +214,46 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
           A loja não compra este item
         </label>
       </div>
+      <fieldset className="item-attributes-fields">
+        <legend>Atributos do livro (opcionais)</legend>
+        <div className="form-grid three">
+          <label>
+            Peso (lb)
+            <input
+              value={form.weight ?? ''}
+              onChange={(event) => updateField('weight', event.target.value)}
+              inputMode="decimal"
+              placeholder="Ex.: 3"
+            />
+          </label>
+          <label>
+            Dano
+            <input
+              value={form.damage || ''}
+              onChange={(event) => updateField('damage', event.target.value)}
+              maxLength={60}
+              placeholder="1d8 cortante"
+            />
+          </label>
+          <label>
+            Classe de armadura
+            <input
+              value={form.armorClass || ''}
+              onChange={(event) => updateField('armorClass', event.target.value)}
+              maxLength={60}
+              placeholder="11 + Des"
+            />
+          </label>
+        </div>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={Boolean(form.requiresAttunement)}
+            onChange={(event) => updateField('requiresAttunement', event.target.checked)}
+          />
+          Exige sintonização
+        </label>
+      </fieldset>
       {item && (
         <label>
           Motivo do ajuste de estoque

@@ -1,5 +1,6 @@
 import MoneyInput from '../MoneyInput.jsx';
 import { formatMoney } from '../../js/money.js';
+import { formatWeight } from '../../js/weight.js';
 import { useState } from 'react';
 import { Coins, Pencil, Save, X } from 'lucide-react';
 import RewardsPanel from '../RewardsPanel.jsx';
@@ -11,7 +12,7 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
   const [goldInputs, setGoldInputs] = useState({});
   const [goldReasons, setGoldReasons] = useState({});
   const [editingCharacterId, setEditingCharacterId] = useState(null);
-  const [characterDraft, setCharacterDraft] = useState({ name: '', className: '', race: '', level: 1 });
+  const [characterDraft, setCharacterDraft] = useState({ name: '', className: '', race: '', level: 1, strength: 10 });
 
   async function refreshAll() {
     await reload();
@@ -24,7 +25,8 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
       name: character.name,
       className: character.className,
       race: character.race,
-      level: character.level
+      level: character.level,
+      strength: character.strength ?? 10
     });
   }
 
@@ -32,7 +34,8 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
     try {
       await api.updateCharacter(character.id, {
         ...characterDraft,
-        level: Number(characterDraft.level)
+        level: Number(characterDraft.level),
+        strength: Number(characterDraft.strength)
       });
       setEditingCharacterId(null);
       await refreshAll();
@@ -103,6 +106,14 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
                       onChange={(event) => setCharacterDraft((current) => ({ ...current, level: event.target.value }))}
                       aria-label="Nível do personagem"
                     />
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={characterDraft.strength}
+                      onChange={(event) => setCharacterDraft((current) => ({ ...current, strength: event.target.value }))}
+                      aria-label="Força do personagem"
+                    />
                   </div>
                   <div className="row-actions">
                     <button type="button" className="secondary-action" onClick={() => saveCharacter(character)}>
@@ -122,6 +133,8 @@ export default function PartyTab({ api, characters, items, loading, reload, onRe
                       <strong>{character.name}</strong>
                       <span>
                         {character.userName} - {character.className} nível {character.level}
+                        {character.carryCapacity > 0 &&
+                          ` - carga ${formatWeight(character.carriedWeight || 0)} de ${formatWeight(character.carryCapacity)}`}
                       </span>
                     </div>
                     <span className="gold-badge">

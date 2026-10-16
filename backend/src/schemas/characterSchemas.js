@@ -5,7 +5,9 @@ export const characterSchema = z.object({
   name: requiredText('Nome do personagem', 120),
   className: requiredText('Classe', 80),
   race: requiredText('Raça', 80),
-  level: integer('Nível', { min: 1, max: 20 })
+  level: integer('Nível', { min: 1, max: 20 }),
+  // Valor de Forca da ficha (1 a 30); sem ele, 10.
+  strength: integer('Força', { min: 1, max: 30 }).optional()
 });
 
 export const characterIdSchema = id('Id do personagem');

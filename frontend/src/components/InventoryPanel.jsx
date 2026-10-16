@@ -1,4 +1,6 @@
 import { formatMoney } from '../js/money.js';
+import { formatWeight, inventoryWeight } from '../js/weight.js';
+import ItemAttributes from './ItemAttributes.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { Backpack, Coins, HandCoins, Sparkles } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
@@ -83,6 +85,10 @@ export default function InventoryPanel({
     }
   }
 
+  const carried = inventoryWeight(inventory);
+  const capacity = selectedCharacter?.carryCapacity || character?.carryCapacity || 0;
+  const overloaded = capacity > 0 && carried > capacity;
+
   if (needsCharacter) {
     return (
       <section className="wide-section">
@@ -115,7 +121,17 @@ export default function InventoryPanel({
         <div className="panel-title">
           <Backpack size={20} />
           <h3>Equipamentos</h3>
+          {capacity > 0 && (
+            <span className={overloaded ? 'carry-total overloaded' : 'carry-total'}>
+              Carga: {formatWeight(carried)} de {formatWeight(capacity)}
+            </span>
+          )}
         </div>
+        {overloaded && (
+          <p className="form-hint carry-warning" role="status">
+            Passou da capacidade de carga (Força x 15 lb). Venda, use ou entregue algo para aliviar a mochila.
+          </p>
+        )}
         {loading && inventory.length === 0 ? (
           <SkeletonCards count={3} variant="inventory" />
         ) : (
@@ -135,6 +151,7 @@ export default function InventoryPanel({
                     <b>{entry.quantity}x</b>
                   </div>
                   <p>{entry.item.description}</p>
+                  <ItemAttributes item={entry.item} />
                   <small>{entry.item.shopName}{entry.item.shopOpen === false ? " — fechado para vendas" : ""}</small>
                   <small className="sell-hint">
                     {sellable ? `A loja paga ${formatMoney(entry.item.effectiveSellPrice)} cada` : 'A loja não compra este item'}

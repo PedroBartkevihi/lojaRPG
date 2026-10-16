@@ -34,12 +34,26 @@ function mapItem(item) {
     rarity: item.rarity?.name,
     rarityRank: item.rarity?.rank,
     stock: item.stock,
+    weight: item.weight === null || item.weight === undefined ? null : Number(item.weight),
+    damage: item.damage ?? '',
+    armorClass: item.armorClass ?? '',
+    requiresAttunement: Boolean(item.requiresAttunement),
     imageUrl: item.imageUrl,
     createdBy: item.createdBy,
     createdByName: item.creator?.name,
     isActive: Boolean(item.isActive),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt
+  };
+}
+
+// Atributos do livro, todos opcionais: vazio fica sem peso, dano ou CA.
+function itemAttributes(data) {
+  return {
+    weight: data.weight ?? null,
+    damage: data.damage || '',
+    armorClass: data.armorClass || '',
+    requiresAttunement: Boolean(data.requiresAttunement)
   };
 }
 
@@ -188,6 +202,7 @@ export async function createItem(data, prisma = getPrisma()) {
       sellPrice: data.sellPrice ?? null,
       isSellable: data.isSellable ?? true,
       stock: Number(data.stock),
+      ...itemAttributes(data),
       imageUrl: data.imageUrl || '',
       createdBy: data.createdBy ? Number(data.createdBy) : null
     },
@@ -212,6 +227,7 @@ export async function updateItem(id, data, prisma = getPrisma()) {
       sellPrice: data.sellPrice ?? null,
       isSellable: data.isSellable ?? true,
       stock: Number(data.stock),
+      ...itemAttributes(data),
       imageUrl: data.imageUrl || ''
     },
     include: includeRelations

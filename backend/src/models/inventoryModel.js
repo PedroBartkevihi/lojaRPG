@@ -21,6 +21,10 @@ function mapInventoryItem(entry) {
       price: Number(entry.item.price),
       effectiveSellPrice: effectiveSellPrice(entry.item),
       imageUrl: entry.item.imageUrl,
+      weight: entry.item.weight === null ? null : Number(entry.item.weight),
+      damage: entry.item.damage,
+      armorClass: entry.item.armorClass,
+      requiresAttunement: entry.item.requiresAttunement,
       isActive: Boolean(entry.item.isActive)
     }
   };

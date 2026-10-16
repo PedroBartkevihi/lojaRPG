@@ -2,6 +2,7 @@ import { formatMoney } from '../js/money.js';
 import { Coins, Plus } from 'lucide-react';
 import { rarityTier } from '../js/itemVisuals.js';
 import ItemIcon from './ItemIcon.jsx';
+import ItemAttributes from './ItemAttributes.jsx';
 
 export default function ItemCard({ item, onAdd, disabled, readOnly = false }) {
   const unavailable = item.stock <= 0;
@@ -23,6 +24,7 @@ export default function ItemCard({ item, onAdd, disabled, readOnly = false }) {
         <h3>{item.name}</h3>
         <small>{item.shopName}{item.shopOpen === false ? " — fechado" : ""}</small>
         <p>{item.description}</p>
+        <ItemAttributes item={item} />
       </div>
       <div className="item-card-footer">
         <strong className="price">

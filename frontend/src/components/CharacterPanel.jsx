@@ -1,4 +1,5 @@
 import { formatMoney } from '../js/money.js';
+import { formatWeight } from '../js/weight.js';
 import { useState } from 'react';
 import { Save, ScrollText, UserPlus, X } from 'lucide-react';
 
@@ -6,7 +7,8 @@ const emptyForm = {
   name: '',
   className: '',
   race: '',
-  level: 1
+  level: 1,
+  strength: 10
 };
 
 export default function CharacterPanel({
@@ -34,7 +36,8 @@ export default function CharacterPanel({
     try {
       const data = await api.createCharacter({
         ...form,
-        level: Number(form.level)
+        level: Number(form.level),
+        strength: Number(form.strength)
       });
       await onRefreshSession();
       // O personagem novo vira o ativo, para as compras irem para ele.
@@ -50,6 +53,8 @@ export default function CharacterPanel({
       setLoading(false);
     }
   }
+
+  const overloaded = Boolean(character && character.carriedWeight > character.carryCapacity);
 
   if (character && !creating) {
     return (
@@ -90,7 +95,20 @@ export default function CharacterPanel({
             <dt>Saldo</dt>
             <dd>{formatMoney(character.gold)}</dd>
           </div>
+          {character.carryCapacity > 0 && (
+            <div className={overloaded ? 'carry overloaded' : 'carry'}>
+              <dt>Carga (Força {character.strength})</dt>
+              <dd>
+                {formatWeight(character.carriedWeight || 0)} de {formatWeight(character.carryCapacity)}
+              </dd>
+            </div>
+          )}
         </dl>
+        {overloaded && (
+          <p className="form-hint carry-warning" role="status">
+            {character.name} passou da capacidade de carga (Força x 15 lb).
+          </p>
+        )}
         <button type="button" className="text-action new-character" onClick={() => setCreating(true)}>
           <UserPlus size={16} />
           Novo personagem
@@ -126,6 +144,17 @@ export default function CharacterPanel({
             type="number"
             min="1"
             max="20"
+            required
+          />
+        </label>
+        <label>
+          Força
+          <input
+            value={form.strength}
+            onChange={(event) => updateField('strength', event.target.value)}
+            type="number"
+            min="1"
+            max="30"
             required
           />
         </label>
