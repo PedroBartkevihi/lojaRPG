@@ -82,8 +82,19 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSaving(true);
     setError('');
+
+    // Vazio fica sem peso; aceita virgula (2,5). Um texto que nao vira numero
+    // ("3 lb", "1/4") e recusado aqui: chegaria a API como null e apagaria o peso.
+    const weightText = String(form.weight ?? '').trim();
+    const weight = weightText === '' ? null : Number(weightText.replace(',', '.'));
+
+    if (weight !== null && (!Number.isFinite(weight) || weight < 0)) {
+      setError('Peso inválido: use um número em libras, como 3 ou 2,5.');
+      return;
+    }
+
+    setSaving(true);
 
     const payload = {
       ...form,
@@ -91,8 +102,7 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
       price: Number(form.price),
       sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
       stock: Number(form.stock),
-      // Vazio fica sem peso; aceita virgula (2,5).
-      weight: String(form.weight ?? '').trim() === '' ? null : Number(String(form.weight).replace(',', '.'))
+      weight
     };
 
     // Na edicao, o estoque so vai se o Mestre mexeu nele, junto com o valor que

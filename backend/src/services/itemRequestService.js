@@ -1,5 +1,6 @@
 import { withCampaignTransaction } from './sessionService.js';
 import { getPrisma } from '../database/connection.js';
+import { withTransaction } from '../database/transaction.js';
 import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { debitCharacterGold, findCharacterById } from '../models/characterModel.js';
 import { addInventoryItem } from '../models/inventoryModel.js';
@@ -7,9 +8,12 @@ import { createItem, findItemById } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase } from '../models/purchaseModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
-// Encomendas em aberto por personagem: o bastante para a mesa, sem virar
-// lista infinita de pedidos.
-const MAX_PENDING_PER_CHARACTER = 10;
+// Encomendas em aberto por jogador em cada mesa (somando os personagens): o
+// bastante para a mesa, sem virar lista infinita de pedidos.
+const MAX_PENDING_PER_PLAYER = 10;
+// Teto da lista de pendentes, para a resposta ter tamanho maximo mesmo numa
+// mesa cheia.
+const MAX_PENDING_LISTED = 200;
 const ANSWERED_MESSAGE = 'Esta encomenda já foi respondida. Atualize a lista.';
 
 function mapRequest(request) {
@@ -37,6 +41,12 @@ const includeRequest = {
   item: { select: { name: true } }
 };
 
+// So conta a encomenda de quem ainda esta na mesa: quem saiu (ou foi
+// removido) nao ve nem cancela mais, entao o Mestre tambem nao responde.
+function memberCharacter(campaignId) {
+  return { user: { memberships: { some: { campaignId } } } };
+}
+
 // Pendentes primeiro (as mais antigas no topo, para o Mestre responder na
 // ordem), depois as respondidas mais recentes.
 export async function listItemRequests(req) {
@@ -44,11 +54,18 @@ export async function listItemRequests(req) {
 
   if (!isGameMaster(req)) {
     where.character = { userId: req.user.id };
+  } else {
+    where.character = memberCharacter(req.campaign.id);
   }
 
   const prisma = getPrisma();
   const [pending, answered] = await Promise.all([
-    prisma.itemRequest.findMany({ where: { ...where, status: 'PENDENTE' }, include: includeRequest, orderBy: { id: 'asc' } }),
+    prisma.itemRequest.findMany({
+      where: { ...where, status: 'PENDENTE' },
+      include: includeRequest,
+      orderBy: { id: 'asc' },
+      take: MAX_PENDING_LISTED
+    }),
     prisma.itemRequest.findMany({
       where: { ...where, status: { not: 'PENDENTE' } },
       include: includeRequest,
@@ -61,29 +78,35 @@ export async function listItemRequests(req) {
 }
 
 export async function createItemRequest({ user, campaignId, characterId, description, maxPrice }) {
-  const character = await findCharacterById(characterId, campaignId);
+  return withTransaction(async (prisma) => {
+    const character = await findCharacterById(characterId, campaignId, prisma);
 
-  if (!character) {
-    throw new ApiError(404, 'Personagem não encontrado.');
-  }
+    if (!character) {
+      throw new ApiError(404, 'Personagem não encontrado.');
+    }
 
-  if (character.userId !== user.id) {
-    throw new ApiError(403, 'Você só pode encomendar para os seus personagens.');
-  }
+    if (character.userId !== user.id) {
+      throw new ApiError(403, 'Você só pode encomendar para os seus personagens.');
+    }
 
-  const prisma = getPrisma();
-  const pending = await prisma.itemRequest.count({ where: { characterId, status: 'PENDENTE' } });
+    // A trava na participacao faz pedidos simultaneos do mesmo jogador
+    // contarem um depois do outro, sem passar do limite.
+    await prisma.$queryRaw`SELECT id FROM campaign_members WHERE campaign_id = ${campaignId} AND user_id = ${user.id} FOR UPDATE`;
+    const pending = await prisma.itemRequest.count({
+      where: { campaignId, status: 'PENDENTE', character: { userId: user.id } }
+    });
 
-  if (pending >= MAX_PENDING_PER_CHARACTER) {
-    throw new ApiError(409, `${character.name} já tem ${pending} encomendas esperando o Mestre.`);
-  }
+    if (pending >= MAX_PENDING_PER_PLAYER) {
+      throw new ApiError(409, `Você já tem ${pending} encomendas esperando o Mestre nesta mesa. Cancele uma ou espere a resposta.`);
+    }
 
-  return mapRequest(
-    await prisma.itemRequest.create({
-      data: { campaignId, characterId, requestedBy: user.id, description, maxPrice },
-      include: includeRequest
-    })
-  );
+    return mapRequest(
+      await prisma.itemRequest.create({
+        data: { campaignId, characterId, requestedBy: user.id, description, maxPrice },
+        include: includeRequest
+      })
+    );
+  });
 }
 
 async function findRequest(campaignId, requestId, prisma = getPrisma()) {
@@ -138,6 +161,14 @@ export async function approveItemRequest({ actorUserId, campaignId, requestId, p
       throw new ApiError(409, ANSWERED_MESSAGE);
     }
 
+    const member = await prisma.campaignMember.findUnique({
+      where: { campaignId_userId: { campaignId, userId: request.character.userId } }
+    });
+
+    if (!member) {
+      throw new ApiError(409, 'O dono deste personagem não está mais na mesa.');
+    }
+
     if (price > Number(request.maxPrice)) {
       throw new ApiError(400, 'O preço passa do valor máximo que o jogador aceitou pagar. Recuse com uma nota ou peça um novo pedido.');
     }
@@ -151,6 +182,14 @@ export async function approveItemRequest({ actorUserId, campaignId, requestId, p
 
       if (!item) {
         throw new ApiError(404, 'Item não encontrado nesta mesa.');
+      }
+
+      // Abaixo do que a loja paga, o jogador revenderia o item com lucro.
+      if (item.effectiveSellPrice !== null && price < item.effectiveSellPrice) {
+        throw new ApiError(
+          400,
+          `A loja compra ${item.name} por ${item.effectiveSellPrice} PC. Cobre pelo menos isso ou entregue um item novo.`
+        );
       }
     } else {
       // O item da encomenda e feito sob medida: entra no catalogo fora da loja

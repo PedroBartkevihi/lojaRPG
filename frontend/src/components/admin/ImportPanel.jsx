@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, FileUp, Library } from 'lucide-react';
-import { CSV_TEMPLATE, csvToItems } from '../../js/csv.js';
+import { CSV_TEMPLATE, csvToItems, decodeCsv } from '../../js/csv.js';
 import { formatMoney } from '../../js/money.js';
 import { formatWeight } from '../../js/weight.js';
 
@@ -14,7 +14,7 @@ export default function ImportPanel({ api, shops = [], reload, showNotice }) {
   const [packs, setPacks] = useState([]);
   const [attribution, setAttribution] = useState('');
   const [packId, setPackId] = useState('');
-  const [csv, setCsv] = useState({ fileName: '', items: [], errors: [] });
+  const [csv, setCsv] = useState({ fileName: '', items: [], errors: [], ignored: [] });
   const [shopId, setShopId] = useState('');
   const [serverErrors, setServerErrors] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -43,8 +43,8 @@ export default function ImportPanel({ api, shops = [], reload, showNotice }) {
 
     if (!file) return;
 
-    const { items: parsed, errors } = csvToItems(await file.text());
-    setCsv({ fileName: file.name, items: parsed, errors });
+    const { items: parsed, errors, ignored } = csvToItems(decodeCsv(await file.arrayBuffer()));
+    setCsv({ fileName: file.name, items: parsed, errors, ignored });
   }
 
   function downloadTemplate() {
@@ -66,7 +66,7 @@ export default function ImportPanel({ api, shops = [], reload, showNotice }) {
       const data = await api.importItems(body);
       await reload();
       showNotice(data.message);
-      if (source === 'csv') setCsv({ fileName: '', items: [], errors: [] });
+      if (source === 'csv') setCsv({ fileName: '', items: [], errors: [], ignored: [] });
     } catch (error) {
       // A API aponta a posicao na lista; na planilha vale a linha.
       setServerErrors((error.details || []).map((entry) => ({ line: items[entry.row - 1]?.line ?? entry.row, message: entry.message })));
@@ -143,6 +143,12 @@ export default function ImportPanel({ api, shops = [], reload, showNotice }) {
               ))}
             </select>
           </label>
+        )}
+
+        {source === 'csv' && csv.ignored.length > 0 && (
+          <p className="form-hint">
+            Colunas ignoradas (nenhum campo com esse nome): {csv.ignored.join(', ')}.
+          </p>
         )}
 
         {errors.length > 0 && (

@@ -3,7 +3,7 @@ import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { findCharacterById } from '../models/characterModel.js';
 import { ApiError } from '../utils/ApiError.js';
 
-export { priceWithDiscount } from '../utils/pricing.js';
+export { priceWithDiscount, sellPriceWithDiscount } from '../utils/pricing.js';
 
 function mapDiscount(discount) {
   return {

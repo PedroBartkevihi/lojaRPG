@@ -1,6 +1,7 @@
 /**
  * @typedef {{ id: number, name: string, percent: number, categoryId: number | null }} ActiveDiscount
  * @typedef {{ price: number, categoryId: number }} PricedItem
+ * @typedef {PricedItem & { effectiveSellPrice: number | null }} SellableItem
  */
 
 // Vale o maior desconto que se aplica ao item, sem somar descontos. O desconto
@@ -28,4 +29,20 @@ export function priceWithDiscount(item, discounts) {
     finalPrice: item.price - Math.floor((item.price * best.percent) / 100),
     discount: { id: best.id, name: best.name, percent: best.percent }
   };
+}
+
+// A loja nunca paga mais do que cobraria do personagem agora: com um desconto
+// maior que a margem de revenda (mais de 50% na regra padrao), comprar e
+// vender de volta daria lucro sem fim.
+/**
+ * @param {SellableItem} item
+ * @param {ActiveDiscount[]} discounts
+ * @returns {number | null}
+ */
+export function sellPriceWithDiscount(item, discounts) {
+  if (item.effectiveSellPrice === null) {
+    return null;
+  }
+
+  return Math.min(item.effectiveSellPrice, priceWithDiscount(item, discounts).finalPrice);
 }
