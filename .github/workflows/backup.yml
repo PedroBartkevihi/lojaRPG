@@ -1,0 +1,64 @@
+name: Backup do banco
+
+# Exporta o banco de produção toda segunda-feira e guarda o arquivo
+# criptografado como artefato do workflow por 30 dias. O dump tem e-mails e
+# hashes de senha; como os artefatos de um repositório público podem ser
+# baixados por qualquer conta do GitHub, ele só sai daqui criptografado com a
+# senha do segredo BACKUP_PASSPHRASE.
+#
+# Sem os segredos BACKUP_DATABASE_URL e BACKUP_PASSPHRASE o workflow só avisa
+# e termina. Para restaurar, veja "Backup e restauração" no DEPLOY.md.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Exportar e criptografar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Conferir os segredos
+        id: segredos
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::notice::Backup não configurado: defina os segredos BACKUP_DATABASE_URL e BACKUP_PASSPHRASE."
+            echo "configurado=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configurado=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Mesma versão do PostgreSQL do Neon; o pg_dump do Ubuntu é mais antigo
+      # e recusa exportar um servidor mais novo.
+      - name: Exportar com pg_dump
+        if: steps.segredos.outputs.configurado == 'true'
+        env:
+          PGURL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          docker run --rm -e PGURL postgres:17-alpine \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' > lojarpg.dump
+          echo "Backup com $(du -h lojarpg.dump | cut -f1)."
+
+      - name: Criptografar
+        if: steps.segredos.outputs.configurado == 'true'
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          arquivo="lojarpg-$(date -u +%Y%m%d-%H%M).dump.gpg"
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output "$arquivo" lojarpg.dump
+          shred -u lojarpg.dump
+          echo "ARQUIVO=$arquivo" >> "$GITHUB_ENV"
+
+      - name: Guardar como artefato
+        if: steps.segredos.outputs.configurado == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-lojarpg
+          path: ${{ env.ARQUIVO }}
+          retention-days: 30
+          if-no-files-found: error

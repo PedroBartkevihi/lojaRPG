@@ -13,3 +13,6 @@ backend/data/
 
 .DS_Store
 Thumbs.db
+
+# Backups do banco (tem e-mails e hashes de senha)
+backups/
