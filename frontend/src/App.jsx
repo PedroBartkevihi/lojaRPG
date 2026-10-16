@@ -1,93 +1,22 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ArrowLeftRight,
-  Coins,
-  Crown,
-  History,
-  LogOut,
-  Package,
-  RefreshCcw,
-  ScrollText,
-  Shield,
-  Store,
-  Users
-} from 'lucide-react';
-import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes,
-  matchPath,
-  useLocation,
-  useNavigate,
-  useParams
-} from 'react-router-dom';
-import { createApi, REFRESH_COOKIE_MODE } from './js/api.js';
-import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
-import { SkeletonCards } from './components/Skeleton.jsx';
+import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, matchPath, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { createApi } from './js/api.js';
 import { useLiveTick } from './js/useLiveTick.js';
 import { useNotice } from './js/useNotice.js';
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
-import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
+import { ActiveCampaignContext } from './hooks/ActiveCampaignContext.js';
+import { readStoredCampaignId, useActiveCampaign } from './hooks/useActiveCampaign.js';
+import { clearPendingInvite, landingPath, usePendingInvite } from './hooks/usePendingInvite.js';
+import { readRefreshToken, readToken, useSession } from './hooks/useSession.js';
+import AppHeader from './components/AppHeader.jsx';
+import AuthScreen, { RESET_PATH } from './components/AuthScreen.jsx';
+import { SkeletonCards } from './components/Skeleton.jsx';
+import InventoryPanel from './components/InventoryPanel.jsx';
+import PurchaseHistory from './components/PurchaseHistory.jsx';
 import CampaignsPage from './pages/CampaignsPage.jsx';
 import CampaignPage from './pages/CampaignPage.jsx';
 import ShopPage from './pages/ShopPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
-import InventoryPanel from './components/InventoryPanel.jsx';
-import PurchaseHistory from './components/PurchaseHistory.jsx';
 import SessionDiary from './pages/SessionDiary.jsx';
-
-const TOKEN_KEY = 'lojaRpgToken';
-const REFRESH_TOKEN_KEY = 'lojaRpgRefreshToken';
-const USER_KEY = 'lojaRpgUser';
-const CAMPAIGN_KEY = 'lojaRpgCampaign';
-const INVITE_KEY = 'lojaRpgInvite';
-const RESET_PATH = '/redefinir-senha';
-
-function readStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem(USER_KEY));
-  } catch (_error) {
-    return null;
-  }
-}
-
-function readStoredCampaignId() {
-  return Number(localStorage.getItem(CAMPAIGN_KEY)) || null;
-}
-
-// O convite guardado vale por um dia: quem abriu o link e so entrou semanas
-// depois nao deve cair naquela mesa sem perceber.
-const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
-
-function savePendingInvite(code) {
-  localStorage.setItem(INVITE_KEY, JSON.stringify({ code, savedAt: Date.now() }));
-}
-
-function readPendingInvite() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(INVITE_KEY));
-
-    if (saved?.code && Date.now() - saved.savedAt < INVITE_TTL_MS) {
-      return saved.code;
-    }
-  } catch (_error) {
-    // Valor de uma versao antiga (so o codigo): tratado como vencido.
-  }
-
-  localStorage.removeItem(INVITE_KEY);
-  return null;
-}
-
-// Destino logo depois de entrar: o convite guardado, se houver, ou a loja.
-// O convite so e apagado quando a entrada na mesa acontece, porque a tela
-// ainda passa por /login ou /register antes de chegar a /convite.
-function landingPath() {
-  const pendingInvite = readPendingInvite();
-  return pendingInvite ? `/convite/${pendingInvite}` : '/shop';
-}
 
 // Entra na mesa do link de convite assim que existe uma sessao.
 function InviteRoute({ onJoin }) {
@@ -107,26 +36,18 @@ function InviteRoute({ onJoin }) {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState(readStoredUser);
-  const [campaigns, setCampaigns] = useState([]);
-  const [campaignsLoaded, setCampaignsLoaded] = useState(false);
-  const [campaignId, setCampaignId] = useState(readStoredCampaignId);
-  const [characters, setCharacters] = useState([]);
-  const [charactersLoaded, setCharactersLoaded] = useState(false);
-  const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [notice, showNotice] = useNotice();
-  const [refreshCount, setRefreshCount] = useState(0);
+  const { token, user, loggedIn, storeTokens, forgetSession } = useSession();
 
   const inviteCode = matchPath('/convite/:code', location.pathname)?.params.code;
-  // A renovacao do token troca o valor dele; as cargas abaixo so dependem de
-  // haver sessao, para nao recarregar tudo a cada renovacao.
-  const loggedIn = Boolean(token);
+  // A renovacao do token troca o valor dele; as cargas so dependem de haver
+  // sessao, para nao recarregar tudo a cada renovacao.
   const liveTick = useLiveTick(loggedIn);
+  usePendingInvite(loggedIn, inviteCode);
 
   // O navigate do React Router muda a cada troca de pagina. Guardado num ref,
   // ele nao recria a API a cada navegacao; com uma API so, as requisicoes
-  // dividem a mesma renovacao de sessao e as cargas abaixo nao se repetem.
+  // dividem a mesma renovacao de sessao e as cargas nao se repetem.
   const navigateRef = useRef(navigate);
   const pathnameRef = useRef(location.pathname);
 
@@ -135,34 +56,23 @@ function AppContent() {
     pathnameRef.current = location.pathname;
   }, [navigate, location.pathname]);
 
-  // A API le a mesa deste ref, que acompanha a tela. O localStorage so guarda
-  // a escolha para o proximo carregamento: ele e dividido entre as abas, e
-  // outra aba que trocasse de mesa mudaria a mesa das requisicoes desta.
-  const campaignIdRef = useRef(campaignId);
+  // A API le a mesa deste ref (veja useActiveCampaign) e chama `onUnauthorized`
+  // quando a sessao e recusada; o ref deixa a API ser criada antes do hook da
+  // mesa, que precisa dela.
+  const campaignIdRef = useRef(readStoredCampaignId());
+  const unauthorizedRef = useRef(() => {});
 
-  const setActiveCampaign = useCallback((id) => {
-    campaignIdRef.current = id;
-    setCampaignId(id);
+  const api = useMemo(
+    () => createApi(readToken, () => unauthorizedRef.current(), readRefreshToken, storeTokens, () => campaignIdRef.current),
+    [storeTokens]
+  );
 
-    if (id) {
-      localStorage.setItem(CAMPAIGN_KEY, String(id));
-    } else {
-      localStorage.removeItem(CAMPAIGN_KEY);
-    }
-  }, []);
+  const active = useActiveCampaign({ api, campaignIdRef, loggedIn, liveTick, showNotice });
+  const { campaign, isMaster, loadCampaigns, refreshSession, setActiveCampaign, reset } = active;
 
   const clearSession = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    setToken(null);
-    setUser(null);
-    setCampaigns([]);
-    setCampaignsLoaded(false);
-    setActiveCampaign(null);
-    setCharacters([]);
-    setCharactersLoaded(false);
-    setSelectedCharacterId(null);
+    forgetSession();
+    reset();
 
     // A tela de senha nova fica aberta quando a sessao do aparelho acaba no
     // meio (sessao vencida ou a propria troca de senha): o token do link ja
@@ -170,72 +80,11 @@ function AppContent() {
     if (pathnameRef.current !== RESET_PATH) {
       navigateRef.current('/login', { replace: true });
     }
-  }, [setActiveCampaign]);
+  }, [forgetSession, reset]);
 
-  const storeTokens = useCallback((data) => {
-    const accessToken = data.accessToken || data.token;
-
-    if (accessToken) {
-      localStorage.setItem(TOKEN_KEY, accessToken);
-      setToken(accessToken);
-    }
-
-    if (REFRESH_COOKIE_MODE) {
-      // O refresh token esta no cookie httpOnly; um antigo guardado aqui
-      // (de antes do modo cookie) ja foi trocado pelo cookie e sai.
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-    } else if (data.refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
-    }
-
-    if (data.user) {
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setUser(data.user);
-    }
-  }, []);
-
-  const api = useMemo(
-    () =>
-      createApi(
-        () => localStorage.getItem(TOKEN_KEY),
-        clearSession,
-        () => localStorage.getItem(REFRESH_TOKEN_KEY),
-        storeTokens,
-        () => campaignIdRef.current
-      ),
-    [clearSession, storeTokens]
-  );
-
-  const loadCampaigns = useCallback(async () => {
-    const data = await api.listCampaigns();
-    setCampaigns(data.campaigns);
-    setCampaignsLoaded(true);
-    return data.campaigns;
-  }, [api]);
-
-  // Recarrega os personagens do usuario na mesa ativa (ouro, nivel etc.).
-  // Uma resposta que chega depois de trocar de mesa e da mesa anterior: fica de fora.
-  const refreshSession = useCallback(async () => {
-    const requestedCampaignId = campaignIdRef.current;
-
-    if (!requestedCampaignId) {
-      return;
-    }
-
-    const data = await api.myCharacter();
-
-    if (campaignIdRef.current !== requestedCampaignId) {
-      return;
-    }
-
-    const nextCharacters = data.characters || [];
-    setCharacters(nextCharacters);
-    setCharactersLoaded(true);
-    setSelectedCharacterId((current) =>
-      current && nextCharacters.some((entry) => entry.id === current) ? current : nextCharacters[0]?.id || null
-    );
-    setRefreshCount((value) => value + 1);
-  }, [api]);
+  useEffect(() => {
+    unauthorizedRef.current = clearSession;
+  }, [clearSession]);
 
   const selectCampaign = useCallback(
     (nextCampaign, path = '/shop', options = {}) => {
@@ -255,7 +104,7 @@ function AppContent() {
 
   const joinWithCode = useCallback(
     async (code) => {
-      localStorage.removeItem(INVITE_KEY);
+      clearPendingInvite();
 
       try {
         const data = await api.joinCampaign({ inviteCode: code });
@@ -270,55 +119,6 @@ function AppContent() {
     [api, loadCampaigns, navigate, selectCampaign, showNotice]
   );
 
-  useEffect(() => {
-    if (loggedIn) {
-      loadCampaigns().catch((error) => showNotice(error.message));
-    }
-  }, [loggedIn, loadCampaigns, showNotice]);
-
-  useEffect(() => {
-    setCharacters([]);
-    setCharactersLoaded(false);
-    setSelectedCharacterId(null);
-
-    if (loggedIn && campaignId) {
-      refreshSession().catch((error) => showNotice(error.message));
-    }
-  }, [loggedIn, campaignId, refreshSession, showNotice]);
-
-  // A cada batida, recarrega as mesas (alguem pode ter sido removido) e os
-  // personagens; a atualizacao da sessao tambem recarrega inventario e compras.
-  // Falhas aqui ficam quietas para nao encher a tela de avisos.
-  useEffect(() => {
-    if (liveTick > 0) {
-      loadCampaigns().catch(() => {});
-      refreshSession().catch(() => {});
-    }
-  }, [liveTick, loadCampaigns, refreshSession]);
-
-  const campaign = campaigns.find((entry) => entry.id === campaignId) || null;
-
-  // Esquece a mesa guardada se a pessoa saiu ou foi removida dela, e abre
-  // direto a unica mesa de quem so participa de uma.
-  useEffect(() => {
-    if (!campaignsLoaded) {
-      return;
-    }
-
-    if (campaignId && !campaign) {
-      setActiveCampaign(null);
-    } else if (!campaignId && campaigns.length === 1) {
-      setActiveCampaign(campaigns[0].id);
-    }
-  }, [campaignsLoaded, campaignId, campaign, campaigns, setActiveCampaign]);
-
-  // Quem abre um link de convite sem estar logado entra na mesa depois do login.
-  useEffect(() => {
-    if (!token && inviteCode) {
-      savePendingInvite(inviteCode);
-    }
-  }, [token, inviteCode]);
-
   const saveSession = useCallback(
     (data) => {
       storeTokens(data);
@@ -331,7 +131,7 @@ function AppContent() {
   const handleLogout = useCallback(async () => {
     try {
       if (token) {
-        await api.logout({ refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY) });
+        await api.logout({ refreshToken: readRefreshToken() });
       }
     } catch (_error) {
       // O token sera removido localmente mesmo se ja estiver expirado.
@@ -349,92 +149,28 @@ function AppContent() {
     navigate('/login', { replace: true });
   }, [handleLogout, navigate, token]);
 
+  const header = useMemo(() => ({ campaign, isMaster, user, onLogout: handleLogout }), [campaign, isMaster, user, handleLogout]);
+
   // A tela de senha nova e a mesma com ou sem sessao no aparelho: assim ela
   // nao e remontada (perdendo o token do link) quando a sessao acaba.
-  const onResetPage = location.pathname === RESET_PATH;
-
-  if (!token || !user || onResetPage) {
-    const isRegisterRoute = location.pathname === '/register';
-    // Quem chegou por um convite precisa de conta propria: a de demonstracao
-    // nao entra em outras mesas, entao os botoes dela somem dessa tela.
-    const hasPendingInvite = Boolean(inviteCode || readPendingInvite());
-    // Sem sessao, o endereco e sempre o de uma tela de entrada: uma navegacao
-    // da area logada que chegue depois do logout (ex.: /shop) volta para /login.
-    const onAuthPath = ['/login', '/register', '/esqueci-senha', RESET_PATH].includes(location.pathname) || Boolean(inviteCode);
-
+  if (!token || !user || location.pathname === RESET_PATH) {
     return (
-      <main className="auth-screen">
-        {!onAuthPath && !onResetPage && (!token || !user) && <Navigate to="/login" replace />}
-        <div className="auth-layout">
-          <section className="auth-intro">
-            <div className="brand-lockup">
-              <Store size={34} />
-              <div>
-                <p className="eyebrow">Campanhas compartilhadas</p>
-                <h1>lojaRPG</h1>
-              </div>
-            </div>
-            <h2>A loja da sua campanha de RPG</h2>
-            <p>
-              O Mestre monta o catálogo e distribui o ouro; os jogadores compram, vendem e usam itens com os
-              personagens da mesa, cada um no próprio celular.
-            </p>
-            <ul className="feature-list">
-              <li>
-                <Users size={18} />
-                Mesas com convite por link
-              </li>
-              <li>
-                <Coins size={18} />
-                Compra, venda e recompensas em ouro
-              </li>
-              <li>
-                <RefreshCcw size={18} />
-                Telas que se atualizam durante a sessão
-              </li>
-            </ul>
-            {DEMO_LOGIN_ENABLED && !hasPendingInvite && <DemoLogin api={api} onLogin={saveSession} />}
-          </section>
-          <section className="auth-panel">
-            {hasPendingInvite && (
-              <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
-            )}
-            {onResetPage ? (
-              <ResetPasswordPage api={api} onDone={finishPasswordReset} />
-            ) : location.pathname === '/esqueci-senha' ? (
-              <ForgotPasswordPage api={api} onBack={() => navigate('/login')} />
-            ) : isRegisterRoute ? (
-              <RegisterPage
-                api={api}
-                onRegister={saveSession}
-                onSwitch={() => navigate('/login')}
-              />
-            ) : (
-              <LoginPage
-                api={api}
-                onLogin={saveSession}
-                onSwitch={() => navigate('/register')}
-                onForgot={() => navigate('/esqueci-senha')}
-              />
-            )}
-          </section>
-        </div>
-      </main>
+      <AuthScreen
+        api={api}
+        loggedIn={Boolean(token && user)}
+        inviteCode={inviteCode}
+        onLogin={saveSession}
+        onPasswordReset={finishPasswordReset}
+      />
     );
   }
 
-  const isMaster = campaign?.role === 'MESTRE';
-  const selectedCharacter = characters.find((entry) => entry.id === selectedCharacterId) || characters[0] || null;
-  // So depois de a lista chegar: antes disso, "sem personagem" e so carregamento.
-  const needsCharacter = charactersLoaded && !isMaster && characters.length === 0;
-  const activeRoute = location.pathname.split('/')[1] || 'shop';
-  const showTabs = Boolean(campaign) && activeRoute !== 'mesas' && activeRoute !== 'convite';
-  const autoSelecting = campaignsLoaded && !campaignId && campaigns.length === 1;
+  const { campaigns, campaignsLoaded, characters, selectedCharacter, selectedCharacterId, setSelectedCharacterId } = active;
 
   // As paginas da loja so existem dentro de uma mesa; a chave remonta a
   // pagina ao trocar de mesa, para ela buscar os dados da mesa nova.
   function inCampaign(element) {
-    if (!campaignsLoaded || autoSelecting) {
+    if (!campaignsLoaded || active.autoSelecting) {
       return (
         <div className="wide-section">
           <SkeletonCards count={6} />
@@ -446,160 +182,119 @@ function AppContent() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup small">
-          <Store size={28} />
-          <div>
-            <p className="eyebrow">{showTabs ? campaign.name : 'Mesas de aventura'}</p>
-            <h1>lojaRPG</h1>
-          </div>
-        </div>
-        {showTabs ? (
-          <nav className="tabs" aria-label="Navegação principal">
-            <button className={activeRoute === 'shop' ? 'active' : ''} onClick={() => navigate('/shop')}>
-              <Store size={18} />
-              Loja
-            </button>
-            {!isMaster && (
-              <button className={activeRoute === 'inventory' ? 'active' : ''} onClick={() => navigate('/inventory')}>
-                <Package size={18} />
-                Inventário
-              </button>
-            )}
-            <button className={activeRoute === 'history' ? 'active' : ''} onClick={() => navigate('/history')}>
-              <History size={18} />
-              Compras
-            </button>
-            <button className={activeRoute === 'sessions' ? 'active' : ''} onClick={() => navigate('/sessions')}>
-              <ScrollText size={18} />Diário
-            </button>
-            <button className={activeRoute === 'mesa' ? 'active' : ''} onClick={() => navigate('/mesa')}>
-              <Users size={18} />
-              Mesa
-            </button>
-            {isMaster && (
-              <button className={activeRoute === 'admin' ? 'active' : ''} onClick={() => navigate('/admin')}>
-                <Crown size={18} />
-                Mestre
-              </button>
-            )}
-          </nav>
-        ) : (
-          <span className="tabs-placeholder" />
-        )}
-        <div className="session-pill">
-          {showTabs && (
-            <button className="icon-button" onClick={() => navigate('/mesas')} title="Trocar de mesa">
-              <ArrowLeftRight size={18} />
-            </button>
-          )}
-          {showTabs && isMaster ? <Shield size={18} /> : <ScrollText size={18} />}
-          <span>{user.name}</span>
-          <button className="icon-button" onClick={handleLogout} title="Sair">
-            <LogOut size={18} />
-          </button>
-        </div>
-      </header>
+    <ActiveCampaignContext.Provider value={header}>
+      <main className="app-shell">
+        <AppHeader />
 
-      {/* Regiao viva: leitores de tela anunciam o aviso sem mudar o foco. */}
-      <div className="toast-region" role="status" aria-live="polite">
-        {notice && <div className="toast">{notice}</div>}
-      </div>
+        {/* Regiao viva: leitores de tela anunciam o aviso sem mudar o foco. */}
+        <div className="toast-region" role="status" aria-live="polite">
+          {notice && <div className="toast">{notice}</div>}
+        </div>
 
-      <Routes>
-        <Route path="/" element={<Navigate to="/shop" replace />} />
-        <Route path="/login" element={<Navigate to={landingPath()} replace />} />
-        <Route path="/register" element={<Navigate to={landingPath()} replace />} />
-        <Route
-          path="/mesas"
-          element={
-            <CampaignsPage
-              api={api}
-              campaigns={campaigns}
-              loadingCampaigns={!campaignsLoaded}
-              activeCampaignId={campaign?.id}
-              isDemo={Boolean(user.isDemo)}
-              onSelect={selectCampaign}
-              onCampaignsChanged={loadCampaigns}
-              showNotice={showNotice}
-            />
-          }
-        />
-        <Route path="/convite/:code" element={<InviteRoute onJoin={joinWithCode} />} />
-        <Route
-          path="/shop"
-          element={inCampaign(
-            <ShopPage
-              api={api}
-              liveKey={liveTick}
-              isMaster={isMaster}
-              character={selectedCharacter}
-              characters={characters}
-              selectedCharacterId={selectedCharacterId}
-              onSelectCharacter={setSelectedCharacterId}
-              onRefreshSession={refreshSession}
-              showNotice={showNotice}
-            />
-          )}
-        />
-        <Route
-          path="/inventory"
-          element={inCampaign(
-            isMaster ? (
-              <Navigate to="/shop" replace />
-            ) : (
-              <InventoryPanel
+        <Routes>
+          <Route path="/" element={<Navigate to="/shop" replace />} />
+          <Route path="/login" element={<Navigate to={landingPath()} replace />} />
+          <Route path="/register" element={<Navigate to={landingPath()} replace />} />
+          <Route
+            path="/mesas"
+            element={
+              <CampaignsPage
                 api={api}
-                character={selectedCharacter}
-                needsCharacter={needsCharacter}
-                refreshKey={refreshCount}
+                campaigns={campaigns}
+                loadingCampaigns={!campaignsLoaded}
+                activeCampaignId={campaign?.id}
+                isDemo={Boolean(user.isDemo)}
+                onSelect={selectCampaign}
+                onCampaignsChanged={loadCampaigns}
                 showNotice={showNotice}
-                onRefreshSession={refreshSession}
               />
-            )
-          )}
-        />
-        <Route
-          path="/history"
-          element={inCampaign(
-            <PurchaseHistory
-              api={api}
-              isMaster={isMaster}
-              character={selectedCharacter}
-              needsCharacter={needsCharacter}
-              refreshKey={refreshCount}
-            />
-          )}
-        />
-        <Route
-          path="/mesa"
-          element={inCampaign(
-            <CampaignPage
-              api={api}
-              liveKey={liveTick}
-              campaign={campaign}
-              user={user}
-              showNotice={showNotice}
-              onCampaignsChanged={loadCampaigns}
-              onLeave={leaveCampaign}
-            />
-          )}
-        />
-        <Route
-          path="/admin"
-          element={inCampaign(
-            isMaster ? (
-              <AdminPage api={api} campaign={campaign} onCampaignsChanged={loadCampaigns} liveKey={liveTick} showNotice={showNotice} onRefresh={refreshSession} />
-            ) : (
-              <Navigate to="/shop" replace />
-            )
-          )}
-        />
-        <Route path="/sessions" element={inCampaign(<SessionDiary api={api} isMaster={isMaster} liveKey={liveTick} showNotice={showNotice} />)} />
-        <Route path="*" element={<Navigate to="/shop" replace />} />
-      </Routes>
-    </main>
+            }
+          />
+          <Route path="/convite/:code" element={<InviteRoute onJoin={joinWithCode} />} />
+          <Route
+            path="/shop"
+            element={inCampaign(
+              <ShopPage
+                api={api}
+                liveKey={liveTick}
+                isMaster={isMaster}
+                character={selectedCharacter}
+                characters={characters}
+                selectedCharacterId={selectedCharacterId}
+                onSelectCharacter={setSelectedCharacterId}
+                onRefreshSession={refreshSession}
+                showNotice={showNotice}
+              />
+            )}
+          />
+          <Route
+            path="/inventory"
+            element={inCampaign(
+              isMaster ? (
+                <Navigate to="/shop" replace />
+              ) : (
+                <InventoryPanel
+                  api={api}
+                  character={selectedCharacter}
+                  needsCharacter={active.needsCharacter}
+                  refreshKey={active.refreshCount}
+                  showNotice={showNotice}
+                  onRefreshSession={refreshSession}
+                />
+              )
+            )}
+          />
+          <Route
+            path="/history"
+            element={inCampaign(
+              <PurchaseHistory
+                api={api}
+                isMaster={isMaster}
+                character={selectedCharacter}
+                needsCharacter={active.needsCharacter}
+                refreshKey={active.refreshCount}
+              />
+            )}
+          />
+          <Route
+            path="/mesa"
+            element={inCampaign(
+              <CampaignPage
+                api={api}
+                liveKey={liveTick}
+                campaign={campaign}
+                user={user}
+                showNotice={showNotice}
+                onCampaignsChanged={loadCampaigns}
+                onLeave={leaveCampaign}
+              />
+            )}
+          />
+          <Route
+            path="/admin"
+            element={inCampaign(
+              isMaster ? (
+                <AdminPage
+                  api={api}
+                  campaign={campaign}
+                  onCampaignsChanged={loadCampaigns}
+                  liveKey={liveTick}
+                  showNotice={showNotice}
+                  onRefresh={refreshSession}
+                />
+              ) : (
+                <Navigate to="/shop" replace />
+              )
+            )}
+          />
+          <Route
+            path="/sessions"
+            element={inCampaign(<SessionDiary api={api} isMaster={isMaster} liveKey={liveTick} showNotice={showNotice} />)}
+          />
+          <Route path="*" element={<Navigate to="/shop" replace />} />
+        </Routes>
+      </main>
+    </ActiveCampaignContext.Provider>
   );
 }
 
