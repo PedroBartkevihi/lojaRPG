@@ -44,6 +44,8 @@ blocos de carregamento e avisa que a API está acordando.
   com um catálogo de exemplo que o Mestre edita.
 - Quem sai ou é removido da mesa mantém os personagens e os recupera ao
   entrar de novo.
+- "Esqueci minha senha": um link por e-mail, válido por 30 minutos e uma
+  vez, cria a senha nova e encerra as sessões abertas da conta.
 - As telas se atualizam sozinhas durante a sessão: o ouro que o Mestre dá ou
   o item que outro jogador compra aparecem sem recarregar a página.
 - Moedas do D&D: preços e saldos aparecem em PO, PP e PC, como no livro
@@ -188,6 +190,18 @@ pede participa da mesa e qual é o papel dele nela.
   JS, CSS e ícones, que têm hash no nome; a página vem sempre da rede quando há
   conexão, para um deploy novo não abrir a versão anterior. O registro é um
   arquivo externo, compatível com a CSP.
+- **Recuperar senha sem revelar contas.** O pedido responde igual (e no
+  mesmo tempo) para e-mail cadastrado ou não, tem limite por IP e no máximo um
+  e-mail por minuto para a conta. O token vai no fragmento do link (`#token=`),
+  que não chega a servidores nem a logs, fica guardado só como hash, vale 30
+  minutos e uma vez.
+- **Refresh token em cookie httpOnly, opcional.** Com `VITE_REFRESH_COOKIE=true`,
+  o refresh token sai do `localStorage` e fica num cookie que o JavaScript da
+  página não lê (`HttpOnly`, `Path=/auth`, `SameSite`), pedido pelo cabeçalho
+  `X-Refresh-Transport: cookie`, que obriga o preflight do CORS. Fica desligado
+  na demonstração porque site e API estão em subdomínios do `onrender.com`,
+  que contam como sites diferentes; vale com um domínio próprio. Os testes de
+  ponta a ponta rodam nos dois modos.
 - **Limpeza e limites.** Refresh tokens vencidos ou revogados são apagados
   no início da API e a cada 6 horas, e uma conta mestra no máximo 10 mesas ao
   mesmo tempo (`MAX_CAMPAIGNS_PER_USER`).
@@ -296,8 +310,13 @@ instalado. Os fluxos: compra (com clique duplo, que não pode cobrar duas
 vezes), venda e uso de itens, convite por link com cadastro no caminho,
 criação de personagem, recompensa do Mestre aparecendo na tela do jogador, loja
 fechada, remoção de jogador e sessão vencida (renovada sem sair da loja, ou
-recusada, voltando para a tela de entrada). `npm run report` abre o relatório
-da última execução.
+recusada, voltando para a tela de entrada), "Esqueci minha senha" com o link
+do e-mail, cabeçalhos de segurança (nenhum bloqueio da CSP) e app instalável.
+Os e-mails da API vão para `e2e/test-results/emails.jsonl` (`MAIL_OUTBOX_FILE`,
+nunca em produção), de onde o teste lê o link. Com `E2E_REFRESH_COOKIE=true`,
+o site é montado com o refresh token em cookie httpOnly; o CI roda os fluxos de
+sessão, senha, compra e convite nos dois modos. `npm run report` abre o
+relatório da última execução.
 
 ## Rotas da API
 
@@ -313,6 +332,12 @@ Autenticação:
 - `POST /auth/refresh`
 - `POST /auth/logout`
 - `GET /auth/me`
+- `POST /auth/forgot-password`: manda o link de senha nova (resposta sempre 202)
+- `POST /auth/reset-password`: `token` do link e `password` nova
+
+No modo cookie (cabeçalho `X-Refresh-Transport: cookie`), login, cadastro e
+renovação devolvem o refresh token só no cookie `lojarpg_refresh`, e a
+renovação e a saída o leem de lá.
 
 Mesas:
 
