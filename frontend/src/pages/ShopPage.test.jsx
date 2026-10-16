@@ -22,7 +22,7 @@ const aria = { id: 2, name: 'Aria', className: 'Ladina', race: 'Elfa', level: 4,
 function renderShop(api) {
   return render(
     <ShopPage
-      api={{ listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }), listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), listRarities: vi.fn().mockResolvedValue({ rarities: [{ id: 2, name: 'Raro', rank: 3 }, { id: 1, name: 'Comum', rank: 1 }] }), ...api }}
+      api={{ listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }), listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), listRarities: vi.fn().mockResolvedValue({ rarities: [{ id: 2, name: 'Raro', rank: 3 }, { id: 1, name: 'Comum', rank: 1 }] }), listItemRequests: vi.fn().mockResolvedValue({ requests: [] }), ...api }}
       liveKey={0}
       isMaster={false}
       character={aria}

@@ -25,6 +25,7 @@ model User {
   inventoryLogs  InventoryLog[]   @relation("InventoryLogActor")
   checkoutRequests CheckoutRequest[]
   transferRequests TransferRequest[]
+  itemRequests   ItemRequest[]
 
   @@map("users")
 }
@@ -46,6 +47,7 @@ model Campaign {
   items      Item[]
   checkoutRequests CheckoutRequest[]
   transferRequests TransferRequest[]
+  itemRequests     ItemRequest[]
 
   @@map("campaigns")
 }
@@ -80,6 +82,7 @@ model Character {
   inventoryLogs InventoryLog[]
   purchases     Purchase[]
   goldAuditLogs GoldAuditLog[]
+  itemRequests  ItemRequest[]
 
   @@index([campaignId])
   @@index([userId])
@@ -157,6 +160,7 @@ model Item {
   inventoryLogs  InventoryLog[]
   purchaseItems  PurchaseItem[]
   stockMovements StockMovement[]
+  itemRequests   ItemRequest[]
 
   @@index([campaignId])
   @@index([shopId])
@@ -212,6 +216,7 @@ model Purchase {
   purchasedAt DateTime       @default(now()) @map("purchased_at")
   character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
   items       PurchaseItem[]
+  itemRequest ItemRequest?
 
   @@index([characterId])
   @@map("purchases")
@@ -284,6 +289,34 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Encomenda de um item fora do catalogo: o jogador descreve o que quer e
+// quanto paga no maximo; o Mestre aprova (cobrando ate esse valor e entregando
+// o item) ou recusa. A aprovacao vira uma compra no historico.
+model ItemRequest {
+  id          Int        @id @default(autoincrement())
+  campaignId  Int        @map("campaign_id")
+  characterId Int        @map("character_id")
+  requestedBy Int?       @map("requested_by")
+  description String
+  maxPrice    BigInt     @map("max_price")
+  status      String     @default("PENDENTE")
+  price       BigInt?
+  itemId      Int?       @map("item_id")
+  purchaseId  Int?       @unique @map("purchase_id")
+  masterNote  String     @default("") @map("master_note")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  decidedAt   DateTime?  @map("decided_at")
+  campaign    Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  character   Character  @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  requester   User?      @relation(fields: [requestedBy], references: [id], onDelete: SetNull)
+  item        Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  purchase    Purchase?  @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, status])
+  @@index([characterId])
+  @@map("item_requests")
 }
 
 // Link de redefinicao de senha: so o hash do token fica no banco, como no

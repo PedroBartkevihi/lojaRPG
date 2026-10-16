@@ -41,7 +41,9 @@ test('sessão recusada pela API volta para a tela de entrada', async ({ page }) 
   if (COOKIE_MODE) {
     await page.context().clearCookies();
   }
-  await nav(page).getByRole('button', { name: 'Compras' }).click();
+  // Recarregar (e nao clicar numa aba): a atualizacao automatica pode
+  // encerrar a sessao antes do clique, e o teste ficaria dependendo de tempo.
+  await page.reload();
 
   await expect(page.getByRole('heading', { name: 'Entrar na loja' })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);

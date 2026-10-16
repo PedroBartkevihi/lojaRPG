@@ -1477,3 +1477,74 @@ a.primary-action {
   border: 1px solid var(--line);
   object-fit: cover;
 }
+
+/* Encomendas ao Mestre. */
+.item-requests {
+  margin-top: 1rem;
+}
+
+.request-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.request-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: start;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.request-list li div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.request-list li span,
+.request-list li small {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.request-list li[data-status="APROVADA"] span {
+  color: #5fd38a;
+}
+
+.request-list li[data-status="RECUSADA"] span,
+.request-list li[data-status="CANCELADA"] span {
+  color: #e59a8f;
+}
+
+.request-card {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.request-card header {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.request-card header span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.request-card p {
+  margin: 0;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}

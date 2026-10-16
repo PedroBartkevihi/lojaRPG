@@ -231,6 +231,11 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     myPurchases: (params = {}) => request(withQuery(campaignPath('/purchases/me'), params)),
     listPurchases: (params = {}) => request(withQuery(campaignPath('/purchases'), params)),
     uploadConfig: () => request(campaignPath('/uploads/config')),
+    listItemRequests: () => request(campaignPath('/requests')),
+    createItemRequest: (body) => request(campaignPath('/requests'), { method: 'POST', body }),
+    cancelItemRequest: (id) => request(campaignPath(`/requests/${id}/cancel`), { method: 'POST' }),
+    approveItemRequest: (id, body) => request(campaignPath(`/requests/${id}/approve`), { method: 'POST', body }),
+    rejectItemRequest: (id, body) => request(campaignPath(`/requests/${id}/reject`), { method: 'POST', body }),
     uploadItemImage
   };
 }

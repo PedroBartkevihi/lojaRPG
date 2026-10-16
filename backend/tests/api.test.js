@@ -2075,3 +2075,149 @@ describe('refresh token em cookie httpOnly', () => {
     expect(blocked.status).toBe(403);
   });
 });
+
+describe('encomendas ao Mestre', () => {
+  const REQUESTS = `${DEMO}/requests`;
+
+  async function demo() {
+    return {
+      master: as(await login('mestre@lojarpg.local', 'mestre123')),
+      aria: as(await login('aria@lojarpg.local')),
+      borin: as(await login('borin@lojarpg.local'))
+    };
+  }
+
+  it('jogador encomenda, Mestre aprova com item novo e a encomenda vira compra no histórico', async () => {
+    const { master, aria, borin } = await demo();
+    const created = await aria.post(REQUESTS, { characterId: 1, description: 'Um arco élfico', maxPrice: 30000 });
+    expect(created.status).toBe(201);
+    expect(created.body.request).toMatchObject({ status: 'PENDENTE', characterName: 'Aria Luaferro', maxPrice: 30000 });
+
+    // Cada jogador vê só as próprias encomendas; o Mestre vê todas.
+    expect((await borin.get(REQUESTS)).body.requests).toEqual([]);
+    expect((await master.get(REQUESTS)).body.requests).toHaveLength(1);
+    await master.post(`${DEMO}/sessions`, { notes: 'Sessão da encomenda' });
+
+    const approved = await master.post(`${REQUESTS}/${created.body.request.id}/approve`, {
+      price: 20000,
+      newItem: { name: 'Arco Élfico', category: 'Armas', rarity: 'Raro', description: 'Feito pelos artesãos de Lothal.' },
+      note: 'Chega em dois dias.'
+    });
+    expect(approved.status).toBe(200);
+    expect(approved.body.request).toMatchObject({ status: 'APROVADA', price: 20000, itemName: 'Arco Élfico', masterNote: 'Chega em dois dias.' });
+
+    const character = await getPrisma().character.findUnique({ where: { id: 1 } });
+    expect(character.gold).toBe(5000n);
+    const item = await getPrisma().item.findUnique({ where: { id: approved.body.request.itemId } });
+    expect(item).toMatchObject({ isActive: false, stock: 0, price: 20000n });
+    expect(await getPrisma().inventory.findUnique({ where: { characterId_itemId: { characterId: 1, itemId: item.id } } })).toMatchObject({ quantity: 1 });
+
+    const purchases = (await aria.get(`${DEMO}/purchases/me?characterId=1`)).body.purchases;
+    expect(purchases[0]).toMatchObject({ totalValue: 20000, sessionId: expect.any(Number) });
+    expect(purchases[0].items[0]).toMatchObject({ itemName: 'Arco Élfico', quantity: 1, unitPrice: 20000 });
+
+    // O item feito sob medida não aparece na loja.
+    expect((await aria.get(`${DEMO}/items?search=Arco Élfico`)).body.items).toEqual([]);
+    // Responder de novo não cobra outra vez.
+    expect((await master.post(`${REQUESTS}/${created.body.request.id}/approve`, { price: 1, itemId: 6 })).status).toBe(409);
+  });
+
+  it('recusa preço acima do máximo e falta de ouro sem cobrar nem fechar a encomenda', async () => {
+    const { master, aria } = await demo();
+    const { request } = (await aria.post(REQUESTS, { characterId: 1, description: 'Corda de seda', maxPrice: 1000000 })).body;
+
+    const tooMuch = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 1000001, itemId: 10 });
+    expect(tooMuch.status).toBe(400);
+    expect(tooMuch.body.message).toContain('valor máximo');
+
+    const poor = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 900000, itemId: 10 });
+    expect(poor.status).toBe(400);
+    expect(poor.body.message).toContain('não tem moedas suficientes');
+
+    const stored = await getPrisma().itemRequest.findUnique({ where: { id: request.id } });
+    expect(stored).toMatchObject({ status: 'PENDENTE', price: null, purchaseId: null });
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(25000n);
+
+    const otherCampaignItem = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 100, itemId: 999999 });
+    expect(otherCampaignItem.status).toBe(404);
+
+    const ok = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 3500, itemId: 10 });
+    expect(ok.status).toBe(200);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(21500n);
+  });
+
+  it('só uma resposta passa quando o Mestre aprova duas vezes ao mesmo tempo', async () => {
+    const { master, aria } = await demo();
+    const { request } = (await aria.post(REQUESTS, { characterId: 1, description: 'Mapa do tesouro', maxPrice: 5000 })).body;
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () => master.post(`${REQUESTS}/${request.id}/approve`, { price: 5000, itemId: 10 }))
+    );
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409, 409, 409]);
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(20000n);
+    expect(await getPrisma().purchase.count({ where: { characterId: 1 } })).toBe(1);
+  });
+
+  it('o limite de pendentes vale por jogador na mesa, mesmo com pedidos simultâneos e outro personagem', async () => {
+    const { master, aria } = await demo();
+    const responses = await Promise.all(
+      Array.from({ length: 15 }, (_, index) => aria.post(REQUESTS, { characterId: 1, description: `Pedido ${index}`, maxPrice: 100 }))
+    );
+
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(10);
+    expect(responses.filter((response) => response.status === 409)).toHaveLength(5);
+    expect(await getPrisma().itemRequest.count({ where: { status: 'PENDENTE' } })).toBe(10);
+
+    // Outro personagem do mesmo jogador não abre mais vagas.
+    const second = await aria.post(`${DEMO}/characters`, { name: 'Aria Reserva', className: 'Ladina', race: 'Elfa', level: 1 });
+    const blocked = await aria.post(REQUESTS, { characterId: second.body.character.id, description: 'Mais um', maxPrice: 100 });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.message).toContain('10 encomendas esperando o Mestre');
+    expect((await master.get(REQUESTS)).body.requests).toHaveLength(10);
+  });
+
+  it('não aprova abaixo do que a loja paga pelo item do catálogo', async () => {
+    const { master, aria } = await demo();
+    const { request } = (await aria.post(REQUESTS, { characterId: 1, description: 'Um anel', maxPrice: 5000 })).body;
+
+    // Anel de Proteção Menor: 260 PO na loja, que paga 130 PO na revenda.
+    const below = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 5000, itemId: 9 });
+    expect(below.status).toBe(400);
+    expect(below.body.message).toContain('A loja compra Anel de Proteção Menor por 13000 PC');
+    expect((await getPrisma().itemRequest.findUnique({ where: { id: request.id } })).status).toBe('PENDENTE');
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(25000n);
+  });
+
+  it('encomenda de quem saiu da mesa some da lista do Mestre e não pode ser aprovada', async () => {
+    const { master, borin } = await demo();
+    const { request } = (await borin.post(REQUESTS, { characterId: 2, description: 'Martelo anão', maxPrice: 5000 })).body;
+    const borinUser = await getPrisma().user.findUnique({ where: { email: 'borin@lojarpg.local' } });
+
+    expect((await borin.delete(`${DEMO}/members/${borinUser.id}`)).status).toBe(200);
+    expect((await master.get(REQUESTS)).body.requests).toEqual([]);
+
+    const approved = await master.post(`${REQUESTS}/${request.id}/approve`, { price: 3500, itemId: 10 });
+    expect(approved.status).toBe(409);
+    expect(approved.body.message).toContain('não está mais na mesa');
+    expect(await getPrisma().purchase.count({ where: { characterId: 2 } })).toBe(0);
+  });
+
+  it('jogador cancela a própria encomenda, Mestre recusa com nota e ninguém encomenda por outro', async () => {
+    const { master, aria, borin } = await demo();
+    const first = (await aria.post(REQUESTS, { characterId: 1, description: 'Capa élfica', maxPrice: 100 })).body.request;
+    const second = (await aria.post(REQUESTS, { characterId: 1, description: 'Botas aladas', maxPrice: 100 })).body.request;
+
+    expect((await borin.post(`${REQUESTS}/${first.id}/cancel`, {})).status).toBe(403);
+    expect((await aria.post(`${REQUESTS}/${first.id}/cancel`, {})).body.request.status).toBe('CANCELADA');
+    expect((await aria.post(`${REQUESTS}/${second.id}/reject`, { note: 'x' })).status).toBe(403);
+
+    const rejected = await master.post(`${REQUESTS}/${second.id}/reject`, { note: 'Não existe nesta cidade.' });
+    expect(rejected.body.request).toMatchObject({ status: 'RECUSADA', masterNote: 'Não existe nesta cidade.' });
+    expect((await aria.post(`${REQUESTS}/${second.id}/cancel`, {})).status).toBe(409);
+
+    expect((await borin.post(REQUESTS, { characterId: 1, description: 'Algo', maxPrice: 1 })).status).toBe(403);
+    expect((await master.post(REQUESTS, { characterId: 1, description: 'Algo', maxPrice: 1 })).status).toBe(403);
+    expect((await aria.post(REQUESTS, { characterId: 1, description: '', maxPrice: 1 })).status).toBe(400);
+  });
+});
