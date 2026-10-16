@@ -21,6 +21,9 @@ test('jogador esquece a senha, cria outra pelo link do e-mail e entra com ela', 
   await page.getByRole('button', { name: 'Sair' }).click();
 
   await page.getByRole('button', { name: 'Esqueci minha senha' }).click();
+  // Sem esperar a tela nova, o e-mail podia ir para o campo da tela de login,
+  // que ainda estava na pagina, e o pedido saia vazio.
+  await expect(page.getByRole('heading', { name: 'Esqueci minha senha' })).toBeVisible();
   await page.getByLabel('Email').fill(email);
   await page.getByRole('button', { name: 'Enviar link' }).click();
   const sent = page.getByRole('status').filter({ hasText: 'Se o e-mail estiver cadastrado' });
