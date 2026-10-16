@@ -35,7 +35,8 @@ const CHECKED_TABLES = [
   'inventory_logs',
   'stock_movements',
   'campaign_sessions',
-  'item_requests'
+  'item_requests',
+  'price_discounts'
 ];
 
 function fail(message) {

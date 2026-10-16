@@ -112,7 +112,9 @@ personagem.
   em poções", para todas as categorias ou uma) ou o desconto de um personagem
   (uma boa rolagem de Persuasão). A loja mostra o preço de tabela riscado e o
   preço final; vale o maior desconto que se aplica, sem somar, e o preço pago
-  vai para o histórico da compra.
+  vai para o histórico da compra. Enquanto o desconto vale, a loja paga na
+  revenda no máximo o preço com desconto, para comprar e vender de volta não
+  dar lucro.
 - Atributos opcionais nos itens: peso (lb), dano, classe de armadura e
   sintonização, exibidos no card da loja e no inventário.
 - Importação de vários itens de uma vez: pacotes prontos do SRD 5.1
@@ -490,7 +492,10 @@ Descontos:
 - `PATCH /discounts/:id` (Mestre): `isActive`
 - `DELETE /discounts/:id` (Mestre)
 - `GET /items?characterId=` devolve cada item com `finalPrice` e o `discount`
-  aplicado; a compra cobra o mesmo cálculo, na mesma transação
+  aplicado (a faixa `minPrice`/`maxPrice` vale sobre o `finalPrice`); a compra
+  cobra o mesmo cálculo, na mesma transação
+- `POST /purchases` aceita `expectedTotal` (PC): se o total recalculado for
+  outro (desconto desligado, outro personagem), responde 409 sem cobrar
 
 Importação (Mestre):
 

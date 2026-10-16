@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import ShopPage from './ShopPage.jsx';
@@ -163,6 +163,57 @@ describe('ShopPage', () => {
 
     await act(async () => finishPurchase());
   });
+  it('ao trocar de personagem, o carrinho mostra o preço dele mesmo fora do filtro, e a compra leva o total visto', async () => {
+    const user = userEvent.setup();
+    const nyx = { ...aria, id: 3, name: 'Nyx' };
+    const longsword = { ...sword, price: 7500 };
+    // A Aria tem 10% de desconto na espada; a Nyx não.
+    const priced = (item, characterId) =>
+      characterId === aria.id && item.id === longsword.id
+        ? { ...item, finalPrice: 6750, discount: { id: 1, name: 'Persuasão', percent: 10 } }
+        : { ...item, finalPrice: item.price, discount: null };
+    const api = {
+      listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }),
+      listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }),
+      listRarities: vi.fn().mockResolvedValue({ rarities: [] }),
+      listItemRequests: vi.fn().mockResolvedValue({ requests: [] }),
+      listItems: vi.fn(({ category, characterId } = {}) =>
+        Promise.resolve({
+          items: [potion, longsword].filter((item) => !category || item.category === category).map((item) => priced(item, characterId))
+        })
+      ),
+      createPurchase: vi.fn().mockResolvedValue({ message: 'Compra concluída.' })
+    };
+    const props = {
+      api,
+      liveKey: 0,
+      isMaster: false,
+      characters: [aria, nyx],
+      onSelectCharacter: vi.fn(),
+      onRefreshSession: vi.fn().mockResolvedValue(),
+      showNotice: vi.fn()
+    };
+    const { container, rerender } = render(<ShopPage {...props} character={aria} selectedCharacterId={aria.id} />);
+    const categoryFilter = await screen.findByRole('combobox', { name: 'Filtrar por categoria' });
+    await waitFor(() => expect(within(categoryFilter).getByRole('option', { name: 'Armas' })).toBeInTheDocument());
+
+    await user.selectOptions(categoryFilter, 'Armas');
+    await waitFor(() => expect(screen.queryByRole('heading', { name: potion.name })).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /adicionar/i }));
+    expect(container.querySelector('.cart-total strong')).toHaveTextContent('67 PO 5 PP');
+
+    // A espada sai do filtro e o personagem muda: o carrinho busca o preço da Nyx.
+    await user.selectOptions(categoryFilter, 'Poções');
+    await waitFor(() => expect(screen.queryByRole('heading', { name: longsword.name })).not.toBeInTheDocument());
+    rerender(<ShopPage {...props} character={nyx} selectedCharacterId={nyx.id} />);
+    await waitFor(() => expect(container.querySelector('.cart-total strong')).toHaveTextContent('75 PO'));
+
+    await user.click(screen.getByRole('button', { name: /finalizar compra/i }));
+    expect(api.createPurchase).toHaveBeenCalledWith(
+      expect.objectContaining({ characterId: nyx.id, items: [{ itemId: longsword.id, quantity: 1 }], expectedTotal: 7500 })
+    );
+  });
+
   it('uma busca antiga que responde depois não substitui o resultado da busca atual', async () => {
     const user = userEvent.setup();
     const pending = {};
