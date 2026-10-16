@@ -23,8 +23,24 @@ export const env = {
   trustProxy: Number.parseInt(process.env.TRUST_PROXY || '0', 10) || 0,
   // Quantas mesas uma conta pode mestrar ao mesmo tempo, para a loja nao virar
   // deposito de dados de terceiros. Excluir uma mesa libera a vaga.
-  maxCampaignsPerUser: Number.parseInt(process.env.MAX_CAMPAIGNS_PER_USER || '10', 10) || 10
+  maxCampaignsPerUser: Number.parseInt(process.env.MAX_CAMPAIGNS_PER_USER || '10', 10) || 10,
+  // Endereco do site, usado nos links dos e-mails. Sem ele, vale a primeira
+  // origem do CORS (que e o site).
+  appUrl: (process.env.APP_URL || '').replace(/\/$/, ''),
+  // E-mail transacional (recuperar senha) pela API do Resend. Sem a chave, os
+  // e-mails nao saem: em desenvolvimento o link aparece no log da API.
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  emailFrom: process.env.EMAIL_FROM || '',
+  // Refresh token em cookie httpOnly (quando o front pede). "lax" serve para
+  // site e API no mesmo dominio (app. e api. de um dominio proprio); "none"
+  // para dominios diferentes, que navegadores com bloqueio de cookies de
+  // terceiros recusam. Veja o DEPLOY.md.
+  refreshCookieSameSite: ['lax', 'strict', 'none'].includes(process.env.REFRESH_COOKIE_SAMESITE)
+    ? process.env.REFRESH_COOKIE_SAMESITE
+    : 'lax'
 };
+
+env.appUrl ||= env.corsOrigins[0] || 'http://localhost:5173';
 
 // Valores de exemplo que aparecem no repositorio (defaults, .env.*.example e
 // docker-compose antigo). Quem le o codigo conhece todos eles.

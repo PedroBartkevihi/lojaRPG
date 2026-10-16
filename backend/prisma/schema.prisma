@@ -17,6 +17,7 @@ model User {
   characters     Character[]
   createdItems   Item[]           @relation("ItemCreator")
   refreshTokens  RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
   goldAuditLogs  GoldAuditLog[]   @relation("GoldAuditActor")
   stockMovements StockMovement[]  @relation("StockMovementActor")
   inventoryLogs  InventoryLog[]   @relation("InventoryLogActor")
@@ -279,6 +280,21 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Link de redefinicao de senha: so o hash do token fica no banco, como no
+// refresh token. Vale 30 minutos e uma vez.
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model StockMovement {
