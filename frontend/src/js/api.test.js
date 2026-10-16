@@ -217,3 +217,42 @@ describe('refresh token em cookie (VITE_REFRESH_COOKIE)', () => {
     expect(onUnauthorized).toHaveBeenCalled();
   });
 });
+
+describe('canal de eventos da mesa (SSE)', () => {
+  function streamOf(chunks) {
+    const encoder = new TextEncoder();
+    return new ReadableStream({
+      start(controller) {
+        chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)));
+        controller.close();
+      }
+    });
+  }
+
+  it('lê eventos quebrados entre pedaços e ignora comentários', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, body: streamOf(['retry: 5000\n\nevent: rea', 'dy\ndata: {}\n\n: ping\n\nevent: changed\ndata: {}\n', '\n']) })));
+    const api = createApi(() => 'token', vi.fn(), () => 'refresh', vi.fn(), () => 7);
+    const events = [];
+
+    await api.streamCampaignEvents({ onEvent: (name) => events.push(name), signal: new AbortController().signal });
+
+    expect(events).toEqual(['ready', 'changed']);
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toMatch(/\/campaigns\/7\/events$/);
+    expect(options.headers.Authorization).toBe('Bearer token');
+  });
+
+  it('renova a sessão uma vez num 401 e reabre o canal com o token novo', async () => {
+    const store = { token: 'velho' };
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (url.endsWith('/auth/refresh')) return reply(200, { accessToken: 'novo', refreshToken: 'r2' });
+      if (options.headers?.Authorization === 'Bearer novo') return { ok: true, status: 200, body: streamOf(['event: ready\n\n']) };
+      return reply(401, { message: 'Token inválido ou expirado.' });
+    }));
+    const api = createApi(() => store.token, vi.fn(), () => 'r1', (data) => { store.token = data.accessToken; }, () => 7);
+    const events = [];
+
+    await api.streamCampaignEvents({ onEvent: (name) => events.push(name), signal: new AbortController().signal });
+    expect(events).toEqual(['ready']);
+  });
+});

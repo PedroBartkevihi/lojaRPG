@@ -162,6 +162,62 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
 
   // Envia a imagem direto ao Cloudinary com a assinatura da API e devolve a
   // URL final, que o formulario guarda em imageUrl.
+  // Canal de eventos da mesa (SSE). Le o stream pelo fetch, e nao pelo
+  // EventSource, para mandar o token no cabecalho; um 401 renova a sessao uma
+  // vez, como nas outras requisicoes. Termina quando a API fecha o canal.
+  async function streamCampaignEvents({ onEvent, signal }) {
+    let renewed = false;
+
+    for (;;) {
+      const token = getToken();
+      const response = await fetch(`${API_URL}${campaignPath('/events')}`, {
+        headers: { Accept: 'text/event-stream', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        signal
+      });
+
+      if (response.status === 401 && token && !renewed) {
+        renewed = true;
+        const renewal = await renewSession(token);
+
+        if (renewal === 'renewed') {
+          continue;
+        }
+
+        if (renewal === 'rejected') {
+          onUnauthorized?.();
+        }
+      }
+
+      if (!response.ok || !response.body) {
+        const error = new Error('Canal de eventos indisponível.');
+        error.status = response.status;
+        throw error;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      for (;;) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        let end = buffer.indexOf('\n\n');
+
+        while (end !== -1) {
+          const name = buffer.slice(0, end).match(/^event: (.+)$/m)?.[1];
+          buffer = buffer.slice(end + 2);
+          if (name) onEvent(name.trim());
+          end = buffer.indexOf('\n\n');
+        }
+      }
+    }
+  }
+
   async function uploadItemImage(file) {
     const { uploadUrl, fields, maxBytes } = await request(campaignPath('/uploads/item-image'), { method: 'POST' });
 
@@ -253,6 +309,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     cancelItemRequest: (id) => request(campaignPath(`/requests/${id}/cancel`), { method: 'POST' }),
     approveItemRequest: (id, body) => request(campaignPath(`/requests/${id}/approve`), { method: 'POST', body }),
     rejectItemRequest: (id, body) => request(campaignPath(`/requests/${id}/reject`), { method: 'POST', body }),
-    uploadItemImage
+    uploadItemImage,
+    streamCampaignEvents
   };
 }
