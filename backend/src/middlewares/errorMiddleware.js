@@ -1,4 +1,4 @@
-import { logger } from '../config/logger.js';
+import { errorReason, logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export function notFound(_req, _res, next) {
@@ -29,7 +29,7 @@ export function errorHandler(error, req, res, _next) {
   const postgresDeadlock = error.name === 'PrismaClientUnknownRequestError' &&
     /PostgresError\s*\{\s*code:\s*"40P01"/.test(error.message);
   if (error.code === 'P2034' || error.code === 'P2028' || postgresDeadlock) {
-    (req.log || logger).warn(`Transação desfeita (${error.code || '40P01'}): ${error.message.split('\n')[0]}`);
+    (req.log || logger).warn(`Transação desfeita (${error.code || '40P01'}): ${errorReason(error)}`);
     return res.status(409).json({ message: 'Outra operação usava os mesmos dados. Tente de novo.' });
   }
 

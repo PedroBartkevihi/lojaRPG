@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { env } from './config/env.js';
-import { httpLogger } from './config/logger.js';
+import { errorReason, httpLogger } from './config/logger.js';
 import { clientErrorRoute } from './routes/clientErrorRoute.js';
 import { getPrisma } from './database/connection.js';
 import { errorHandler, notFound } from './middlewares/errorMiddleware.js';
@@ -78,7 +78,7 @@ app.get('/ready', async (req, res) => {
     ]);
     res.json({ status: 'ok', database: 'ok' });
   } catch (error) {
-    req.log.warn(`/ready sem banco: ${error.message.split('\n')[0]}`);
+    req.log.warn(`/ready sem banco: ${errorReason(error)}`);
     res.status(503).json({ status: 'indisponivel', database: 'erro' });
   } finally {
     clearTimeout(timer);
