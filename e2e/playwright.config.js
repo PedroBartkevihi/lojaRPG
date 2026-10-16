@@ -62,15 +62,18 @@ export default defineConfig({
       }
     },
     {
+      // Build de producao servido com os cabecalhos do render.yaml (CSP
+      // inclusive); veja static-server.js.
       name: 'Site',
-      command: `npm run build && npx vite preview --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
-      cwd: '../frontend',
+      command: 'npm --prefix ../frontend run build && node static-server.js',
       url: WEB_URL,
       timeout: 180000,
       reuseExistingServer: false,
       env: {
         VITE_API_URL: API_URL,
-        VITE_DEMO_LOGIN: 'true'
+        VITE_DEMO_LOGIN: 'true',
+        E2E_API_URL: API_URL,
+        PORT: String(WEB_PORT)
       }
     }
   ]
