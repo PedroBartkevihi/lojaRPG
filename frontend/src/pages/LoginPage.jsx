@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { LogIn } from 'lucide-react';
 import { SLOW_API_MESSAGE, useSlowHint } from '../js/useSlowHint.js';
 
-export default function LoginPage({ api, onLogin, onSwitch }) {
+export default function LoginPage({ api, onLogin, onSwitch, onForgot }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -44,6 +44,11 @@ export default function LoginPage({ api, onLogin, onSwitch }) {
       <button type="button" className="text-action" onClick={onSwitch}>
         Criar conta
       </button>
+      {onForgot && (
+        <button type="button" className="text-action" onClick={onForgot}>
+          Esqueci minha senha
+        </button>
+      )}
     </form>
   );
 }

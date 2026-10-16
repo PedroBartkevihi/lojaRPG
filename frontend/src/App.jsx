@@ -22,13 +22,15 @@ import {
   useNavigate,
   useParams
 } from 'react-router-dom';
-import { createApi } from './js/api.js';
+import { createApi, REFRESH_COOKIE_MODE } from './js/api.js';
 import DemoLogin, { DEMO_LOGIN_ENABLED } from './components/DemoLogin.jsx';
 import { SkeletonCards } from './components/Skeleton.jsx';
 import { useLiveTick } from './js/useLiveTick.js';
 import { useNotice } from './js/useNotice.js';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import CampaignsPage from './pages/CampaignsPage.jsx';
 import CampaignPage from './pages/CampaignPage.jsx';
 import ShopPage from './pages/ShopPage.jsx';
@@ -112,7 +114,6 @@ function AppContent() {
   const [characters, setCharacters] = useState([]);
   const [charactersLoaded, setCharactersLoaded] = useState(false);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
-  const [authView, setAuthView] = useState('login');
   const [notice, showNotice] = useNotice();
   const [refreshCount, setRefreshCount] = useState(0);
 
@@ -170,7 +171,11 @@ function AppContent() {
       setToken(accessToken);
     }
 
-    if (data.refreshToken) {
+    if (REFRESH_COOKIE_MODE) {
+      // O refresh token esta no cookie httpOnly; um antigo guardado aqui
+      // (de antes do modo cookie) ja foi trocado pelo cookie e sai.
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    } else if (data.refreshToken) {
       localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
     }
 
@@ -368,23 +373,22 @@ function AppContent() {
             {hasPendingInvite && (
               <p className="form-hint auth-hint">Entre ou crie sua conta para participar da mesa do convite.</p>
             )}
-            {isRegisterRoute || authView === 'register' ? (
+            {location.pathname === '/redefinir-senha' ? (
+              <ResetPasswordPage api={api} onDone={() => navigate('/login', { replace: true })} />
+            ) : location.pathname === '/esqueci-senha' ? (
+              <ForgotPasswordPage api={api} onBack={() => navigate('/login')} />
+            ) : isRegisterRoute ? (
               <RegisterPage
                 api={api}
                 onRegister={saveSession}
-                onSwitch={() => {
-                  setAuthView('login');
-                  navigate('/login');
-                }}
+                onSwitch={() => navigate('/login')}
               />
             ) : (
               <LoginPage
                 api={api}
                 onLogin={saveSession}
-                onSwitch={() => {
-                  setAuthView('register');
-                  navigate('/register');
-                }}
+                onSwitch={() => navigate('/register')}
+                onForgot={() => navigate('/esqueci-senha')}
               />
             )}
           </section>
@@ -497,6 +501,17 @@ function AppContent() {
           }
         />
         <Route path="/convite/:code" element={<InviteRoute onJoin={joinWithCode} />} />
+        {/* O link do e-mail tambem funciona com uma sessao aberta neste aparelho. */}
+        <Route
+          path="/redefinir-senha"
+          element={
+            <section className="wide-section narrow-form">
+              <div className="surface-panel">
+                <ResetPasswordPage api={api} onDone={handleLogout} />
+              </div>
+            </section>
+          }
+        />
         <Route
           path="/shop"
           element={inCampaign(

@@ -161,3 +161,59 @@ describe('envio de imagem do item', () => {
     );
   });
 });
+
+describe('refresh token em cookie (VITE_REFRESH_COOKIE)', () => {
+  function cookieSetup({ refreshStatus = 200 } = {}) {
+    const store = { token: 'access-velho', refreshToken: null };
+    const onUnauthorized = vi.fn();
+    const onTokenRefresh = vi.fn((data) => {
+      store.token = data.accessToken;
+    });
+    const fetchMock = vi.fn(async (url, options = {}) => {
+      const { pathname } = new URL(url);
+      if (pathname === '/auth/refresh') {
+        return refreshStatus === 200 ? reply(200, { accessToken: 'access-novo' }) : reply(401, { message: 'Refresh token inválido ou expirado.' });
+      }
+      if (pathname === '/auth/login') {
+        return reply(200, { accessToken: 'access-1', user: { name: 'Lia' } });
+      }
+      return options.headers?.Authorization === 'Bearer access-novo' ? reply(200, { campaigns: [] }) : reply(401, { message: 'Token inválido ou expirado.' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const api = createApi(() => store.token, onUnauthorized, () => store.refreshToken, onTokenRefresh, () => '1', { refreshCookie: true });
+    return { api, store, fetchMock, onUnauthorized, onTokenRefresh };
+  }
+
+  it('manda o cookie só para /auth, com o cabeçalho do modo, e renova sem refresh token no corpo', async () => {
+    const { api, fetchMock, onUnauthorized } = cookieSetup();
+
+    await api.login({ email: 'lia@lojarpg.local', password: 'x' });
+    await expect(api.listCampaigns()).resolves.toEqual({ campaigns: [] });
+
+    const calls = fetchMock.mock.calls.map(([url, options]) => [new URL(url).pathname, options]);
+    for (const [path, options] of calls) {
+      const auth = path.startsWith('/auth/');
+      expect(options.credentials).toBe(auth ? 'include' : undefined);
+      expect(options.headers['X-Refresh-Transport']).toBe(auth ? 'cookie' : undefined);
+    }
+    const refresh = calls.find(([path]) => path === '/auth/refresh')[1];
+    expect(JSON.parse(refresh.body)).toEqual({});
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it('manda uma vez o refresh token antigo do localStorage para trocar pelo cookie', async () => {
+    const { api, store, fetchMock } = cookieSetup();
+    store.refreshToken = 'refresh-antigo';
+
+    await api.listCampaigns();
+    const refresh = fetchMock.mock.calls.find(([url]) => url.endsWith('/auth/refresh'))[1];
+    expect(JSON.parse(refresh.body)).toEqual({ refreshToken: 'refresh-antigo' });
+  });
+
+  it('encerra a sessão quando o cookie é recusado e nenhuma outra aba renovou', async () => {
+    const { api, onUnauthorized } = cookieSetup({ refreshStatus: 401 });
+
+    await expect(api.listCampaigns()).rejects.toThrow('Token inválido ou expirado.');
+    expect(onUnauthorized).toHaveBeenCalled();
+  });
+});
