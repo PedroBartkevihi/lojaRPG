@@ -49,6 +49,57 @@ Limites do plano gratuito:
   usam as contas da demonstração. Sem demonstração, defina
   `VITE_DEMO_LOGIN=false` no front-end e refaça o deploy dele para escondê-los.
 
+## API acordada no dia de jogo e monitoramento
+
+No plano gratuito, a API dorme depois de 15 minutos sem acesso, e o primeiro
+login depois disso leva perto de um minuto. Três saídas, da mais limpa para a
+mais barata:
+
+1. **Instância paga só para a API** (no painel do Render, mude o plano do
+   `lojarpg-api`). O site estático continua gratuito. É a única que deixa a API
+   sempre acordada sem gastar as horas do plano gratuito.
+2. **Workflow "Acordar a API para a sessão"** (`.github/workflows/acordar-api.yml`).
+   Antes do jogo, abra a aba Actions do repositório (dá para fazer pelo app do
+   GitHub no celular), escolha o workflow, clique em *Run workflow* e diga por
+   quantas horas (1 a 5). Ele chama o `/ready` a cada 5 minutos e falha, com
+   aviso por e-mail, se a API ficar 30 minutos sem responder. A URL vem da
+   variável `API_URL` do repositório (*Settings > Secrets and variables >
+   Actions > Variables*), com `https://lojarpg-api.onrender.com` como padrão.
+3. **Abrir o site uns minutos antes** da sessão, sem configurar nada.
+
+Cada hora acordada conta nas 750 horas mensais do plano gratuito do Render
+(somadas entre os serviços web da conta). Com a demonstração ligada
+(`DEMO_RESET_ON_START=true`), lembre que ela só volta ao estado inicial quando
+a API reinicia, então uma API sempre acordada reseta a demonstração com menos
+frequência.
+
+### Monitor de disponibilidade
+
+A API tem duas rotas sem autenticação:
+
+- `GET /health`: responde `{"status":"ok"}` enquanto o processo estiver de pé.
+  É o `healthCheckPath` do Render; se ela falhar, o Render reinicia a API.
+- `GET /ready`: consulta o banco (`SELECT 1`, com limite de 5 segundos) e
+  responde 200 ou 503. É a rota para um monitor externo.
+
+Elas são separadas de propósito: se o `/health` dependesse do banco, um Neon
+lento faria o Render reiniciar uma API saudável, e a queda ficaria maior.
+
+Para ser avisado de uma queda, cadastre a API num monitor gratuito (por
+exemplo UptimeRobot ou Better Stack), com alerta por e-mail. Atenção a dois
+custos de um monitor que verifica a cada poucos minutos:
+
+- **Render:** ele mantém a API acordada o mês inteiro, consumindo as horas do
+  plano gratuito como na opção 2. Com a API no plano pago isso não importa.
+- **Neon:** cada chamada ao `/ready` faz um `SELECT 1`, então o banco também
+  nunca dorme e gasta as horas de computação do plano gratuito do Neon o mês
+  inteiro. Se elas acabarem, o Neon suspende o banco até o próximo ciclo e a
+  API inteira para. Confira a cota em *Billing* no Neon.
+
+No plano gratuito, prefira o workflow só no dia de jogo e confira o `/ready`
+quando ele terminar. Um monitor contínuo deve chamar o `/health` (que não toca
+no banco); deixe o `/ready` com intervalo longo, ou só com o Neon pago.
+
 ## Produção local com Docker
 
 Na raiz do projeto, crie o `.env` com os segredos (o Git ignora esse arquivo):
@@ -216,16 +267,101 @@ compras e históricos. Não apague personagens para liberar o reset, e não marq
 uma mesa como demonstração só pelo nome ou pelo id. A API nunca transfere dados
 para uma conta presumida.
 
-## Backup do PostgreSQL
+## Backup e restauração
 
-Banco do Docker:
+O backup tem e-mails e hashes de senha. Guarde os arquivos em local privado,
+nunca no repositório (a pasta `backups/` é ignorada pelo Git).
+
+### Retenção do Neon
+
+O Neon guarda um histórico do banco (*point-in-time restore*), mas a janela do
+plano gratuito é curta. Confira em *Settings > Storage* do projeto qual é a
+janela atual do seu plano: ela cobre um erro percebido na hora, não um
+problema descoberto dias depois. Por isso vale o `pg_dump` periódico abaixo.
+Antes de uma atualização sensível, crie também um branch de backup no Neon
+(*Branches > Create branch*), como no deploy do PR #15.
+
+### Backup manual (do seu computador)
+
+Os scripts rodam o `pg_dump` e o `pg_restore` na imagem oficial do
+PostgreSQL 17 pelo Docker, sem instalar nada além dele. Para a senha do banco
+não ficar no histórico do terminal, ponha a URL no `backend/.env` (que o Git
+ignora), em vez de passá-la na linha de comando:
 
 ```bash
-docker compose exec db pg_dump -U lojarpg lojarpg > backup-lojarpg.sql
+BACKUP_DATABASE_URL=postgresql://usuario:senha@host/banco?sslmode=require
 ```
 
-Em um PostgreSQL hospedado, use `pg_dump` com a URL do banco ou o backup do
-próprio provedor.
+Depois, no diretório `backend`:
+
+```bash
+npm run db:backup
+```
+
+O arquivo vai para `backups/<banco>-<data UTC>.dump` na raiz do projeto, no
+formato custom do `pg_dump` (comprimido). Sem `BACKUP_DATABASE_URL`, o script
+usa o `DATABASE_URL` do `.env` (o banco de desenvolvimento). Também aceita
+`--url <URL>` e `--out <pasta>`. A senha vai para o container só pelo ambiente
+(`PGPASSWORD`), nunca nos argumentos do `pg_dump`.
+
+### Backup semanal automático (GitHub Actions)
+
+O workflow `.github/workflows/backup.yml` roda toda segunda-feira às 06:00 UTC
+(e sob demanda pela aba Actions). Ele exporta o banco, **criptografa** o
+arquivo com GPG (AES-256) e o guarda como artefato do workflow por 30 dias. A
+criptografia é obrigatória porque os artefatos de um repositório público podem
+ser baixados por qualquer conta do GitHub. Para ligar, crie dois segredos em
+*Settings > Secrets and variables > Actions*:
+
+- `BACKUP_DATABASE_URL`: a connection string direta do Neon. De preferência
+  com um papel só de leitura criado para o backup (por exemplo, no SQL Editor do Neon:
+  `CREATE ROLE backup LOGIN PASSWORD '...'; GRANT pg_read_all_data TO backup;`),
+  e não com o dono do banco.
+- `BACKUP_PASSPHRASE`: uma senha longa, guardada também fora do GitHub (sem
+  ela o backup não abre).
+
+Sem os segredos, o workflow só avisa e termina. O GitHub desativa workflows
+agendados de repositórios sem atividade por 60 dias; se isso acontecer, ele
+avisa por e-mail e basta reativar na aba Actions. O artefato baixado vem num
+`.zip`; extraia o `.dump.gpg` para a pasta `backups/` e abra com:
+
+```bash
+gpg --output backups/lojarpg.dump --decrypt backups/lojarpg-AAAAMMDD-HHMM.dump.gpg
+```
+
+Use `--output`, e não `> arquivo`: no PowerShell o `>` regrava a saída como
+texto e corrompe o dump.
+
+### Ensaio de restauração
+
+Um backup só vale se a restauração funcionar. Pelo menos uma vez (e depois de
+mudanças grandes no schema), restaure um backup num banco de teste e confira
+os dados:
+
+```bash
+npm run db:restore-check -- ../backups/<arquivo>.dump
+```
+
+Para comparar com a origem, ponha a URL dela no `backend/.env` como
+`COMPARE_DATABASE_URL` (ou passe `--compare <URL>`). O caminho do arquivo vale
+a partir da pasta onde você digitou o comando ou da raiz do projeto.
+
+O script recria o banco `lojarpg_restore` do Docker local (o destino precisa
+terminar em `_restore`, porque é apagado e recriado; mude com `--target`),
+restaura o arquivo e mostra a contagem de usuários, mesas, vendedores,
+personagens, itens, inventário, compras e históricos, a soma do ouro e a
+última migration. Com a origem, compara cada número (inclusive tabelas que só
+existam de um lado) e termina com erro se algum for diferente; rode logo depois
+do backup, antes de novas operações na origem. Um backup sem as tabelas da loja
+(por exemplo, do banco errado) também termina com erro. Depois do ensaio, apague o banco de teste:
+
+```bash
+docker compose exec db psql -U lojarpg -c "DROP DATABASE lojarpg_restore"
+```
+
+Para restaurar de verdade num banco novo do Neon, use o mesmo `pg_restore`
+com a URL dele (`--no-owner --no-privileges`), com a API parada, e só depois
+troque o `DATABASE_URL` no Render.
 
 ## Logs
 

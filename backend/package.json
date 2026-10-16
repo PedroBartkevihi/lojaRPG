@@ -18,7 +18,9 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "db:backup": "node scripts/backup.js dump",
+    "db:restore-check": "node scripts/backup.js restore-check"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

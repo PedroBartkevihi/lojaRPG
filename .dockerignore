@@ -6,3 +6,4 @@ backend/data
 **/*.sqlite-shm
 **/*.sqlite-wal
 .git
+backups

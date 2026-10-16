@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { env } from './config/env.js';
+import { getPrisma } from './database/connection.js';
 import { errorHandler, notFound } from './middlewares/errorMiddleware.js';
 import { authRoutes } from './routes/authRoutes.js';
 import { campaignRoutes } from './routes/campaignRoutes.js';
@@ -44,8 +45,34 @@ app.use(
 );
 app.use(express.json());
 
+// O /health so diz que o processo responde, e e o que o Render usa: um banco
+// lento ali faria o Render reiniciar uma API saudavel. O /ready consulta o
+// banco e serve para o monitor de disponibilidade.
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+const READY_TIMEOUT_MS = 5000;
+
+app.get('/ready', async (_req, res) => {
+  let timer;
+
+  try {
+    await Promise.race([
+      getPrisma().$queryRaw`SELECT 1`,
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Tempo esgotado ao consultar o banco.')), READY_TIMEOUT_MS);
+      })
+    ]);
+    res.json({ status: 'ok', database: 'ok' });
+  } catch (error) {
+    if (env.nodeEnv !== 'test') {
+      console.warn(`/ready sem banco: ${error.message.split('\n')[0]}`);
+    }
+    res.status(503).json({ status: 'indisponivel', database: 'erro' });
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 app.use('/auth', authRoutes);

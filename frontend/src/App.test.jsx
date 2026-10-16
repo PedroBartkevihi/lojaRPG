@@ -26,6 +26,9 @@ function fakeApi() {
     },
     'GET /campaigns/7/characters/me': () => ({ characters: [] }),
     'GET /campaigns/7/items': () => ({ items: [] }),
+    // Sem esta rota a loja recebia {} e quebrava em shops.find quando a resposta
+    // chegava antes do fim do teste (falha intermitente no CI).
+    'GET /campaigns/7/shops': () => ({ shops: [] }),
     'GET /campaigns/7/catalog/categories': () => ({ categories: [] })
   };
 

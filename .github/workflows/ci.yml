@@ -58,3 +58,57 @@ jobs:
       - run: npm run build
         env:
           VITE_API_URL: http://localhost:3001
+
+  e2e:
+    name: Ponta a ponta (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lojarpg
+          POSTGRES_PASSWORD: lojarpg
+          POSTGRES_DB: lojarpg_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lojarpg -d lojarpg_e2e"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      E2E_DATABASE_URL: postgresql://lojarpg:lojarpg@127.0.0.1:5432/lojarpg_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            e2e/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npx prisma generate
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend
+      - run: npm ci
+        working-directory: e2e
+      - name: Instalar o Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      # O Playwright sobe a API (com migrations e a mesa de demonstracao) e o
+      # site de producao (vite build + preview); veja e2e/playwright.config.js.
+      - run: npx playwright test
+        working-directory: e2e
+      - name: Guardar prints, videos e traces da falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-falhas
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 14
