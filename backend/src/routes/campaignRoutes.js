@@ -16,6 +16,7 @@ import { shopRoutes } from './shopRoutes.js';
 import { sessionRoutes } from './sessionRoutes.js';
 import { uploadRoutes } from './uploadRoutes.js';
 import { itemRequestRoutes } from './itemRequestRoutes.js';
+import { discountRoutes } from './discountRoutes.js';
 
 export const campaignRoutes = Router();
 
@@ -42,3 +43,4 @@ campaignRoutes.use('/:campaignId/shops', shopRoutes);
 campaignRoutes.use('/:campaignId/sessions', sessionRoutes);
 campaignRoutes.use('/:campaignId/uploads', uploadRoutes);
 campaignRoutes.use('/:campaignId/requests', itemRequestRoutes);
+campaignRoutes.use('/:campaignId/discounts', discountRoutes);

@@ -3,6 +3,7 @@ import { createItem, findItemById, listItems, reactivateItem } from '../models/i
 import { expectedStockSchema, itemIdSchema, itemQuerySchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
 import { importItems } from '../services/itemImportService.js';
+import { activeDiscounts, priceWithDiscount, resolveShopCharacter } from '../services/discountService.js';
 import { id } from '../schemas/fields.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse, parseChanges } from '../utils/validation.js';
@@ -32,13 +33,16 @@ function parseItem(body, existing) {
 
 export async function index(req, res) {
   const includeInactive = req.query.includeInactive === 'true' && isGameMaster(req);
-  const items = await listItems({
-    ...parse(itemQuerySchema, req.query),
-    campaignId: req.campaign.id,
-    includeInactive
-  });
+  const { characterId, ...filters } = parse(itemQuerySchema, req.query);
+  const character = await resolveShopCharacter(req, characterId);
+  const [items, discounts] = await Promise.all([
+    listItems({ ...filters, campaignId: req.campaign.id, includeInactive }),
+    activeDiscounts(req.campaign.id, character?.id)
+  ]);
 
-  res.json({ items });
+  // Cada item leva o preco final (com o maior desconto que vale para ele) e
+  // o desconto aplicado; o filtro de preco continua sobre o preco de tabela.
+  res.json({ items: items.map((item) => ({ ...item, ...priceWithDiscount(item, discounts) })) });
 }
 
 export async function show(req, res) {

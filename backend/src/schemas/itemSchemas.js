@@ -45,6 +45,8 @@ const queryPrice = (field) => integer(field, { min: 0, max: 100000000 }).optiona
 export const itemQuerySchema = z
   .object({
     shopId: id('Vendedor').optional(),
+    // Personagem da vitrine: os precos vem com os descontos dele.
+    characterId: id('Personagem').optional(),
     search: queryText,
     category: queryText,
     rarity: queryText,
