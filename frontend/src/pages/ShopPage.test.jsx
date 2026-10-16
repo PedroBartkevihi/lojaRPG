@@ -22,7 +22,7 @@ const aria = { id: 2, name: 'Aria', className: 'Ladina', race: 'Elfa', level: 4,
 function renderShop(api) {
   return render(
     <ShopPage
-      api={{ listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }), listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), ...api }}
+      api={{ listShops: vi.fn().mockResolvedValue({ shops: [{ id: 1, name: 'Geral', isOpen: true }] }), listCategories: vi.fn().mockResolvedValue({ categories: [{ name: 'Poções' }, { name: 'Armas' }] }), listRarities: vi.fn().mockResolvedValue({ rarities: [{ id: 2, name: 'Raro', rank: 3 }, { id: 1, name: 'Comum', rank: 1 }] }), ...api }}
       liveKey={0}
       isMaster={false}
       character={aria}
@@ -52,6 +52,47 @@ describe('ShopPage', () => {
     await waitFor(() => expect(api.listItems).toHaveBeenLastCalledWith(expect.objectContaining({ shopId: '2' })));
     expect(await screen.findByText(/Até o anoitecer/)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('heading', { name: potion.name })).not.toBeInTheDocument());
+  });
+
+  it('filtra por raridade e faixa de preço em PO, mandando os valores em PC', async () => {
+    const user = userEvent.setup();
+    const api = { listItems: vi.fn().mockResolvedValue({ items: [potion] }) };
+    renderShop(api);
+    await screen.findByRole('heading', { name: potion.name });
+
+    const raritySelect = screen.getByRole('combobox', { name: 'Filtrar por raridade' });
+    expect([...raritySelect.options].map((option) => option.textContent)).toEqual(['Todas as raridades', 'Comum', 'Raro']);
+    await user.selectOptions(raritySelect, 'Raro');
+    await user.type(screen.getByRole('textbox', { name: 'Preço mínimo em PO' }), '2,5');
+    await user.type(screen.getByRole('textbox', { name: 'Preço máximo em PO' }), '100');
+
+    await waitFor(() =>
+      expect(api.listItems).toHaveBeenLastCalledWith(expect.objectContaining({ rarity: 'Raro', minPrice: 250, maxPrice: 10000 }))
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    await waitFor(() =>
+      expect(api.listItems).toHaveBeenLastCalledWith(expect.objectContaining({ rarity: '', minPrice: '', maxPrice: '' }))
+    );
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument();
+  });
+
+  it('não manda faixa de preço inválida ou invertida', async () => {
+    const user = userEvent.setup();
+    const api = { listItems: vi.fn().mockResolvedValue({ items: [potion] }) };
+    renderShop(api);
+    await screen.findByRole('heading', { name: potion.name });
+
+    await user.type(screen.getByRole('textbox', { name: 'Preço mínimo em PO' }), '50');
+    await user.type(screen.getByRole('textbox', { name: 'Preço máximo em PO' }), '10');
+    expect(await screen.findByRole('alert')).toHaveTextContent('O preço mínimo é maior que o máximo.');
+
+    await user.clear(screen.getByRole('textbox', { name: 'Preço máximo em PO' }));
+    await user.type(screen.getByRole('textbox', { name: 'Preço máximo em PO' }), '0,001');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Use um valor em PO');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(api.listItems).not.toHaveBeenCalledWith(expect.objectContaining({ maxPrice: 1000 }));
+    expect(api.listItems).not.toHaveBeenCalledWith(expect.objectContaining({ minPrice: 5000, maxPrice: 1000 }));
   });
 
   it('busca categorias sem baixar novamente o catalogo completo de itens', async () => {
