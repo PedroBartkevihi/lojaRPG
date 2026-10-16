@@ -76,6 +76,9 @@ personagem.
 - Venda de itens ao vendedor de origem pela regra do D&D 5e (metade do preço)
   ou pelo valor que o Mestre definir; o item volta ao estoque.
 - Uso de itens consumíveis, como poções, que saem do inventário.
+- Força do personagem e capacidade de carga (Força x 15 lb, como no livro):
+  o inventário mostra a carga, e o carrinho avisa quando a compra passa da
+  capacidade, sem bloquear.
 - Encomendas ao Mestre: pedir um item que não está no catálogo ("um arco
   élfico, pago até 300 PO") e acompanhar a resposta na própria loja.
 - Entrega de itens e moedas a outro personagem da mesa, sem passar pelo
@@ -105,6 +108,12 @@ personagem.
   divisão) ou o mesmo valor para cada um, e itens entregues direto no
   inventário, inclusive itens que não estão à venda.
 - Preço de venda por item e itens que a loja não compra, como itens de missão.
+- Atributos opcionais nos itens: peso (lb), dano, classe de armadura e
+  sintonização, exibidos no card da loja e no inventário.
+- Importação de vários itens de uma vez: pacotes prontos do SRD 5.1
+  (equipamento de aventura, armas, armaduras, poções e alquimia) ou uma
+  planilha CSV do Mestre, lida no navegador com prévia e os erros de cada linha
+  antes do envio. Itens com nome já existente no vendedor ficam de fora.
 - Encomendas dos jogadores: aprovar entregando um item do catálogo ou um item
   novo, feito para a encomenda, cobrando até o valor que o jogador aceitou
   pagar, ou recusar com uma nota.
@@ -162,6 +171,9 @@ pede participa da mesa e qual é o papel dele nela.
   da compra, e a encomenda vira uma compra no histórico e no diário da
   sessão. Se faltar ouro, tudo volta e a encomenda continua pendente. O item
   feito sob medida entra no catálogo fora da loja, sem estoque.
+- **Importação numa transação só.** A API valida cada linha com o mesmo
+  schema do cadastro e, se alguma estiver errada, recusa a importação inteira
+  com o número das linhas; categorias e raridades novas são criadas pelo nome.
 - **Compra e entrega sem cobrança dupla.** Cada compra e cada entrega levam
   uma `idempotencyKey`, gravada na mesma transação da operação. Se a resposta
   se perder e o front repetir o pedido, a API devolve o resultado original em
@@ -464,6 +476,12 @@ Encomendas:
   `description`), e `note`
 - `POST /requests/:id/reject` (Mestre): `note`
 
+Importação (Mestre):
+
+- `GET /catalog/packs`: pacotes do SRD 5.1, com o texto de atribuição
+- `POST /items/import`: `items` (até 500, preços em PC) e `shopId` opcional;
+  responde com `created` e os nomes pulados (`skipped`)
+
 Imagens dos itens (Mestre):
 
 - `GET /uploads/config`: diz se o envio de imagens está configurado
@@ -508,3 +526,10 @@ no dia de jogo e o backup do banco com o ensaio de restauração.
 ## Licença
 
 [MIT](./LICENSE).
+
+Os pacotes de itens de `backend/src/data/srdCatalog.js` incluem material do
+System Reference Document 5.1 ("SRD 5.1") da Wizards of the Coast LLC,
+disponível em <https://dnd.wizards.com/resources/systems-reference-document>.
+O SRD 5.1 é licenciado sob a
+[Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/legalcode).
+Nomes e textos foram traduzidos e adaptados.
