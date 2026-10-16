@@ -118,3 +118,46 @@ describe('renovação da sessão', () => {
     expect(refreshCalls()).toHaveLength(0);
   });
 });
+
+describe('envio de imagem do item', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubUpload(cloudinaryReply) {
+    const fetchMock = vi.fn(async (url) => {
+      if (url.endsWith('/campaigns/7/uploads/item-image')) {
+        return reply(200, {
+          uploadUrl: 'https://api.cloudinary.com/v1_1/demo/image/upload',
+          fields: { api_key: '123', timestamp: 1, signature: 'abc', folder: 'lojarpg/mesa-7' },
+          maxBytes: 10
+        });
+      }
+      return cloudinaryReply;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return createApi(() => 'token', vi.fn(), () => 'refresh', vi.fn(), () => 7);
+  }
+
+  it('manda o arquivo com os campos assinados e devolve a URL segura', async () => {
+    const api = stubUpload(reply(200, { secure_url: 'https://res.cloudinary.com/demo/escudo.webp' }));
+    const file = new File(['12345'], 'escudo.png', { type: 'image/png' });
+
+    await expect(api.uploadItemImage(file)).resolves.toBe('https://res.cloudinary.com/demo/escudo.webp');
+    const [url, options] = fetch.mock.calls[1];
+    expect(url).toBe('https://api.cloudinary.com/v1_1/demo/image/upload');
+    expect(options.headers).toBeUndefined();
+    expect(options.body.get('signature')).toBe('abc');
+    expect(options.body.get('file')).toBe(file);
+  });
+
+  it('recusa arquivo acima do limite e mostra o erro do armazenamento', async () => {
+    const api = stubUpload(reply(400, { error: { message: 'Invalid image file' } }));
+
+    await expect(api.uploadItemImage(new File(['grande demais'], 'mapa.png', { type: 'image/png' }))).rejects.toThrow('mais de 0 MB');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(api.uploadItemImage(new File(['ok'], 'mapa.png', { type: 'image/png' }))).rejects.toThrow(
+      'O envio da imagem falhou: Invalid image file'
+    );
+  });
+});

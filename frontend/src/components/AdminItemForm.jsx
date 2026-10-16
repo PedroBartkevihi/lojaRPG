@@ -1,7 +1,7 @@
 import MoneyInput from './MoneyInput.jsx';
 import { formatMoney } from '../js/money.js';
 import { useEffect, useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { ImageUp, Save, X } from 'lucide-react';
 
 const emptyForm = {
   name: '',
@@ -23,10 +23,13 @@ function withinOptions(value, options) {
   return options.length === 0 || options.some((option) => option.name === value) ? value : options[0].name;
 }
 
-export default function AdminItemForm({ item, shops = [], categories = [], rarities = [], onSave, onCancel }) {
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+export default function AdminItemForm({ api, uploadsEnabled = false, item, shops = [], categories = [], rarities = [], onSave, onCancel }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     // Preco de venda vazio segue a regra padrao (metade do preco).
@@ -46,6 +49,31 @@ export default function AdminItemForm({ item, shops = [], categories = [], rarit
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  // A imagem vai do celular direto para o armazenamento; o formulario so
+  // recebe a URL final, como se o Mestre a tivesse colado.
+  async function uploadImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    if (!IMAGE_TYPES.includes(file.type)) {
+      setError('Envie uma imagem JPG, PNG, WebP ou GIF.');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    try {
+      updateField('imageUrl', await api.uploadItemImage(file));
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSubmit(event) {
@@ -139,6 +167,23 @@ export default function AdminItemForm({ item, shops = [], categories = [], rarit
           placeholder="https://..."
         />
       </label>
+      {uploadsEnabled && (
+        <div className="image-upload">
+          <label className={`secondary-action file-action${uploading ? ' disabled' : ''}`}>
+            <ImageUp size={17} />
+            {uploading ? 'Enviando imagem...' : 'Enviar imagem do aparelho'}
+            <input
+              type="file"
+              accept={IMAGE_TYPES.join(',')}
+              onChange={uploadImage}
+              disabled={uploading}
+              className="visually-hidden"
+            />
+          </label>
+          <small>JPG, PNG, WebP ou GIF de até 5 MB; a imagem é reduzida para 800 px.</small>
+        </div>
+      )}
+      {form.imageUrl && <img className="item-image-preview" src={form.imageUrl} alt="Prévia da imagem do item" />}
       <div className="form-grid two">
         <MoneyInput label="Preço" value={form.price} onChange={(value) => updateField('price', value)} required />
         <label>
@@ -175,7 +220,7 @@ export default function AdminItemForm({ item, shops = [], categories = [], rarit
       )}
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <button className="primary-action" disabled={saving}>
+        <button className="primary-action" disabled={saving || uploading}>
           <Save size={17} />
           {saving ? 'Salvando...' : 'Salvar'}
         </button>

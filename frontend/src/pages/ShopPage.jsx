@@ -1,11 +1,13 @@
-import { formatMoney } from '../js/money.js';
+import { formatMoney, parseMoney } from '../js/money.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Coins, Search, ShoppingCart } from 'lucide-react';
+import { Coins, Search, ShoppingCart, X } from 'lucide-react';
 import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
 import ItemCard from '../components/ItemCard.jsx';
 import { SkeletonCards } from '../components/Skeleton.jsx';
 
+
+const MAX_PRICE_FILTER = 100000000;
 export default function ShopPage({
   api,
   liveKey,
@@ -26,6 +28,11 @@ export default function ShopPage({
   // A busca so sai 300 ms depois da ultima tecla, e nao a cada letra.
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState('');
+  const [rarities, setRarities] = useState([]);
+  const [rarity, setRarity] = useState('');
+  // Faixa de preco digitada em PO; vai para a API em PC junto com a busca.
+  const [priceText, setPriceText] = useState({ min: '', max: '' });
+  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
@@ -51,7 +58,14 @@ export default function ShopPage({
     setError('');
 
     try {
-      const data = await api.listItems({ search: searchTerm, category, shopId });
+      const data = await api.listItems({
+        search: searchTerm,
+        category,
+        rarity,
+        shopId,
+        minPrice: priceRange.min,
+        maxPrice: priceRange.max
+      });
 
       if (!isLatest()) {
         return;
@@ -71,12 +85,50 @@ export default function ShopPage({
         setLoading(false);
       }
     }
-  }, [api, searchTerm, category, shopId]);
+  }, [api, searchTerm, category, rarity, shopId, priceRange]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(search), 300);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  // Um valor que nao vira PC inteiro (ou a faixa invertida) nao vai para a
+  // API: a lista atual fica e o aviso explica o porque.
+  const priceMin = priceText.min === '' ? '' : parseMoney(priceText.min, 'PO');
+  const priceMax = priceText.max === '' ? '' : parseMoney(priceText.max, 'PO');
+  const invalidPrice = [priceMin, priceMax].some((value) => value !== '' && (!Number.isSafeInteger(value) || value < 0));
+  // O mesmo teto da API (100.000.000 PC), dito em PO.
+  const tooHighPrice = !invalidPrice && [priceMin, priceMax].some((value) => value !== '' && value > MAX_PRICE_FILTER);
+  const invertedPrice = !invalidPrice && priceMin !== '' && priceMax !== '' && priceMin > priceMax;
+  const priceError = invalidPrice
+    ? 'Use um valor em PO, como 10 ou 2,5.'
+    : tooHighPrice
+      ? 'O preço vai até 1.000.000 PO.'
+      : invertedPrice
+      ? 'O preço mínimo é maior que o máximo.'
+      : '';
+
+  useEffect(() => {
+    if (priceError) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(
+      () => setPriceRange((current) => (current.min === priceMin && current.max === priceMax ? current : { min: priceMin, max: priceMax })),
+      300
+    );
+    return () => window.clearTimeout(timer);
+  }, [priceMin, priceMax, priceError]);
+
+  const filtering = Boolean(search || category || rarity || shopId || priceText.min || priceText.max);
+
+  function clearFilters() {
+    setSearch('');
+    setCategory('');
+    setRarity('');
+    setShopId('');
+    setPriceText({ min: '', max: '' });
+  }
 
   useEffect(() => {
     loadItems();
@@ -87,6 +139,14 @@ export default function ShopPage({
       .listCategories()
       .then((data) => setCategories(data.categories.map((entry) => entry.name).sort()))
       .catch((requestError) => setError(requestError.message));
+  }, [api, liveKey]);
+
+  useEffect(() => {
+    let current = true;
+    api.listRarities().then((data) => {
+      if (current) setRarities([...data.rarities].sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)));
+    }).catch((err) => { if (current) setError(err.message); });
+    return () => { current = false; };
   }, [api, liveKey]);
 
   useEffect(() => {
@@ -178,18 +238,19 @@ export default function ShopPage({
           )}
         </div>
 
-        <div className="toolbar">
-          <select aria-label="Filtrar por vendedor" value={shopId} onChange={(e) => setShopId(e.target.value)}>
-            <option value="">Todos vendedores</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}{shop.isOpen ? '' : ' (fechado)'}</option>)}
-          </select>
+        <div className="toolbar shop-filters">
           <label className="search-field">
             <Search size={18} />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar item"
+              aria-label="Buscar item"
             />
           </label>
+          <select aria-label="Filtrar por vendedor" value={shopId} onChange={(e) => setShopId(e.target.value)}>
+            <option value="">Todos vendedores</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}{shop.isOpen ? '' : ' (fechado)'}</option>)}
+          </select>
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -202,7 +263,40 @@ export default function ShopPage({
               </option>
             ))}
           </select>
+          <select value={rarity} onChange={(event) => setRarity(event.target.value)} aria-label="Filtrar por raridade">
+            <option value="">Todas as raridades</option>
+            {rarities.map((entry) => (
+              <option key={entry.id} value={entry.name}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+          <div className="price-filter" role="group" aria-label="Faixa de preço em PO">
+            <input
+              inputMode="decimal"
+              value={priceText.min}
+              onChange={(event) => setPriceText((current) => ({ ...current, min: event.target.value }))}
+              placeholder="De (PO)"
+              aria-label="Preço mínimo em PO"
+              aria-invalid={Boolean(priceError) || undefined}
+            />
+            <input
+              inputMode="decimal"
+              value={priceText.max}
+              onChange={(event) => setPriceText((current) => ({ ...current, max: event.target.value }))}
+              placeholder="Até (PO)"
+              aria-label="Preço máximo em PO"
+              aria-invalid={Boolean(priceError) || undefined}
+            />
+          </div>
+          {filtering && (
+            <button type="button" className="text-action clear-filters" onClick={clearFilters}>
+              <X size={16} />
+              Limpar filtros
+            </button>
+          )}
         </div>
+        {priceError && <p className="form-error" role="alert">{priceError}</p>}
 
         {selectedShop && <p className="surface-panel" role="status">{selectedShop.name}: {selectedShop.isOpen ? 'aberto' : 'fechado para compras e vendas'}. {selectedShop.hours || 'Horário não informado'}</p>}
         {!cartOpen && <p role="status">Há um vendedor fechado no carrinho. Remova seus itens ou aguarde a reabertura.</p>}
@@ -214,7 +308,9 @@ export default function ShopPage({
             {items.map((item) => (
               <ItemCard key={item.id} item={item} onAdd={() => addToCart(item)} readOnly={isMaster} disabled={!shops.some((shop) => shop.id === item.shopId && shop.isOpen)} />
             ))}
-            {items.length === 0 && <p className="empty-state">Nenhum item encontrado.</p>}
+            {items.length === 0 && (
+              <p className="empty-state">{filtering ? 'Nenhum item com esses filtros.' : 'Nenhum item encontrado.'}</p>
+            )}
           </div>
         )}
       </div>

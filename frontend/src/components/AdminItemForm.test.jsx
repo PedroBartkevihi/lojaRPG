@@ -100,4 +100,36 @@ describe('AdminItemForm', () => {
       expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ stock: 12, expectedStock: 5 }));
     });
   });
+
+  it('envia a imagem do aparelho e guarda a URL devolvida', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue();
+    const api = { uploadItemImage: vi.fn().mockResolvedValue('https://res.cloudinary.com/demo/image/upload/escudo.webp') };
+    render(<AdminItemForm api={api} uploadsEnabled categories={categories} rarities={rarities} onSave={onSave} />);
+
+    const file = new File(['imagem'], 'escudo.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText(/Enviar imagem do aparelho/), file);
+
+    expect(api.uploadItemImage).toHaveBeenCalledWith(file);
+    expect(await screen.findByAltText('Prévia da imagem do item')).toHaveAttribute(
+      'src',
+      'https://res.cloudinary.com/demo/image/upload/escudo.webp'
+    );
+    await fillRequired(user);
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ imageUrl: 'https://res.cloudinary.com/demo/image/upload/escudo.webp' }));
+  });
+
+  it('recusa arquivo que não é imagem e esconde o envio sem armazenamento configurado', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const api = { uploadItemImage: vi.fn() };
+    const { rerender } = render(<AdminItemForm api={api} uploadsEnabled categories={categories} rarities={rarities} onSave={vi.fn()} />);
+
+    await user.upload(screen.getByLabelText(/Enviar imagem do aparelho/), new File(['%PDF'], 'ficha.pdf', { type: 'application/pdf' }));
+    expect(screen.getByText('Envie uma imagem JPG, PNG, WebP ou GIF.')).toBeInTheDocument();
+    expect(api.uploadItemImage).not.toHaveBeenCalled();
+
+    rerender(<AdminItemForm api={api} categories={categories} rarities={rarities} onSave={vi.fn()} />);
+    expect(screen.queryByLabelText(/Enviar imagem do aparelho/)).not.toBeInTheDocument();
+  });
 });

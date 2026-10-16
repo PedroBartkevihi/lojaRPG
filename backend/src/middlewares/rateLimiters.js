@@ -23,6 +23,20 @@ export const refreshRateLimiter = rateLimit({
   }
 });
 
+// Assinaturas de envio de imagem por conta (a da demonstracao e publica): cada
+// uma vale para um arquivo so, e o limite segura quem tentar usar a conta do
+// Cloudinary como hospedagem.
+export const itemImageRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `usuario-${req.user.id}`,
+  message: {
+    message: 'Muitos envios de imagem. Aguarde um pouco e tente novamente.'
+  }
+});
+
 // Limita tentativas de adivinhar codigos de convite.
 export const inviteRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Coins, History, PackagePlus, RefreshCcw, Tags } from 'lucide-react';
 import CatalogTab from '../components/admin/CatalogTab.jsx';
 import HistoryTab from '../components/admin/HistoryTab.jsx';
 import ItemsTab from '../components/admin/ItemsTab.jsx';
+import MasterGuide, { markCatalogReviewed } from '../components/admin/MasterGuide.jsx';
 import PartyTab from '../components/admin/PartyTab.jsx';
 import ShopsTab from '../components/admin/ShopsTab.jsx';
 
@@ -16,7 +17,8 @@ const TABS = [
   { key: 'historicos', label: 'Históricos', Icon: History }
 ];
 
-export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
+export default function AdminPage({ api, campaign, liveKey, showNotice, onRefresh }) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [shops, setShops] = useState([]);
   const [items, setItems] = useState([]);
@@ -64,6 +66,12 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
 
   const reload = useCallback(() => loadAdminData({ silent: true }), [loadAdminData]);
 
+  useEffect(() => {
+    if (activeTab === 'itens' || activeTab === 'catalogo') {
+      markCatalogReviewed(campaign?.id);
+    }
+  }, [activeTab, campaign?.id]);
+
   // So a abertura da aba avisa do erro. Na batida de 10 s, com a API dormindo
   // ou fora do ar, o aviso se repetiria a cada batida; a proxima tenta de novo.
   useEffect(() => {
@@ -106,6 +114,14 @@ export default function AdminPage({ api, liveKey, showNotice, onRefresh }) {
         ))}
       </nav>
 
+      {activeTab === 'grupo' && !loading && (
+        <MasterGuide
+          campaign={campaign}
+          items={items}
+          characters={characters}
+          onNavigate={(target) => (target === 'mesa' ? navigate('/mesa') : setSearchParams({ aba: target }, { replace: true }))}
+        />
+      )}
       {activeTab === 'grupo' && (
         <PartyTab
           api={api}

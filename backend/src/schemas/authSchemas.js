@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { email, password, requiredText } from './fields.js';
+import { email, loginPassword, newPassword, requiredText } from './fields.js';
 
 export const registerSchema = z.object({
   name: requiredText('Nome', 120),
   email,
-  password
+  password: newPassword
 });
 
 export const loginSchema = z.object({
   email,
-  password
+  password: loginPassword
 });

@@ -63,9 +63,12 @@ personagem.
 
 - Um ou mais personagens por mesa (botão "Novo personagem"), com a escolha
   do personagem ativo.
-- Catálogo com busca (que ignora acentos) e filtro por vendedor e por
-  categoria; cada item tem a cor da raridade (comum, incomum, raro, muito raro,
-  lendário) e um ícone pela categoria.
+- Catálogo com busca (que ignora acentos) e filtros por vendedor, categoria,
+  raridade e faixa de preço em PO ("até 100 PO"); cada item tem a cor da
+  raridade (comum, incomum, raro, muito raro, lendário) e um ícone pela
+  categoria.
+- App instalável no celular ("Adicionar à tela inicial"), com ícone e tela
+  cheia, sem a barra do navegador. Sem modo offline: os dados vêm da API.
 - Carrinho e compra com as moedas do personagem ativo, inclusive com itens de
   vendedores diferentes; no celular, uma barra no rodapé leva ao carrinho.
 - Venda de itens ao vendedor de origem pela regra do D&D 5e (metade do preço)
@@ -81,12 +84,17 @@ personagem.
 **Mestre**
 
 - Painel em abas: grupo e moedas, vendedores, itens, catálogo e históricos.
+- Guia de primeiros passos numa mesa nova (revisar o catálogo, convidar os
+  jogadores, esperar os personagens, dar o ouro inicial): cada passo marca
+  sozinho pelos dados da mesa, e o guia some quando tudo está feito.
 - Vendedores (a mesa começa com o **Geral**), cada um com catálogo, estoque e
   horário de atendimento próprios. O horário é só informativo, no tempo da
   campanha: o Mestre abre e fecha cada vendedor, e um vendedor fechado
   continua visível, mas não compra nem vende.
 - Diário: o Mestre inicia e encerra sessões numeradas, com notas.
-- Cadastro, edição, remoção e reativação de itens.
+- Cadastro, edição, remoção e reativação de itens, com a imagem colada como
+  URL ou enviada direto do celular (quando o armazenamento de imagens está
+  configurado).
 - Categorias e raridades próprias, com a cor de cada raridade escolhida pelo
   Mestre; ao remover uma em uso, os itens são realocados.
 - Recompensas: moedas divididas entre o grupo (avisando o que sobra da
@@ -163,6 +171,26 @@ pede participa da mesa e qual é o papel dele nela.
   demora, em vez de parecer travada.
 - **Segredo verificado na inicialização:** em produção, a API não sobe com um
   `JWT_SECRET` curto ou igual aos exemplos do repositório.
+- **Senhas novas com pelo menos 8 caracteres** e fora de uma lista local de
+  senhas comuns ("12345678", "senha123", repetições como "aaaaaaaa"). A lista
+  fica no código, sem consulta a serviço externo. Contas criadas com o mínimo
+  antigo (6) continuam entrando até trocar a senha.
+- **Cabeçalhos de segurança no site estático.** O `render.yaml` manda
+  Content-Security-Policy (só a própria origem, a API, as fontes do Google e
+  imagens HTTPS), `X-Content-Type-Options`, `Referrer-Policy`,
+  `frame-ancestors 'none'` e HSTS. Os testes de ponta a ponta servem o site
+  com esses mesmos cabeçalhos e reprovam se o navegador bloquear algo.
+- **Imagens enviadas direto ao armazenamento.** O upload de imagens dos
+  itens vai do navegador para o Cloudinary com uma assinatura da API, que
+  fixa a pasta da mesa, os formatos aceitos e a redução para 800 px; o segredo
+  nunca sai da API, e ela guarda só a URL final, como uma URL colada.
+- **PWA só com a casca do app.** O service worker (`vite-plugin-pwa`) guarda
+  JS, CSS e ícones, que têm hash no nome; a página vem sempre da rede quando há
+  conexão, para um deploy novo não abrir a versão anterior. O registro é um
+  arquivo externo, compatível com a CSP.
+- **Limpeza e limites.** Refresh tokens vencidos ou revogados são apagados
+  no início da API e a cada 6 horas, e uma conta mestra no máximo 10 mesas ao
+  mesmo tempo (`MAX_CAMPAIGNS_PER_USER`).
 - **CI no GitHub Actions** a cada push: lint (ESLint) e testes do back-end
   com PostgreSQL; lint, testes e build do front-end; e testes de ponta a ponta
   com Playwright, que sobem a API, o site de produção e um PostgreSQL e passam
@@ -387,6 +415,12 @@ Recompensas (Mestre):
 - `POST /rewards/gold`: `characterIds`, `total`, `mode` (`split` divide,
   `each` dá o valor a cada um) e `reason`
 - `POST /rewards/items`: `characterId`, `itemId`, `quantity` e `reason`
+
+Imagens dos itens (Mestre):
+
+- `GET /uploads/config`: diz se o envio de imagens está configurado
+- `POST /uploads/item-image`: assinatura para enviar uma imagem ao Cloudinary
+  (503 sem `CLOUDINARY_URL`)
 
 ## Estrutura
 

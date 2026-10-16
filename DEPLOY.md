@@ -29,6 +29,11 @@ descritos no `render.yaml`) e do Neon (PostgreSQL).
    Se o Render acrescentar um sufixo aos nomes por já estarem em uso, ajuste
    esses dois valores depois e refaça o deploy do front-end.
 3. O `JWT_SECRET` é gerado pelo próprio Render.
+   A Content-Security-Policy do site, também no `render.yaml`, libera a API
+   pelo endereço `https://lojarpg-api.onrender.com`. Se a API tiver outro
+   endereço, troque-o em `connect-src` (bloco `headers` do `lojarpg-web`);
+   senão o navegador bloqueia as chamadas do site. Os cabeçalhos valem no
+   próximo deploy do site.
 4. `TRUST_PROXY` diz quantos proxies do Render ficam na frente da API, para o
    rate limit enxergar o IP de cada usuário. Depois do deploy, procure no log
    da API a linha `X-Forwarded-For com N endereco(s)` e confira se `N` é o
@@ -48,6 +53,37 @@ Limites do plano gratuito:
 - Os botões "Entrar como jogador" e "Entrar como Mestre" da tela de entrada
   usam as contas da demonstração. Sem demonstração, defina
   `VITE_DEMO_LOGIN=false` no front-end e refaça o deploy dele para escondê-los.
+
+## Envio de imagens dos itens (opcional)
+
+Sem configuração, o Mestre cola a URL da imagem, como antes. Para ele enviar a
+foto direto do celular:
+
+1. Crie uma conta gratuita no [Cloudinary](https://cloudinary.com).
+2. No painel dele, copie a **API environment variable**, no formato
+   `cloudinary://<api_key>:<api_secret>@<cloud_name>`.
+3. No Render, defina `CLOUDINARY_URL` na API (`lojarpg-api`) com esse valor.
+   Ela já está no `render.yaml` como opcional (`sync: false`). No Docker,
+   coloque-a no `.env` da raiz, que o `docker-compose.yml` repassa à API.
+
+A API só assina cada envio (pasta `lojarpg/mesa-<id>`, nome de arquivo gerado
+por ela, sem sobrescrever, formatos JPG, PNG, WebP e GIF, redução para no
+máximo 800 x 800 px); o arquivo vai do navegador direto ao Cloudinary, e o
+segredo não sai da API. Cada assinatura cria no máximo um arquivo, e cada conta
+pede até 30 por hora (a conta de Mestre da demonstração é pública). O
+formulário recusa arquivos acima de 5 MB; no servidor do Cloudinary vale o
+teto do plano. A CSP do site já libera `https://api.cloudinary.com` para o
+envio e qualquer imagem HTTPS para exibição.
+
+## App instalável (PWA)
+
+O build gera `manifest.webmanifest`, os ícones (`pwa-192x192.png`,
+`pwa-512x512.png`, `maskable-512x512.png`, `apple-touch-icon.png`) e o service
+worker (`sw.js`). No Android, o Chrome oferece "Instalar app"; no iPhone, use
+Compartilhar > "Adicionar à Tela de Início" no Safari. Depois de um deploy, a
+versão nova vale na próxima abertura do app (o service worker se atualiza
+sozinho). Para trocar os ícones, gere os PNG a partir do `favicon.svg` com os
+mesmos nomes.
 
 ## API acordada no dia de jogo e monitoramento
 
@@ -138,6 +174,8 @@ Antes de usar em produção fora da sua máquina, ajuste também:
 
 - `CORS_ORIGIN`
 - `VITE_API_URL`
+- o endereço da API em `connect-src`, na Content-Security-Policy do
+  `frontend/nginx.conf`
 
 ## Outras hospedagens
 
@@ -362,6 +400,16 @@ docker compose exec db psql -U lojarpg -c "DROP DATABASE lojarpg_restore"
 Para restaurar de verdade num banco novo do Neon, use o mesmo `pg_restore`
 com a URL dele (`--no-owner --no-privileges`), com a API parada, e só depois
 troque o `DATABASE_URL` no Render.
+
+## Limites por conta
+
+- `MAX_CAMPAIGNS_PER_USER` (padrão 10): quantas mesas uma conta pode mestrar
+  ao mesmo tempo. Excluir uma mesa libera a vaga; entrar como jogador não
+  conta.
+- O cadastro ainda responde "Email já cadastrado" para um e-mail em uso. Uma
+  resposta igual para os dois casos exigiria confirmar o e-mail antes de
+  liberar a conta (hoje o cadastro já entra na loja); o rate limit do cadastro
+  (20 tentativas a cada 15 minutos por IP) limita a varredura de e-mails.
 
 ## Logs
 

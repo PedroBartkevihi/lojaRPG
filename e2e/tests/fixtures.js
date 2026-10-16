@@ -8,13 +8,35 @@ const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 
 let sequence = 0;
 
-// Cada teste sai de um IP proprio (a API confia em um proxy nos testes), para
-// os cadastros e logins de um fluxo nao gastarem o limite dos outros.
+// Guarda os bloqueios da Content-Security-Policy que o Chrome anuncia no
+// console ("Refused to load ... violates the following Content Security
+// Policy directive").
+export function watchCsp(page, violations) {
+  page.on('console', (message) => {
+    if (/Content Security Policy/i.test(message.text())) {
+      violations.push(message.text());
+    }
+  });
+}
+
 export const test = base.extend({
+  // Cada teste sai de um IP proprio (a API confia em um proxy nos testes),
+  // para os cadastros e logins de um fluxo nao gastarem o limite dos outros.
   extraHTTPHeaders: async ({}, use, testInfo) => {
     sequence += 1;
     await use({ 'X-Forwarded-For': `198.51.100.${((testInfo.retry * 97 + sequence) % 250) + 1}` });
-  }
+  },
+  // O site e servido com a CSP do render.yaml: qualquer bloqueio reprova o
+  // teste, inclusive nas paginas abertas em outro contexto (cspViolations).
+  cspViolations: [
+    async ({ page }, use) => {
+      const violations = [];
+      watchCsp(page, violations);
+      await use(violations);
+      expect(violations, 'bloqueios da Content-Security-Policy').toEqual([]);
+    },
+    { auto: true }
+  ]
 });
 
 export { expect };

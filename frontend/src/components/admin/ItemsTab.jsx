@@ -1,5 +1,5 @@
 import { formatMoney } from '../../js/money.js';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PackagePlus, Pencil, RefreshCcw, Trash2 } from 'lucide-react';
 import AdminItemForm from '../AdminItemForm.jsx';
 import { SkeletonRows } from '../Skeleton.jsx';
@@ -15,6 +15,16 @@ function normalizeText(value) {
 export default function ItemsTab({ api, items, shops = [], categories, rarities, loading, reload, showNotice }) {
   const [editingItem, setEditingItem] = useState(null);
   const [filters, setFilters] = useState({ shopId: '', search: '', category: '', rarity: '', status: 'active' });
+  const [uploadsEnabled, setUploadsEnabled] = useState(false);
+
+  // Sem o armazenamento de imagens configurado na API, so o campo de URL aparece.
+  useEffect(() => {
+    let current = true;
+    api.uploadConfig?.()
+      .then((data) => { if (current) setUploadsEnabled(Boolean(data.itemImages)); })
+      .catch(() => {});
+    return () => { current = false; };
+  }, [api]);
 
   const filteredItems = useMemo(() => {
     return items
@@ -160,6 +170,8 @@ export default function ItemsTab({ api, items, shops = [], categories, rarities,
         )}
       </div>
       <AdminItemForm
+        api={api}
+        uploadsEnabled={uploadsEnabled}
         shops={shops}
         item={editingItem}
         categories={categories}

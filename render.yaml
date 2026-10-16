@@ -35,6 +35,10 @@ services:
       # outubro de 2026 eram 3.
       - key: TRUST_PROXY
         value: "3"
+      # Opcional: liga o envio de imagens dos itens pelo celular (Cloudinary).
+      # Formato cloudinary://<api_key>:<api_secret>@<cloud_name>; veja o DEPLOY.md.
+      - key: CLOUDINARY_URL
+        sync: false
 
   - type: web
     name: lojarpg-web
@@ -47,6 +51,30 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+    # Cabecalhos de seguranca do site. A CSP libera so a propria origem, a API
+    # (troque a URL em connect-src se o nome da API mudar), o envio de imagens
+    # ao Cloudinary, as fontes do Google e imagens HTTPS de qualquer lugar (as
+    # imagens dos itens sao URLs externas). Os testes de ponta a ponta servem o site com estes mesmos
+    # cabecalhos e falham se o navegador bloquear algo.
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://lojarpg-api.onrender.com https://api.cloudinary.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Permissions-Policy
+        value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000
     envVars:
       - key: NODE_VERSION
         value: "24"

@@ -1,4 +1,5 @@
 import { isDemoAccount } from '../config/demo.js';
+import { env } from '../config/env.js';
 import { ROLES } from '../config/roles.js';
 import { STARTER_CATEGORIES, STARTER_ITEMS, STARTER_RARITIES } from '../data/starterCatalog.js';
 import { withTransaction } from '../database/transaction.js';
@@ -66,6 +67,18 @@ export async function createCampaign(user, data) {
   rejectDemoAccount(user, 'criar mesas');
 
   return withTransaction(async (prisma) => {
+    // A trava na conta faz duas criacoes simultaneas contarem uma depois da
+    // outra, sem passar do limite.
+    await prisma.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+    const mastered = await prisma.campaignMember.count({ where: { userId: user.id, role: ROLES.GAME_MASTER } });
+
+    if (mastered >= env.maxCampaignsPerUser) {
+      throw new ApiError(
+        409,
+        `Você já é Mestre de ${mastered} mesas, o limite por conta. Exclua uma mesa antiga para criar outra.`
+      );
+    }
+
     const campaign = await createCampaignRecord(
       {
         name: data.name,

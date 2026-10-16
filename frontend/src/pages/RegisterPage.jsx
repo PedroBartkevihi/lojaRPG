@@ -50,10 +50,16 @@ export default function RegisterPage({ api, onRegister, onSwitch }) {
           value={form.password}
           onChange={(event) => updateField('password', event.target.value)}
           type="password"
-          minLength={6}
+          minLength={8}
+          maxLength={128}
+          autoComplete="new-password"
+          aria-describedby="password-hint"
           required
         />
       </label>
+      <p id="password-hint" className="form-hint">
+        Pelo menos 8 caracteres. Senhas muito comuns, como 12345678 ou senha123, são recusadas.
+      </p>
       {slow && <p className="form-hint slow-hint">{SLOW_API_MESSAGE}</p>}
       {error && <p className="form-error">{error}</p>}
       <button className="primary-action" disabled={loading}>
