@@ -2,6 +2,8 @@ import { isGameMaster } from '../middlewares/roleMiddleware.js';
 import { createItem, findItemById, listItems, reactivateItem } from '../models/itemModel.js';
 import { expectedStockSchema, itemIdSchema, itemQuerySchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
+import { importItems } from '../services/itemImportService.js';
+import { id } from '../schemas/fields.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse, parseChanges } from '../utils/validation.js';
 
@@ -20,6 +22,10 @@ function parseItem(body, existing) {
     rarity: existing.rarity || 'Comum',
     stock: existing.stock,
     imageUrl: existing.imageUrl || '',
+    weight: existing.weight,
+    damage: existing.damage,
+    armorClass: existing.armorClass,
+    requiresAttunement: existing.requiresAttunement,
     ...parseChanges(itemSchema, body)
   };
 }
@@ -101,4 +107,10 @@ export async function reactivate(req, res) {
 
   const item = await reactivateItem(id);
   res.json({ message: 'Item reativado na loja.', item });
+}
+
+export async function importAction(req, res) {
+  const shopId = req.body?.shopId === undefined ? undefined : parse(id('Vendedor'), req.body.shopId);
+  const result = await importItems({ campaignId: req.campaign.id, actorUserId: req.user.id, shopId, rows: req.body?.items });
+  res.status(201).json(result);
 }

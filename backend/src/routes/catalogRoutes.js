@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as controller from '../controllers/catalogController.js';
 import { requireGameMaster } from '../middlewares/roleMiddleware.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { SRD_ATTRIBUTION, SRD_PACKS } from '../data/srdCatalog.js';
 
 export const catalogRoutes = Router();
 
@@ -17,3 +18,8 @@ catalogRoutes.put('/rarities/:id', requireGameMaster, asyncHandler(controller.ra
 catalogRoutes.delete('/rarities/:id', requireGameMaster, asyncHandler(controller.raritiesRemove));
 
 catalogRoutes.get('/stock-movements', requireGameMaster, asyncHandler(controller.stockMovements));
+
+// Pacotes prontos do SRD 5.1 para a importacao (o envio usa POST /items/import).
+catalogRoutes.get('/packs', requireGameMaster, (_req, res) => {
+  res.json({ attribution: SRD_ATTRIBUTION, packs: SRD_PACKS });
+});

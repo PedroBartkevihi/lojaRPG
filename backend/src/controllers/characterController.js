@@ -5,7 +5,8 @@ import {
   findCharacterById,
   findCharactersByUserId,
   listCharacters,
-  updateCharacter
+  updateCharacter,
+  withCarriedWeight
 } from '../models/characterModel.js';
 import { listGoldAuditLogs } from '../models/goldAuditModel.js';
 import {
@@ -32,7 +33,8 @@ function parseCharacter(body, existing) {
     name: body.name,
     className: aliased(body.className, body.class),
     race: aliased(body.race, body.raca),
-    level: body.level
+    level: body.level,
+    strength: body.strength
   };
 
   if (!existing) {
@@ -44,6 +46,7 @@ function parseCharacter(body, existing) {
     className: existing.className,
     race: existing.race,
     level: existing.level || 1,
+    strength: existing.strength,
     ...parseChanges(characterSchema, input)
   };
 }
@@ -53,11 +56,11 @@ function canAccessCharacter(req, character) {
 }
 
 export async function index(req, res) {
-  res.json({ characters: await listCharacters(req.campaign.id) });
+  res.json({ characters: await withCarriedWeight(await listCharacters(req.campaign.id)) });
 }
 
 export async function me(req, res) {
-  const characters = await findCharactersByUserId(req.user.id, req.campaign.id);
+  const characters = await withCarriedWeight(await findCharactersByUserId(req.user.id, req.campaign.id));
   res.json({ character: characters[0] || null, characters });
 }
 

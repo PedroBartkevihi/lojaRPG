@@ -31,4 +31,14 @@ describe('CartPanel', () => {
 
     expect(onCheckout).toHaveBeenCalledTimes(1);
   });
+
+  it('avisa, sem bloquear, quando a compra passa da capacidade de carga', () => {
+    const character = { id: 1, name: 'Lia', carriedWeight: 140, carryCapacity: 150 };
+    const cart = [{ item: { id: 3, name: 'Escudo', price: 1000, stock: 2, weight: 6 }, quantity: 2 }];
+
+    render(<CartPanel cart={cart} setCart={vi.fn()} character={character} onCheckout={vi.fn()} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Com esta compra, Lia fica com 152 lb, acima da capacidade de carga');
+    expect(screen.getByRole('button', { name: /finalizar compra/i })).toBeEnabled();
+  });
 });

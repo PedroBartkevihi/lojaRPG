@@ -1,9 +1,14 @@
 import { formatMoney } from '../js/money.js';
+import { formatWeight } from '../js/weight.js';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 
 export default function CartPanel({ cart, setCart, character, onCheckout, submitting = false, shopOpen = true }) {
   const total = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
   const canCheckout = shopOpen && cart.length > 0 && character && !submitting;
+  // So um aviso: a compra nao e bloqueada (a regra de carga e da mesa).
+  const cartWeight = cart.reduce((sum, entry) => sum + entry.quantity * (entry.item.weight || 0), 0);
+  const loadAfter = Math.round(((character?.carriedWeight || 0) + cartWeight) * 100) / 100;
+  const overCapacity = Boolean(character?.carryCapacity) && cartWeight > 0 && loadAfter > character.carryCapacity;
 
   function changeQuantity(itemId, quantity) {
     setCart((current) =>
@@ -56,6 +61,12 @@ export default function CartPanel({ cart, setCart, character, onCheckout, submit
         <span>Total</span>
         <strong>{formatMoney(total)}</strong>
       </div>
+      {overCapacity && (
+        <p className="form-hint carry-warning" role="status">
+          Com esta compra, {character.name} fica com {formatWeight(loadAfter)}, acima da capacidade de carga (
+          {formatWeight(character.carryCapacity)}).
+        </p>
+      )}
       <button className="primary-action full" disabled={!canCheckout} onClick={onCheckout}>
         {submitting ? 'Finalizando...' : 'Finalizar compra'}
       </button>

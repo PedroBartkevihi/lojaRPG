@@ -1,5 +1,9 @@
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/ApiError.js';
 import { getPrisma } from '../database/connection.js';
+
+// Regra do livro do jogador: forca x 15 libras.
+export const CARRY_PER_STRENGTH = 15;
 
 export function mapCharacter(character) {
   if (!character) {
@@ -16,6 +20,8 @@ export function mapCharacter(character) {
     className: character.className,
     race: character.race,
     level: character.level,
+    strength: character.strength,
+    carryCapacity: character.strength * CARRY_PER_STRENGTH,
     gold: Number(character.gold),
     createdAt: character.createdAt
   };
@@ -83,6 +89,7 @@ export async function createCharacter(data, prisma = getPrisma()) {
       className: data.className,
       race: data.race,
       level: Number(data.level),
+      strength: Number(data.strength || 10),
       gold: Number(data.gold || 0)
     },
     include: includeUser
@@ -98,12 +105,30 @@ export async function updateCharacter(id, data, prisma = getPrisma()) {
       name: data.name,
       className: data.className,
       race: data.race,
-      level: Number(data.level)
+      level: Number(data.level),
+      strength: Number(data.strength || 10)
     },
     include: includeUser
   });
 
   return mapCharacter(character);
+}
+
+// Soma o peso do inventario de cada personagem (itens sem peso contam zero)
+// e devolve os personagens com carriedWeight, em libras.
+export async function withCarriedWeight(characters, prisma = getPrisma()) {
+  if (characters.length === 0) {
+    return characters;
+  }
+
+  const rows = await prisma.$queryRaw`
+    SELECT inv.character_id AS id, COALESCE(SUM(inv.quantity * it.weight), 0)::float8 AS weight
+    FROM inventory inv JOIN items it ON it.id = inv.item_id
+    WHERE inv.character_id IN (${Prisma.join(characters.map((character) => character.id))})
+    GROUP BY inv.character_id`;
+  const weights = new Map(rows.map((row) => [row.id, Math.round(Number(row.weight) * 100) / 100]));
+
+  return characters.map((character) => ({ ...character, carriedWeight: weights.get(character.id) || 0 }));
 }
 
 // Desconta o ouro so se o personagem ainda tiver saldo no momento da escrita.

@@ -74,6 +74,8 @@ model Character {
   className     String         @map("class")
   race          String
   level         Int            @default(1)
+  // Forca do personagem; a capacidade de carga e forca x 15 libras.
+  strength      Int            @default(10)
   gold          BigInt            @default(0)
   createdAt     DateTime       @default(now()) @map("created_at")
   campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
@@ -147,6 +149,12 @@ model Item {
   sellPrice      BigInt?            @map("sell_price")
   isSellable     Boolean         @default(true) @map("is_sellable")
   stock          Int             @default(0)
+  // Atributos opcionais do livro: peso em libras, dano (armas), classe de
+  // armadura (armaduras e escudos) e se o item exige sintonizacao.
+  weight         Decimal?        @db.Decimal(8, 2)
+  damage         String          @default("")
+  armorClass     String          @default("") @map("armor_class")
+  requiresAttunement Boolean     @default(false) @map("requires_attunement")
   imageUrl       String          @default("") @map("image_url")
   createdBy      Int?            @map("created_by")
   isActive       Boolean         @default(true) @map("is_active")

@@ -143,6 +143,8 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     if (!response.ok) {
       const error = new Error(data.message || 'Erro ao comunicar com a API.');
       error.status = response.status;
+      // Erros por linha de uma importacao, quando a API manda.
+      error.details = data.errors;
       throw error;
     }
 
@@ -231,6 +233,8 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
     myPurchases: (params = {}) => request(withQuery(campaignPath('/purchases/me'), params)),
     listPurchases: (params = {}) => request(withQuery(campaignPath('/purchases'), params)),
     uploadConfig: () => request(campaignPath('/uploads/config')),
+    listCatalogPacks: () => request(campaignPath('/catalog/packs')),
+    importItems: (body) => request(campaignPath('/items/import'), { method: 'POST', body }),
     listItemRequests: () => request(campaignPath('/requests')),
     createItemRequest: (body) => request(campaignPath('/requests'), { method: 'POST', body }),
     cancelItemRequest: (id) => request(campaignPath(`/requests/${id}/cancel`), { method: 'POST' }),

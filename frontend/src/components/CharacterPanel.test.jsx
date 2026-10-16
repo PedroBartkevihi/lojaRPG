@@ -47,7 +47,8 @@ describe('CharacterPanel', () => {
       name: 'Nym',
       className: 'Bardo',
       race: 'Humano',
-      level: 3
+      level: 3,
+      strength: 10
     });
     expect(onRefreshSession).toHaveBeenCalledTimes(1);
     expect(showNotice).toHaveBeenCalledWith('Personagem criado.');
@@ -77,7 +78,7 @@ describe('CharacterPanel', () => {
     await user.type(screen.getByLabelText(/^raça$/i), 'Humano');
     await user.click(screen.getByRole('button', { name: /salvar personagem/i }));
 
-    expect(api.createCharacter).toHaveBeenCalledWith({ name: 'Nym', className: 'Bardo', race: 'Humano', level: 1 });
+    expect(api.createCharacter).toHaveBeenCalledWith({ name: 'Nym', className: 'Bardo', race: 'Humano', level: 1, strength: 10 });
     expect(onSelectCharacter).toHaveBeenCalledWith(7);
   });
 
@@ -91,5 +92,14 @@ describe('CharacterPanel', () => {
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
 
     expect(screen.getByRole('heading', { name: 'Aria' })).toBeInTheDocument();
+  });
+
+  it('mostra a carga e avisa quando passa da capacidade', () => {
+    const borin = { id: 2, name: 'Borin', className: 'Guerreiro', race: 'Anão', level: 5, gold: 320, strength: 8, carryCapacity: 120, carriedWeight: 130.5 };
+    render(<CharacterPanel character={borin} characters={[borin]} />);
+
+    expect(screen.getByText('Carga (Força 8)')).toBeInTheDocument();
+    expect(screen.getByText('130,5 lb de 120 lb')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Borin passou da capacidade de carga');
   });
 });

@@ -13,6 +13,10 @@ const emptyForm = {
   rarity: '',
   stock: 0,
   imageUrl: '',
+  weight: '',
+  damage: '',
+  armorClass: '',
+  requiresAttunement: false,
   stockReason: ''
 };
 
@@ -33,7 +37,7 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
 
   useEffect(() => {
     // Preco de venda vazio segue a regra padrao (metade do preco).
-    setForm(item ? { ...item, sellPrice: item.sellPrice ?? '' } : emptyForm);
+    setForm(item ? { ...item, sellPrice: item.sellPrice ?? '', weight: item.weight ?? '' } : emptyForm);
     setError('');
   }, [item]);
 
@@ -78,15 +82,27 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSaving(true);
     setError('');
+
+    // Vazio fica sem peso; aceita virgula (2,5). Um texto que nao vira numero
+    // ("3 lb", "1/4") e recusado aqui: chegaria a API como null e apagaria o peso.
+    const weightText = String(form.weight ?? '').trim();
+    const weight = weightText === '' ? null : Number(weightText.replace(',', '.'));
+
+    if (weight !== null && (!Number.isFinite(weight) || weight < 0)) {
+      setError('Peso inválido: use um número em libras, como 3 ou 2,5.');
+      return;
+    }
+
+    setSaving(true);
 
     const payload = {
       ...form,
       shopId: Number(form.shopId || shops[0]?.id) || undefined,
       price: Number(form.price),
       sellPrice: form.sellPrice === '' ? null : Number(form.sellPrice),
-      stock: Number(form.stock)
+      stock: Number(form.stock),
+      weight
     };
 
     // Na edicao, o estoque so vai se o Mestre mexeu nele, junto com o valor que
@@ -208,6 +224,46 @@ export default function AdminItemForm({ api, uploadsEnabled = false, item, shops
           A loja não compra este item
         </label>
       </div>
+      <fieldset className="item-attributes-fields">
+        <legend>Atributos do livro (opcionais)</legend>
+        <div className="form-grid three">
+          <label>
+            Peso (lb)
+            <input
+              value={form.weight ?? ''}
+              onChange={(event) => updateField('weight', event.target.value)}
+              inputMode="decimal"
+              placeholder="Ex.: 3"
+            />
+          </label>
+          <label>
+            Dano
+            <input
+              value={form.damage || ''}
+              onChange={(event) => updateField('damage', event.target.value)}
+              maxLength={60}
+              placeholder="1d8 cortante"
+            />
+          </label>
+          <label>
+            Classe de armadura
+            <input
+              value={form.armorClass || ''}
+              onChange={(event) => updateField('armorClass', event.target.value)}
+              maxLength={60}
+              placeholder="11 + Des"
+            />
+          </label>
+        </div>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={Boolean(form.requiresAttunement)}
+            onChange={(event) => updateField('requiresAttunement', event.target.checked)}
+          />
+          Exige sintonização
+        </label>
+      </fieldset>
       {item && (
         <label>
           Motivo do ajuste de estoque

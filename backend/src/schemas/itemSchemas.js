@@ -15,7 +15,20 @@ export const itemSchema = z.object({
   isSellable: z.boolean({ error: 'Informe se a loja compra o item.' }).optional(),
   rarity: requiredText('Raridade', 80),
   stock: integer('Estoque', { min: 0, max: 100000 }),
-  imageUrl: optionalText(1000)
+  imageUrl: optionalText(1000),
+  // Atributos opcionais (A6). Peso em libras, com ate duas casas.
+  weight: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? null : value),
+    z.coerce
+      .number({ error: 'Peso inválido.' })
+      .min(0, 'Peso não pode ser negativo.')
+      .max(10000, 'Peso deve ser no máximo 10000 libras.')
+      .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, 'Peso aceita até duas casas decimais.')
+      .nullable()
+  ),
+  damage: optionalText(60),
+  armorClass: optionalText(60),
+  requiresAttunement: z.boolean({ error: 'Informe se o item exige sintonização.' }).optional()
 });
 
 export const itemIdSchema = id('Id do item');

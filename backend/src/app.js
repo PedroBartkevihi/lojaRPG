@@ -46,7 +46,11 @@ app.use(
     credentials: true
   })
 );
-app.use(express.json());
+// A importacao de catalogo manda ate 500 itens de uma vez (com descricoes,
+// passa de 100 KB); o resto da API fica com o limite padrao.
+const jsonBody = express.json();
+const importJsonBody = express.json({ limit: '1mb' });
+app.use((req, res, next) => (req.path.endsWith('/items/import') ? importJsonBody : jsonBody)(req, res, next));
 
 // O /health so diz que o processo responde, e e o que o Render usa: um banco
 // lento ali faria o Render reiniciar uma API saudavel. O /ready consulta o

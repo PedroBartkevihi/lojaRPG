@@ -2,6 +2,7 @@ import { formatMoney } from '../../js/money.js';
 import { useEffect, useMemo, useState } from 'react';
 import { PackagePlus, Pencil, RefreshCcw, Trash2 } from 'lucide-react';
 import AdminItemForm from '../AdminItemForm.jsx';
+import ImportPanel from './ImportPanel.jsx';
 import { SkeletonRows } from '../Skeleton.jsx';
 
 // Compara sem acentos nem maiusculas: "pocao" encontra "Poção".
@@ -83,6 +84,8 @@ export default function ItemsTab({ api, items, shops = [], categories, rarities,
 
   return (
     <div className="content-grid admin-tab">
+      <div className="items-tab-main">
+      <ImportPanel api={api} shops={shops} reload={reload} showNotice={showNotice} />
       <div className="surface-panel">
         <div className="panel-title">
           <PackagePlus size={20} />
@@ -168,6 +171,7 @@ export default function ItemsTab({ api, items, shops = [], categories, rarities,
             {filteredItems.length === 0 && <p className="empty-state">Nenhum item encontrado.</p>}
           </div>
         )}
+      </div>
       </div>
       <AdminItemForm
         api={api}
