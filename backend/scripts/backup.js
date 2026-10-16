@@ -34,7 +34,8 @@ const CHECKED_TABLES = [
   'gold_audit_logs',
   'inventory_logs',
   'stock_movements',
-  'campaign_sessions'
+  'campaign_sessions',
+  'item_requests'
 ];
 
 function fail(message) {
