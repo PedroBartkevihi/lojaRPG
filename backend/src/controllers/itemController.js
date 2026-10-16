@@ -33,7 +33,7 @@ function parseItem(body, existing) {
 
 export async function index(req, res) {
   const includeInactive = req.query.includeInactive === 'true' && isGameMaster(req);
-  const { characterId, ...filters } = parse(itemQuerySchema, req.query);
+  const { characterId, minPrice, maxPrice, ...filters } = parse(itemQuerySchema, req.query);
   const character = await resolveShopCharacter(req, characterId);
   const [items, discounts] = await Promise.all([
     listItems({ ...filters, campaignId: req.campaign.id, includeInactive }),
@@ -41,8 +41,15 @@ export async function index(req, res) {
   ]);
 
   // Cada item leva o preco final (com o maior desconto que vale para ele) e
-  // o desconto aplicado; o filtro de preco continua sobre o preco de tabela.
-  res.json({ items: items.map((item) => ({ ...item, ...priceWithDiscount(item, discounts) })) });
+  // o desconto aplicado. A faixa de preco vale sobre o preco final, o mesmo
+  // que o card mostra: um item em promocao que cabe no orcamento aparece.
+  const priced = items
+    .map((item) => ({ ...item, ...priceWithDiscount(item, discounts) }))
+    .filter(
+      (item) =>
+        (minPrice === undefined || item.finalPrice >= minPrice) && (maxPrice === undefined || item.finalPrice <= maxPrice)
+    );
+  res.json({ items: priced });
 }
 
 export async function show(req, res) {

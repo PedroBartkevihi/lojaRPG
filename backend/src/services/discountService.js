@@ -49,6 +49,18 @@ export function priceWithDiscount(item, discounts) {
   };
 }
 
+// A loja nunca paga mais do que cobraria do personagem agora: com um desconto
+// maior que a margem de revenda (mais de 50% na regra padrao), comprar e
+// vender de volta daria lucro sem fim. `item` precisa de price, categoryId e
+// effectiveSellPrice.
+export function sellPriceWithDiscount(item, discounts) {
+  if (item.effectiveSellPrice === null) {
+    return null;
+  }
+
+  return Math.min(item.effectiveSellPrice, priceWithDiscount(item, discounts).finalPrice);
+}
+
 // O personagem da vitrine: o Mestre ve qualquer um da mesa; o jogador, so os
 // proprios.
 export async function resolveShopCharacter(req, characterId) {

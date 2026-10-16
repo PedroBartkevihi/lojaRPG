@@ -5,7 +5,7 @@ import { describeDiscount } from '../DiscountBanner.jsx';
 const emptyForm = { name: '', percent: 10, categoryId: '', characterId: '' };
 
 // Descontos e eventos de preco da mesa. Vale o maior desconto que se aplica a
-// cada item, sem somar; a venda a loja continua pelo preco de tabela.
+// cada item, sem somar; na revenda, a loja paga no maximo o preco com desconto.
 export default function DiscountsPanel({ api, discounts, categories = [], characters = [], reload, showNotice }) {
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);

@@ -112,13 +112,18 @@ personagem.
   em poções", para todas as categorias ou uma) ou o desconto de um personagem
   (uma boa rolagem de Persuasão). A loja mostra o preço de tabela riscado e o
   preço final; vale o maior desconto que se aplica, sem somar, e o preço pago
-  vai para o histórico da compra.
+  vai para o histórico da compra. Enquanto o desconto vale, a loja paga na
+  revenda no máximo o preço com desconto, para comprar e vender de volta não
+  dar lucro.
 - Atributos opcionais nos itens: peso (lb), dano, classe de armadura e
   sintonização, exibidos no card da loja e no inventário.
 - Importação de vários itens de uma vez: pacotes prontos do SRD 5.1
   (equipamento de aventura, armas, armaduras, poções e alquimia) ou uma
   planilha CSV do Mestre, lida no navegador com prévia e os erros de cada linha
-  antes do envio. Itens com nome já existente no vendedor ficam de fora.
+  antes do envio. A planilha pode vir do Excel em UTF-8 ou no CSV comum
+  (Windows-1252), com números no formato brasileiro (1.500 ou 2,5). Itens com
+  nome já existente no vendedor ficam de fora, e categoria ou raridade com
+  outra caixa ("raro") usa a que a mesa já tem.
 - Encomendas dos jogadores: aprovar entregando um item do catálogo ou um item
   novo, feito para a encomenda, cobrando até o valor que o jogador aceitou
   pagar, ou recusar com uma nota.
@@ -499,7 +504,10 @@ Descontos:
 - `PATCH /discounts/:id` (Mestre): `isActive`
 - `DELETE /discounts/:id` (Mestre)
 - `GET /items?characterId=` devolve cada item com `finalPrice` e o `discount`
-  aplicado; a compra cobra o mesmo cálculo, na mesma transação
+  aplicado (a faixa `minPrice`/`maxPrice` vale sobre o `finalPrice`); a compra
+  cobra o mesmo cálculo, na mesma transação
+- `POST /purchases` aceita `expectedTotal` (PC): se o total recalculado for
+  outro (desconto desligado, outro personagem), responde 409 sem cobrar
 
 Importação (Mestre):
 

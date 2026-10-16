@@ -55,6 +55,7 @@ function ApproveForm({ api, request, items, categories, rarities, reload, showNo
   }
 
   const sortedItems = [...items].sort((a, b) => a.name.localeCompare(b.name));
+  const chosenItem = source === 'catalog' ? items.find((item) => String(item.id) === itemId) : null;
 
   return (
     <form className="stack-form compact-form" onSubmit={approve} aria-label={`Responder: ${request.description}`}>
@@ -69,18 +70,25 @@ function ApproveForm({ api, request, items, categories, rarities, reload, showNo
         </label>
       </div>
       {source === 'catalog' ? (
-        <label>
-          Item
-          <select value={itemId} onChange={(event) => setItemId(event.target.value)} required>
-            <option value="">Escolha</option>
-            {sortedItems.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-                {item.isActive ? '' : ' (fora da loja)'}
-              </option>
-            ))}
-          </select>
-        </label>
+        <>
+          <label>
+            Item
+            <select value={itemId} onChange={(event) => setItemId(event.target.value)} required>
+              <option value="">Escolha</option>
+              {sortedItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} - {formatMoney(item.price)}
+                  {item.isActive ? '' : ' (fora da loja)'}
+                </option>
+              ))}
+            </select>
+          </label>
+          {chosenItem?.effectiveSellPrice != null && (
+            <p className="form-hint">
+              A loja compra este item por {formatMoney(chosenItem.effectiveSellPrice)}: cobre pelo menos isso.
+            </p>
+          )}
+        </>
       ) : (
         <>
           <label>

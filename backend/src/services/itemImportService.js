@@ -7,7 +7,37 @@ export const MAX_IMPORT_ROWS = 500;
 const importRowSchema = itemSchema.omit({ shopId: true });
 
 function sameName(value) {
-  return value.trim().toLocaleLowerCase('pt-BR');
+  return value.trim().normalize('NFC').toLocaleLowerCase('pt-BR');
+}
+
+// Nome da planilha -> id da categoria (ou raridade) da mesa, sem diferenciar
+// maiusculas: "raro" entra como a "Raro" que ja existe, e nao como uma
+// raridade nova. As que faltam sao criadas em ordem e com ON CONFLICT DO
+// NOTHING, para duas importacoes criando a mesma nao falharem uma a outra.
+async function resolveByName(model, campaignId, names) {
+  const ids = new Map();
+  const known = await model.findMany({ where: { campaignId }, select: { id: true, name: true }, orderBy: { id: 'asc' } });
+
+  for (const entry of known) {
+    if (!ids.has(sameName(entry.name))) ids.set(sameName(entry.name), entry.id);
+  }
+
+  const missing = new Map();
+
+  for (const name of names) {
+    if (!ids.has(sameName(name)) && !missing.has(sameName(name))) missing.set(sameName(name), name.trim());
+  }
+
+  if (missing.size > 0) {
+    const created = [...missing.values()].sort();
+    await model.createMany({ data: created.map((name) => ({ campaignId, name })), skipDuplicates: true });
+
+    for (const entry of await model.findMany({ where: { campaignId, name: { in: created } }, select: { id: true, name: true } })) {
+      if (!ids.has(sameName(entry.name))) ids.set(sameName(entry.name), entry.id);
+    }
+  }
+
+  return (name) => ids.get(sameName(name));
 }
 
 // Importa uma lista de itens (de uma planilha CSV ou de um pacote do SRD) numa
@@ -48,6 +78,10 @@ export async function importItems({ campaignId, actorUserId, shopId, rows }) {
       throw new ApiError(400, 'Vendedor inválido para esta mesa.');
     }
 
+    // A trava no vendedor faz duas importacoes nele (duas abas, o reenvio, a
+    // conta publica da demonstracao) lerem os nomes uma depois da outra: a
+    // segunda ve os itens da primeira e nao duplica nada.
+    await prisma.$queryRaw`SELECT id FROM shops WHERE id = ${shop.id} FOR NO KEY UPDATE`;
     const existing = await prisma.item.findMany({ where: { shopId: shop.id }, select: { name: true } });
     const taken = new Set(existing.map((item) => sameName(item.name)));
     const fresh = [];
@@ -65,26 +99,8 @@ export async function importItems({ campaignId, actorUserId, shopId, rows }) {
     }
 
     // Categorias e raridades pelo nome, criadas na mesa quando ainda nao existem.
-    const categoryIds = new Map();
-    const rarityIds = new Map();
-
-    for (const name of new Set(fresh.map((item) => item.category))) {
-      const category = await prisma.category.upsert({
-        where: { campaignId_name: { campaignId, name } },
-        update: {},
-        create: { campaignId, name }
-      });
-      categoryIds.set(name, category.id);
-    }
-
-    for (const name of new Set(fresh.map((item) => item.rarity))) {
-      const rarity = await prisma.rarity.upsert({
-        where: { campaignId_name: { campaignId, name } },
-        update: {},
-        create: { campaignId, name }
-      });
-      rarityIds.set(name, rarity.id);
-    }
+    const categoryId = await resolveByName(prisma.category, campaignId, fresh.map((item) => item.category));
+    const rarityId = await resolveByName(prisma.rarity, campaignId, fresh.map((item) => item.rarity));
 
     if (fresh.length > 0) {
       await prisma.item.createMany({
@@ -92,8 +108,8 @@ export async function importItems({ campaignId, actorUserId, shopId, rows }) {
           campaignId,
           shopId: shop.id,
           name: item.name,
-          categoryId: categoryIds.get(item.category),
-          rarityId: rarityIds.get(item.rarity),
+          categoryId: categoryId(item.category),
+          rarityId: rarityId(item.rarity),
           description: item.description || '',
           price: item.price,
           sellPrice: item.sellPrice ?? null,

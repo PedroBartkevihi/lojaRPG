@@ -5,6 +5,7 @@ import { createInventoryLog, removeInventoryItem } from '../models/inventoryMode
 import { findItemById, incrementItemStock } from '../models/itemModel.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ensureShopsOpen } from './shopService.js';
+import { activeDiscounts, sellPriceWithDiscount } from './discountService.js';
 
 async function findOwnCharacter(user, campaignId, characterId, action, prisma) {
   const character = await findCharacterById(characterId, campaignId, prisma);
@@ -30,7 +31,8 @@ async function findCampaignItem(campaignId, itemId, prisma) {
   return item;
 }
 
-// A loja paga o preco de venda do item, que volta ao estoque. Tirar do
+// A loja paga o preco de venda do item (limitado ao preco com os descontos
+// ativos do personagem), e o item volta ao estoque. Tirar do
 // inventario so acontece se o personagem ainda tiver as unidades; se faltar,
 // a transacao e desfeita (inclusive o credito) e duas vendas simultaneas do
 // ultimo item nao pagam duas vezes.
@@ -46,11 +48,13 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
 
     await ensureShopsOpen(campaignId, [item.shopId], prisma);
 
-    if (item.effectiveSellPrice === null) {
+    const unitPrice = sellPriceWithDiscount(item, await activeDiscounts(campaignId, character.id, prisma));
+
+    if (unitPrice === null) {
       throw new ApiError(400, `A loja não compra ${item.name}.`);
     }
 
-    const total = item.effectiveSellPrice * quantity;
+    const total = unitPrice * quantity;
     await creditCharacterGold(character.id, total, prisma);
 
     if (!(await removeInventoryItem(character.id, item.id, quantity, prisma))) {
@@ -76,7 +80,7 @@ export async function sellItem({ user, campaignId, characterId, itemId, quantity
         actorUserId: user.id,
         type: 'VENDA',
         quantity,
-        unitPrice: item.effectiveSellPrice
+        unitPrice
       },
       prisma
     );

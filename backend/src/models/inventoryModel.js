@@ -14,6 +14,7 @@ function mapInventoryItem(entry) {
       shopId: entry.item.shopId,
       shopName: entry.item.shop?.name,
       shopOpen: entry.item.shop?.isOpen,
+      categoryId: entry.item.categoryId,
       category: entry.item.category?.name,
       rarity: entry.item.rarity?.name,
       rarityRank: entry.item.rarity?.rank,
