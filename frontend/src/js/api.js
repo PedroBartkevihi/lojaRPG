@@ -29,6 +29,8 @@ const RENEWAL_UNAVAILABLE_MESSAGE = 'Não foi possível renovar a sessão agora.
 export const REFRESH_COOKIE_MODE = import.meta.env.VITE_REFRESH_COOKIE === 'true';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Mais que o dobro do comentario de 25 s que a API manda no canal de eventos.
+export const STREAM_IDLE_MS = 60000;
 
 function withQuery(path, params = {}) {
   const search = new URLSearchParams();
@@ -166,6 +168,29 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
   // EventSource, para mandar o token no cabecalho; um 401 renova a sessao uma
   // vez, como nas outras requisicoes. Termina quando a API fecha o canal.
   async function streamCampaignEvents({ onEvent, signal }) {
+    // A API manda um comentario a cada 25 s. Sem nenhum byte por mais tempo
+    // (notebook que hibernou, rede trocada), a conexao morreu sem avisar:
+    // fecha para quem chamou reconectar.
+    const watchdog = new AbortController();
+    const stop = () => watchdog.abort();
+    let idle;
+    const arm = () => {
+      window.clearTimeout(idle);
+      idle = window.setTimeout(stop, STREAM_IDLE_MS);
+    };
+
+    if (signal?.aborted) stop();
+    signal?.addEventListener('abort', stop);
+
+    try {
+      await readCampaignEvents({ onEvent, signal: watchdog.signal, arm });
+    } finally {
+      window.clearTimeout(idle);
+      signal?.removeEventListener('abort', stop);
+    }
+  }
+
+  async function readCampaignEvents({ onEvent, signal, arm }) {
     let renewed = false;
 
     for (;;) {
@@ -197,6 +222,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      arm();
 
       for (;;) {
         const { value, done } = await reader.read();
@@ -205,6 +231,7 @@ export function createApi(getToken, onUnauthorized, getRefreshToken, onTokenRefr
           return;
         }
 
+        arm();
         buffer += decoder.decode(value, { stream: true });
         let end = buffer.indexOf('\n\n');
 

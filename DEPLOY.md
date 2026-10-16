@@ -117,9 +117,10 @@ proxies não segurarem nem fecharem a conexão. Pontos de atenção:
   gratuito e o pago mais simples) está tudo certo; ao escalar para mais de uma
   instância, troque `src/services/liveEvents.js` por `LISTEN/NOTIFY` do
   PostgreSQL ou um Redis.
-- Cada aba visível mantém uma conexão aberta (limite de 500 por processo;
-  acima disso a API responde 503 e a tela segue com a consulta de 10 s). Uma
-  aba escondida fecha o canal.
+- Cada aba visível mantém uma conexão aberta (limite de 500 por processo e de
+  10 por conta; acima disso a API responde 503 ou 429 e a tela segue com a
+  consulta de 10 s). Uma aba escondida fecha o canal, e quem não lê os avisos
+  (aba congelada) é desligado e reconecta, em vez de acumular memória na API.
 - No plano gratuito, a API ainda dorme depois de 15 minutos sem ninguém com o
   site aberto; quando acorda, o canal reconecta sozinho.
 

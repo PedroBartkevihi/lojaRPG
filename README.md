@@ -202,7 +202,9 @@ pede participa da mesa e qual é o papel dele nela.
   que só avisa "algo mudou"; a tela recarrega o que precisa pela API, com as
   permissões de sempre. Qualquer escrita bem-sucedida numa mesa gera o aviso.
   O canal é lido por `fetch` (para mandar o token no cabeçalho), reconecta com
-  espera crescente e fecha a cada 10 minutos para conferir de novo o acesso.
+  espera crescente e fecha a cada 10 minutos para conferir de novo o acesso;
+  ao reconectar, a tela recarrega o que pode ter mudado no intervalo, e um
+  canal mudo por mais de 60 segundos é dado como caído.
   Com ele aberto, a consulta periódica cai de 10 para 30 segundos; sem ele
   (API dormindo, rede ruim), volta aos 10. Aba escondida não abre canal nem
   consulta. Os avisos ficam na memória do processo, o que basta para uma
@@ -506,6 +508,7 @@ Tempo real:
 
 - `GET /events`: canal SSE da mesa (`text/event-stream`), com os eventos
   `ready` e `changed` e um comentário a cada 25 s; fecha sozinho a cada 10 min
+  (até 10 canais por conta: 429 acima disso)
 
 Encomendas:
 

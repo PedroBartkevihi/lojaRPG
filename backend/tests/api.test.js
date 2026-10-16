@@ -2612,4 +2612,119 @@ describe('atualização em tempo real (SSE)', () => {
       server.close();
     }
   });
+
+  // Socket cru: manda a requisição e fecha (ou para de ler) quando quiser.
+  async function rawRequest(server, text, { keepOpen = false } = {}) {
+    const net = await import('node:net');
+    const { port } = server.address();
+    return new Promise((resolve) => {
+      const socket = net.connect(port, '127.0.0.1', () => {
+        socket.write(text);
+        if (!keepOpen) socket.destroy();
+        resolve(socket);
+      });
+    });
+  }
+
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('conexão que cai antes de o canal abrir não prende vaga', async () => {
+    const { openStreamCount } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      const before = openStreamCount();
+      for (let i = 0; i < 5; i += 1) {
+        await rawRequest(server, `GET ${DEMO}/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${aria}\r\n\r\n`);
+      }
+      // O login e a mesa sao conferidos no banco antes do canal abrir.
+      await pause(500);
+      expect(openStreamCount()).toBe(before);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('quem não lê o canal é desligado em vez de acumular avisos na memória', async () => {
+    const { openStreamCount, publishCampaignChange } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      const before = openStreamCount();
+      const socket = await rawRequest(server, `GET ${DEMO}/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${aria}\r\n\r\n`, { keepOpen: true });
+      await new Promise((resolve) => socket.once('data', resolve));
+      socket.pause();
+      expect(openStreamCount()).toBe(before + 1);
+
+      for (let i = 0; i < 200000 && openStreamCount() > before; i += 1) {
+        publishCampaignChange(1);
+      }
+
+      expect(openStreamCount()).toBe(before);
+      socket.destroy();
+    } finally {
+      server.close();
+    }
+  });
+
+  it('HEAD não abre canal nem segura vaga', async () => {
+    const { openStreamCount } = await import('../src/services/liveEvents.js');
+    const aria = await login('aria@lojarpg.local');
+    const before = openStreamCount();
+
+    const response = await request(app).head(`${DEMO}/events`).set('Authorization', `Bearer ${aria}`);
+    expect(response.status).toBe(405);
+    expect(response.headers.allow).toBe('GET');
+    expect(openStreamCount()).toBe(before);
+  });
+
+  it('limita os canais abertos por conta', async () => {
+    const { MAX_STREAMS_PER_USER } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+    const streams = [];
+
+    try {
+      const aria = await login('aria@lojarpg.local');
+      for (let i = 0; i < MAX_STREAMS_PER_USER; i += 1) {
+        const stream = await openStream(server, aria);
+        streams.push(stream);
+        expect(await stream.nextEvent()).toBe('ready');
+      }
+
+      const extra = await openStream(server, aria);
+      expect(extra.response.status).toBe(429);
+
+      streams.pop().close();
+      await pause(100);
+      const again = await openStream(server, aria);
+      streams.push(again);
+      expect(again.response.status).toBe(200);
+    } finally {
+      streams.forEach((stream) => stream.close());
+      server.close();
+    }
+  });
+
+  it('avisa a mesa mesmo se quem escreveu fechar a conexão antes da resposta', async () => {
+    const { subscribeCampaign } = await import('../src/services/liveEvents.js');
+    const server = app.listen(0);
+    let events = 0;
+    const unsubscribe = subscribeCampaign(1, () => { events += 1; });
+
+    try {
+      const master = await login('mestre@lojarpg.local', 'mestre123');
+      const body = JSON.stringify({ characterIds: [1], total: 100, mode: 'each', reason: 'Fechou a aba' });
+      await rawRequest(
+        server,
+        `POST ${DEMO}/rewards/gold HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${master}\r\nX-Currency-Unit: PC\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`
+      );
+      await pause(1000);
+      expect(events).toBe(1);
+    } finally {
+      unsubscribe();
+      server.close();
+    }
+  });
 });

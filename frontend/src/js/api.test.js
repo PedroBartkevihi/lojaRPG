@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApi } from './api.js';
+import { STREAM_IDLE_MS, createApi } from './api.js';
 
 function reply(status, body) {
   return { ok: status < 400, status, text: async () => JSON.stringify(body) };
@@ -254,5 +254,32 @@ describe('canal de eventos da mesa (SSE)', () => {
 
     await api.streamCampaignEvents({ onEvent: (name) => events.push(name), signal: new AbortController().signal });
     expect(events).toEqual(['ready']);
+  });
+
+  it('fecha o canal que fica mudo além do comentário de 25 s', async () => {
+    vi.useFakeTimers();
+    const encoder = new TextEncoder();
+    vi.stubGlobal('fetch', vi.fn(async (_url, options) => ({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('event: ready\n\n'));
+          options.signal.addEventListener('abort', () => controller.error(new DOMException('Abortado', 'AbortError')));
+        }
+      })
+    })));
+    const api = createApi(() => 'token', vi.fn(), () => 'refresh', vi.fn(), () => 7);
+    const events = [];
+
+    try {
+      const outcome = api.streamCampaignEvents({ onEvent: (name) => events.push(name), signal: new AbortController().signal }).then(() => 'terminou', () => 'abortou');
+      await vi.advanceTimersByTimeAsync(STREAM_IDLE_MS - 1000);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(await outcome).toBe('abortou');
+      expect(events).toEqual(['ready']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -32,6 +32,31 @@ describe('useLiveTick', () => {
     expect(result.current).toBe(4);
   });
 
+  it('trocar o intervalo conta da última batida, e não do zero', () => {
+    const { result, rerender } = renderHook(({ interval }) => useLiveTick(true, interval), { initialProps: { interval: 10000 } });
+
+    act(() => vi.advanceTimersByTime(9000));
+    rerender({ interval: 30000 });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(result.current).toBe(0);
+
+    // Com o canal caindo e voltando, antes a contagem recomecava e nunca batia.
+    rerender({ interval: 10000 });
+    act(() => vi.advanceTimersByTime(0));
+    expect(result.current).toBe(1);
+    act(() => vi.advanceTimersByTime(10000));
+    expect(result.current).toBe(2);
+  });
+
+  it('continua batendo se o relógio do sistema voltar', () => {
+    const { result } = renderHook(() => useLiveTick(true, 10000));
+
+    act(() => vi.advanceTimersByTime(5000));
+    vi.setSystemTime(Date.now() - 60 * 60 * 1000);
+    act(() => vi.advanceTimersByTime(60000));
+    expect(result.current).toBe(6);
+  });
+
   it('não bate sem sessão', () => {
     const { result } = renderHook(() => useLiveTick(false, 1000));
 
