@@ -10,14 +10,23 @@ import { parse } from '../utils/validation.js';
 import { transferSchema } from '../schemas/transferSchemas.js';
 import { transfer } from '../services/transferService.js';
 import { listGoldAuditLogs } from '../models/goldAuditModel.js';
+import { activeDiscounts, sellPriceWithDiscount } from '../services/discountService.js';
 
 async function inventoryResponse(req, character) {
   const page = req.query.includeLogs === 'false' ? null : await listInventoryLogs({
     campaignId: req.campaign.id, characterId: character.id, ...parse(historyQuerySchema, req.query)
   });
+  const [inventory, discounts] = await Promise.all([
+    listInventoryByCharacterId(character.id),
+    activeDiscounts(req.campaign.id, character.id)
+  ]);
   return {
     character,
-    inventory: await listInventoryByCharacterId(character.id),
+    // O valor de revenda mostrado e o mesmo que a venda paga agora.
+    inventory: inventory.map((entry) => ({
+      ...entry,
+      item: { ...entry.item, effectiveSellPrice: sellPriceWithDiscount(entry.item, discounts) }
+    })),
     logs: page?.entries || [],
     logsPagination: page?.pagination || null
   };

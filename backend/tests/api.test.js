@@ -2384,3 +2384,102 @@ describe('importar catálogo', () => {
     expect(legacy.status).toBe(428);
   });
 });
+
+describe('descontos e eventos de preço', () => {
+  it('evento da mesa por categoria e desconto do personagem: vale o maior, na vitrine e na compra', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const borin = as(await login('borin@lojarpg.local'));
+    const potions = await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Poções' } });
+
+    const fair = await master.post(`${DEMO}/discounts`, { name: 'Feira na cidade', percent: 20, categoryId: potions.id });
+    expect(fair.status).toBe(201);
+    expect(fair.body.discount).toMatchObject({ category: 'Poções', characterName: null, isActive: true });
+    await master.post(`${DEMO}/discounts`, { name: 'Persuasão da Aria', percent: 10, characterId: 1 });
+
+    const ariaItems = (await aria.get(`${DEMO}/items?characterId=1`)).body.items;
+    expect(ariaItems.find((item) => item.id === 6)).toMatchObject({ price: 5000, finalPrice: 4000, discount: { name: 'Feira na cidade', percent: 20 } });
+    expect(ariaItems.find((item) => item.id === 1)).toMatchObject({ price: 7500, finalPrice: 6750, discount: { name: 'Persuasão da Aria' } });
+
+    // O desconto da Aria não vale para o Borin, nem a Aria vê preços de outro.
+    const borinItems = (await borin.get(`${DEMO}/items?characterId=2`)).body.items;
+    expect(borinItems.find((item) => item.id === 1)).toMatchObject({ finalPrice: 7500, discount: null });
+    expect((await aria.get(`${DEMO}/items?characterId=2`)).status).toBe(403);
+    expect((await borin.get(`${DEMO}/discounts`)).body.discounts.map((discount) => discount.name)).toEqual(['Feira na cidade']);
+
+    const purchase = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 2 }, { itemId: 1, quantity: 1 }] });
+    expect(purchase.status).toBe(201);
+    expect(purchase.body.purchase.totalValue).toBe(8000 + 6750);
+    expect(purchase.body.purchase.items.map((item) => item.unitPrice).sort()).toEqual([4000, 6750]);
+    expect(purchase.body.character.gold).toBe(25000 - 14750);
+  });
+
+  it('com desconto acima da margem de revenda, comprar e vender de volta não dá lucro', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const { discount } = (await master.post(`${DEMO}/discounts`, { name: 'Liquidação', percent: 60 })).body;
+
+    // Kit de Aventureiro: 3500 PC, sai por 1400 e a loja pagaria 1750 na revenda.
+    const bought = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 10, quantity: 2 }] });
+    expect(bought.body.character.gold).toBe(25000 - 2800);
+
+    const kit = (await aria.get(`${DEMO}/inventory/1`)).body.inventory.find((entry) => entry.itemId === 10);
+    expect(kit.item.effectiveSellPrice).toBe(1400);
+    const sold = await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 10, quantity: 2 });
+    expect(sold.body.character.gold).toBe(25000);
+    const log = await getPrisma().inventoryLog.findFirst({ where: { characterId: 1, type: 'VENDA' }, orderBy: { id: 'desc' } });
+    expect(Number(log.unitPrice)).toBe(1400);
+
+    // Sem o desconto, a revenda volta ao valor normal.
+    await master.patch(`${DEMO}/discounts/${discount.id}`, { isActive: false });
+    expect((await aria.post(`${DEMO}/inventory/1/sell`, { itemId: 10, quantity: 1 })).body.character.gold).toBe(25000 + 1750);
+  });
+
+  it('a faixa de preço filtra pelo preço com desconto, o mesmo que a vitrine mostra', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const potions = await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Poções' } });
+    await master.post(`${DEMO}/discounts`, { name: 'Feira na cidade', percent: 20, categoryId: potions.id });
+
+    const ids = async (query) => (await aria.get(`${DEMO}/items?characterId=1&${query}`)).body.items.map((item) => item.id);
+    // Poção de Cura: 50 PO de tabela, 40 PO na feira.
+    expect(await ids('maxPrice=4500')).toContain(6);
+    expect(await ids('minPrice=4500')).not.toContain(6);
+  });
+
+  it('recusa a compra quando o total visto no carrinho não é o que seria cobrado', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const potions = await getPrisma().category.findFirst({ where: { campaignId: 1, name: 'Poções' } });
+    await master.post(`${DEMO}/discounts`, { name: 'Feira na cidade', percent: 20, categoryId: potions.id });
+
+    const stale = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 1 }], expectedTotal: 5000 });
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toContain('Os preços mudaram');
+    expect((await getPrisma().character.findUnique({ where: { id: 1 } })).gold).toBe(25000n);
+
+    const ok = await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 1 }], expectedTotal: 4000 });
+    expect(ok.status).toBe(201);
+    expect(ok.body.character.gold).toBe(21000);
+    expect((await aria.post(`${DEMO}/purchases`, { characterId: 1, items: [{ itemId: 6, quantity: 1 }], expectedTotal: -1 })).status).toBe(400);
+  });
+
+  it('desligar ou remover o desconto volta ao preço de tabela, e só o Mestre mexe', async () => {
+    const master = as(await login('mestre@lojarpg.local', 'mestre123'));
+    const aria = as(await login('aria@lojarpg.local'));
+    const { discount } = (await master.post(`${DEMO}/discounts`, { name: 'Liquidação', percent: 50 })).body;
+
+    expect((await aria.post(`${DEMO}/discounts`, { name: 'Eu mesma', percent: 90 })).status).toBe(403);
+    expect((await aria.patch(`${DEMO}/discounts/${discount.id}`, { isActive: false })).status).toBe(403);
+    expect((await master.post(`${DEMO}/discounts`, { name: 'Demais', percent: 91 })).status).toBe(400);
+    expect((await master.post(`${DEMO}/discounts`, { name: 'Outra mesa', percent: 10, characterId: 999999 })).status).toBe(400);
+
+    expect((await aria.get(`${DEMO}/items?characterId=1`)).body.items.find((item) => item.id === 10).finalPrice).toBe(1750);
+    expect((await master.patch(`${DEMO}/discounts/${discount.id}`, { isActive: false })).body.discount.isActive).toBe(false);
+    expect((await aria.get(`${DEMO}/items?characterId=1`)).body.items.find((item) => item.id === 10).finalPrice).toBe(3500);
+    expect((await aria.get(`${DEMO}/discounts`)).body.discounts).toEqual([]);
+
+    expect((await master.delete(`${DEMO}/discounts/${discount.id}`)).status).toBe(200);
+    expect((await master.get(`${DEMO}/discounts`)).body.discounts).toEqual([]);
+  });
+});

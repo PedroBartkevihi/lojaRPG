@@ -32,7 +32,7 @@ export default function ItemRequestsPanel({ api, character, liveKey, showNotice,
     const data = await api.listItemRequests();
 
     if (loadId === latestLoad.current) {
-      setRequests(data.requests);
+      setRequests(data.requests || []);
       loaded.current = true;
     }
   }, [api]);

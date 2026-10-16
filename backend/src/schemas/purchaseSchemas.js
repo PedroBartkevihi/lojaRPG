@@ -17,3 +17,12 @@ const cartItemSchema = z.preprocess(
 );
 
 export const cartSchema = z.array(cartItemSchema, { error: 'Carrinho vazio.' }).min(1, 'Carrinho vazio.');
+
+// Total que o jogador viu no carrinho, em PC. Se os precos mudarem antes da
+// compra (desconto desligado, outro personagem), a API recusa em vez de
+// cobrar outro valor.
+export const expectedTotalSchema = z.coerce
+  .number({ error: 'Total esperado inválido.' })
+  .int('Total esperado inválido.')
+  .min(0, 'Total esperado inválido.')
+  .optional();

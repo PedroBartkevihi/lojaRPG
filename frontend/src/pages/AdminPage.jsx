@@ -8,6 +8,7 @@ import MasterGuide, { markCatalogReviewed } from '../components/admin/MasterGuid
 import PartyTab from '../components/admin/PartyTab.jsx';
 import RequestsTab from '../components/admin/RequestsTab.jsx';
 import ShopsTab from '../components/admin/ShopsTab.jsx';
+import DiscountsPanel from '../components/admin/DiscountsPanel.jsx';
 
 // A aba fica no endereco (?aba=itens) para sobreviver a um recarregamento.
 const TABS = [
@@ -28,6 +29,7 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
   const [categories, setCategories] = useState([]);
   const [rarities, setRarities] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [discounts, setDiscounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [historyVersion, setHistoryVersion] = useState(0);
   const requestVersion = useRef(0);
@@ -47,7 +49,7 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
     try {
       const sources = {
         grupo: [() => api.listItems({ includeInactive: true }), () => api.listCharacters()],
-        vendedores: [() => api.listShops()],
+        vendedores: [() => api.listShops(), () => api.listDiscounts(), () => api.listCategories(), () => api.listCharacters()],
         itens: [() => api.listShops(), () => api.listItems({ includeInactive: true }), () => api.listCategories(), () => api.listRarities()],
         catalogo: [() => api.listCategories(), () => api.listRarities()],
         encomendas: [
@@ -66,6 +68,7 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
       if (data.categories) setCategories(data.categories);
       if (data.rarities) setRarities(data.rarities);
       if (data.requests) setRequests(data.requests);
+      if (data.discounts) setDiscounts(data.discounts);
       loadedTab.current = activeTab;
     } catch (error) {
       if (request === requestVersion.current) throw error;
@@ -143,7 +146,19 @@ export default function AdminPage({ api, campaign, liveKey, showNotice, onRefres
           showNotice={showNotice}
         />
       )}
-      {activeTab === 'vendedores' && <ShopsTab api={api} shops={shops} reload={reload} showNotice={showNotice} />}
+      {activeTab === 'vendedores' && (
+        <>
+          <ShopsTab api={api} shops={shops} reload={reload} showNotice={showNotice} />
+          <DiscountsPanel
+            api={api}
+            discounts={discounts}
+            categories={categories}
+            characters={characters}
+            reload={reload}
+            showNotice={showNotice}
+          />
+        </>
+      )}
       {activeTab === 'itens' && (
         <ItemsTab
           shops={shops}

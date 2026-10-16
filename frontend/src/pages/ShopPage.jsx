@@ -5,6 +5,7 @@ import CartPanel from '../components/CartPanel.jsx';
 import CharacterPanel from '../components/CharacterPanel.jsx';
 import ItemCard from '../components/ItemCard.jsx';
 import ItemRequestsPanel from '../components/ItemRequestsPanel.jsx';
+import DiscountBanner from '../components/DiscountBanner.jsx';
 import { SkeletonCards } from '../components/Skeleton.jsx';
 
 
@@ -44,11 +45,17 @@ export default function ShopPage({
   // Numero da busca mais recente: com a rede lenta, uma resposta antiga pode
   // chegar depois da atual e nao deve substitui-la.
   const latestItemsRequest = useRef(0);
+  // O carrinho atual, lido na recarga sem fazer dela uma dependencia.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
 
   const selectedShop = shops.find((shop) => shop.id === Number(shopId));
   const cartOpen = cart.every((entry) => shops.some((shop) => shop.id === entry.item.shopId && shop.isOpen));
   const cartCount = cart.reduce((sum, entry) => sum + entry.quantity, 0);
-  const cartTotal = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+  const cartTotal = cart.reduce((sum, entry) => sum + (entry.item.finalPrice ?? entry.item.price) * entry.quantity, 0);
+  // Os precos vem com os descontos do personagem ativo (eventos da mesa e os
+  // dele); o Mestre ve a vitrine com os eventos da mesa.
+  const priceCharacterId = isMaster ? undefined : character?.id;
 
   // Sem "Carregando" nas recargas: a lista atual fica na tela ate a nova
   // chegar, e o carrinho passa a mostrar o preco e o estoque atualizados.
@@ -65,14 +72,28 @@ export default function ShopPage({
         rarity,
         shopId,
         minPrice: priceRange.min,
-        maxPrice: priceRange.max
+        maxPrice: priceRange.max,
+        characterId: priceCharacterId
       });
 
       if (!isLatest()) {
         return;
       }
 
-      const freshItems = new Map(data.items.map((item) => [item.id, item]));
+      let freshItems = new Map(data.items.map((item) => [item.id, item]));
+
+      // Item do carrinho fora do filtro atual: o preco dele (que muda com o
+      // personagem e com os descontos) vem da lista sem filtros.
+      if (cartRef.current.some((entry) => !freshItems.has(entry.item.id))) {
+        const all = await api.listItems({ characterId: priceCharacterId });
+
+        if (!isLatest()) {
+          return;
+        }
+
+        freshItems = new Map([...all.items, ...data.items].map((item) => [item.id, item]));
+      }
+
       setItems(data.items);
       setCart((current) =>
         current.map((entry) => (freshItems.has(entry.item.id) ? { ...entry, item: freshItems.get(entry.item.id) } : entry))
@@ -86,7 +107,7 @@ export default function ShopPage({
         setLoading(false);
       }
     }
-  }, [api, searchTerm, category, rarity, shopId, priceRange]);
+  }, [api, searchTerm, category, rarity, shopId, priceRange, priceCharacterId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchTerm(search), 300);
@@ -197,12 +218,15 @@ export default function ShopPage({
     setCheckingOut(true);
 
     try {
+      // O total visto vai junto: se os precos mudaram, a API recusa em vez de
+      // cobrar outro valor.
       const payload = {
         characterId: character.id,
         items: cart.map((entry) => ({
           itemId: entry.item.id,
           quantity: entry.quantity
-        }))
+        })),
+        expectedTotal: cartTotal
       };
       const fingerprint = JSON.stringify(payload);
       if (checkoutIntent.current?.fingerprint !== fingerprint) {
@@ -217,6 +241,8 @@ export default function ShopPage({
       showNotice(data.message);
     } catch (requestError) {
       showNotice(requestError.message);
+      // Preco ou estoque mudou: o carrinho passa a mostrar os valores atuais.
+      loadItems();
     } finally {
       checkoutLock.current = false;
       setCheckingOut(false);
@@ -299,6 +325,7 @@ export default function ShopPage({
         </div>
         {priceError && <p className="form-error" role="alert">{priceError}</p>}
 
+        <DiscountBanner api={api} liveKey={liveKey} characterId={priceCharacterId} />
         {selectedShop && <p className="surface-panel" role="status">{selectedShop.name}: {selectedShop.isOpen ? 'aberto' : 'fechado para compras e vendas'}. {selectedShop.hours || 'Horário não informado'}</p>}
         {!cartOpen && <p role="status">Há um vendedor fechado no carrinho. Remova seus itens ou aguarde a reabertura.</p>}
         {error && <p className="form-error">{error}</p>}

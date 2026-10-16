@@ -29,7 +29,9 @@ function fakeApi() {
     // Sem esta rota a loja recebia {} e quebrava em shops.find quando a resposta
     // chegava antes do fim do teste (falha intermitente no CI).
     'GET /campaigns/7/shops': () => ({ shops: [] }),
-    'GET /campaigns/7/catalog/categories': () => ({ categories: [] })
+    'GET /campaigns/7/catalog/categories': () => ({ categories: [] }),
+    'GET /campaigns/7/catalog/rarities': () => ({ rarities: [] }),
+    'GET /campaigns/7/discounts': () => ({ discounts: [] })
   };
 
   const fetchMock = vi.fn(async (url, options = {}) => {

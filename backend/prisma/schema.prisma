@@ -48,6 +48,7 @@ model Campaign {
   checkoutRequests CheckoutRequest[]
   transferRequests TransferRequest[]
   itemRequests     ItemRequest[]
+  discounts        PriceDiscount[]
 
   @@map("campaigns")
 }
@@ -85,6 +86,7 @@ model Character {
   purchases     Purchase[]
   goldAuditLogs GoldAuditLog[]
   itemRequests  ItemRequest[]
+  discounts     PriceDiscount[]
 
   @@index([campaignId])
   @@index([userId])
@@ -100,6 +102,7 @@ model Category {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
   campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   items       Item[]
+  discounts   PriceDiscount[]
 
   @@unique([campaignId, name])
   @@map("categories")
@@ -297,6 +300,26 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Desconto na compra: um evento da mesa ("feira na cidade: 20% em pocoes",
+// com ou sem categoria) ou o desconto de um personagem (uma boa rolagem de
+// persuasao). Vale o maior desconto que se aplica, sem somar.
+model PriceDiscount {
+  id          Int        @id @default(autoincrement())
+  campaignId  Int        @map("campaign_id")
+  name        String
+  percent     Int
+  categoryId  Int?       @map("category_id")
+  characterId Int?       @map("character_id")
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  campaign    Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  category    Category?  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("price_discounts")
 }
 
 // Encomenda de um item fora do catalogo: o jogador descreve o que quer e

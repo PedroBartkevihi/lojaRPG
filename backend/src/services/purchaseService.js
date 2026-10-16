@@ -7,10 +7,11 @@ import { addInventoryItem } from '../models/inventoryModel.js';
 import { decrementItemStock, findItemsByIds } from '../models/itemModel.js';
 import { addPurchaseItem, createPurchase, findPurchaseById } from '../models/purchaseModel.js';
 import { characterIdSchema } from '../schemas/characterSchemas.js';
-import { cartSchema, idempotencyKeySchema } from '../schemas/purchaseSchemas.js';
+import { cartSchema, expectedTotalSchema, idempotencyKeySchema } from '../schemas/purchaseSchemas.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse } from '../utils/validation.js';
 import { ensureShopsOpen } from './shopService.js';
+import { activeDiscounts, priceWithDiscount } from './discountService.js';
 
 function normalizeCart(cartItems) {
   const grouped = new Map();
@@ -44,7 +45,7 @@ async function resolveCheckoutCharacter(user, campaignId, characterId, prisma) {
 
 // `membership` e o papel do usuario na mesa da compra; so os itens dessa mesa
 // podem entrar no carrinho.
-export async function checkout(user, membership, cartItems, characterId, idempotencyKey) {
+export async function checkout(user, membership, cartItems, characterId, idempotencyKey, expectedTotal) {
   const { campaignId } = membership;
 
   if (membership.role !== ROLES.PLAYER) {
@@ -53,9 +54,11 @@ export async function checkout(user, membership, cartItems, characterId, idempot
 
   const normalizedCart = normalizeCart(cartItems);
   const key = parse(idempotencyKeySchema, idempotencyKey);
+  const expected = parse(expectedTotalSchema, expectedTotal ?? undefined);
   const requestHash = createHash('sha256').update(JSON.stringify({
     characterId: characterId ? parse(characterIdSchema, characterId) : null,
-    items: [...normalizedCart].sort((a, b) => a.itemId - b.itemId)
+    items: [...normalizedCart].sort((a, b) => a.itemId - b.itemId),
+    ...(expected === undefined ? {} : { expectedTotal: expected })
   })).digest('hex');
   const identity = { userId: user.id, campaignId, key };
 
@@ -88,6 +91,10 @@ export async function checkout(user, membership, cartItems, characterId, idempot
     await ensureShopsOpen(campaignId, items.map((item) => item.shopId), prisma);
     const itemMap = new Map(items.map((item) => [item.id, item]));
 
+    // Os descontos sao lidos na mesma transacao: vale o que estiver ativo no
+    // momento da compra, e o preco cobrado fica no historico.
+    const discounts = await activeDiscounts(campaignId, character.id, prisma);
+    const unitPrices = new Map(items.map((item) => [item.id, priceWithDiscount(item, discounts).finalPrice]));
     let totalValue = 0;
 
     for (const cartItem of normalizedCart) {
@@ -101,10 +108,14 @@ export async function checkout(user, membership, cartItems, characterId, idempot
         throw new ApiError(400, `Estoque insuficiente para ${item.name}.`);
       }
 
-      totalValue += item.price * cartItem.quantity;
+      totalValue += unitPrices.get(item.id) * cartItem.quantity;
     }
 
     if (!Number.isSafeInteger(totalValue)) throw new ApiError(400, 'Total da compra excede o limite em PC.');
+
+    if (expected !== undefined && expected !== totalValue) {
+      throw new ApiError(409, 'Os preços mudaram desde que o carrinho foi montado. Confira o novo total e compre de novo.');
+    }
 
     // Os valores lidos acima podem ter mudado por outra compra ou por um ajuste
     // do Mestre; os descontos so acontecem se ainda houver saldo na escrita.
@@ -150,7 +161,7 @@ export async function checkout(user, membership, cartItems, characterId, idempot
           purchaseId: purchase.id,
           itemId: item.id,
           quantity: cartItem.quantity,
-          unitPrice: item.price
+          unitPrice: unitPrices.get(item.id)
         },
         prisma
       );

@@ -3,6 +3,7 @@ import { createItem, findItemById, listItems, reactivateItem } from '../models/i
 import { expectedStockSchema, itemIdSchema, itemQuerySchema, itemSchema } from '../schemas/itemSchemas.js';
 import { removeItem, saveItemChanges } from '../services/itemService.js';
 import { importItems } from '../services/itemImportService.js';
+import { activeDiscounts, priceWithDiscount, resolveShopCharacter } from '../services/discountService.js';
 import { id } from '../schemas/fields.js';
 import { ApiError } from '../utils/ApiError.js';
 import { parse, parseChanges } from '../utils/validation.js';
@@ -32,13 +33,23 @@ function parseItem(body, existing) {
 
 export async function index(req, res) {
   const includeInactive = req.query.includeInactive === 'true' && isGameMaster(req);
-  const items = await listItems({
-    ...parse(itemQuerySchema, req.query),
-    campaignId: req.campaign.id,
-    includeInactive
-  });
+  const { characterId, minPrice, maxPrice, ...filters } = parse(itemQuerySchema, req.query);
+  const character = await resolveShopCharacter(req, characterId);
+  const [items, discounts] = await Promise.all([
+    listItems({ ...filters, campaignId: req.campaign.id, includeInactive }),
+    activeDiscounts(req.campaign.id, character?.id)
+  ]);
 
-  res.json({ items });
+  // Cada item leva o preco final (com o maior desconto que vale para ele) e
+  // o desconto aplicado. A faixa de preco vale sobre o preco final, o mesmo
+  // que o card mostra: um item em promocao que cabe no orcamento aparece.
+  const priced = items
+    .map((item) => ({ ...item, ...priceWithDiscount(item, discounts) }))
+    .filter(
+      (item) =>
+        (minPrice === undefined || item.finalPrice >= minPrice) && (maxPrice === undefined || item.finalPrice <= maxPrice)
+    );
+  res.json({ items: priced });
 }
 
 export async function show(req, res) {

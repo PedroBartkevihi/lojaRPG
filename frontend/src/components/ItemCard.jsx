@@ -29,7 +29,17 @@ export default function ItemCard({ item, onAdd, disabled, readOnly = false }) {
       <div className="item-card-footer">
         <strong className="price">
           <Coins size={17} />
-          {formatMoney(item.price)}
+          {item.discount ? (
+            <>
+              <s aria-label={`Preço de tabela ${formatMoney(item.price)}`}>{formatMoney(item.price)}</s>
+              {formatMoney(item.finalPrice)}
+              <span className="discount-tag">
+                -{item.discount.percent}% · {item.discount.name}
+              </span>
+            </>
+          ) : (
+            formatMoney(item.price)
+          )}
         </strong>
         {/* O Mestre so ve a vitrine; os itens sao editados no painel dele. */}
         {!readOnly && (

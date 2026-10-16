@@ -3,7 +3,9 @@ import { formatWeight } from '../js/weight.js';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 
 export default function CartPanel({ cart, setCart, character, onCheckout, submitting = false, shopOpen = true }) {
-  const total = cart.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+  // Preco com o desconto que vale para o personagem, quando ha um.
+  const unitPrice = (item) => item.finalPrice ?? item.price;
+  const total = cart.reduce((sum, entry) => sum + unitPrice(entry.item) * entry.quantity, 0);
   const canCheckout = shopOpen && cart.length > 0 && character && !submitting;
   // So um aviso: a compra nao e bloqueada (a regra de carga e da mesa).
   const cartWeight = cart.reduce((sum, entry) => sum + entry.quantity * (entry.item.weight || 0), 0);
@@ -40,7 +42,10 @@ export default function CartPanel({ cart, setCart, character, onCheckout, submit
             <div className="cart-line" key={entry.item.id}>
               <div>
                 <strong>{entry.item.name}</strong><small>{entry.item.shopName}</small>
-                <span>{formatMoney(entry.item.price)} cada</span>
+                <span>
+                  {formatMoney(unitPrice(entry.item))} cada
+                  {entry.item.discount ? ` (-${entry.item.discount.percent}%)` : ''}
+                </span>
               </div>
               <input
                 type="number"
