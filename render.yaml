@@ -42,7 +42,8 @@ services:
       - key: CLOUDINARY_URL
         sync: false
       # Opcionais: e-mail de "Esqueci minha senha" pelo Resend (veja o
-      # DEPLOY.md). Sem eles, o pedido responde igual, mas o e-mail nao sai.
+      # DEPLOY.md). Sem os dois configurados, em producao o pedido responde 503
+      # avisando que a recuperacao por e-mail ainda nao foi configurada.
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM

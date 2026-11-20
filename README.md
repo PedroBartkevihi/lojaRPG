@@ -395,7 +395,8 @@ Autenticação:
 - `POST /auth/refresh`
 - `POST /auth/logout`
 - `GET /auth/me`
-- `POST /auth/forgot-password`: manda o link de senha nova (resposta sempre 202)
+- `POST /auth/forgot-password`: manda o link de senha nova (202 para e-mail
+  cadastrado ou não; 503 em produção sem `RESEND_API_KEY` e `EMAIL_FROM`)
 - `POST /auth/reset-password`: `token` do link e `password` nova
 
 No modo cookie (cabeçalho `X-Refresh-Transport: cookie`), login, cadastro e
