@@ -1,6 +1,6 @@
 // Backup e ensaio de restauracao do PostgreSQL, sem instalar o pg_dump: as
 // ferramentas rodam na imagem oficial do PostgreSQL pelo Docker, na mesma
-// versao do banco (17).
+// versao principal do servidor (descoberta antes do dump ou da restauracao).
 //
 //   npm run db:backup -- [--url <DATABASE_URL>] [--out <pasta>]
 //   npm run db:restore-check -- <arquivo.dump> [--target <URL>] [--compare <URL>]
@@ -16,7 +16,8 @@ import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync,
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const POSTGRES_IMAGE = process.env.BACKUP_POSTGRES_IMAGE || 'postgres:17-alpine';
+const PROBE_POSTGRES_IMAGE = 'postgres:17-alpine';
+const CUSTOM_POSTGRES_IMAGE = process.env.BACKUP_POSTGRES_IMAGE;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFAULT_TARGET = 'postgresql://lojarpg:lojarpg@127.0.0.1:5432/lojarpg_restore';
 
@@ -77,11 +78,11 @@ function splitPassword(url) {
   return { url: parsed.toString(), password };
 }
 
-function runPostgresTool(url, command, { input, output, capture = false } = {}) {
+function runPostgresTool(url, command, { input, output, capture = false, image = PROBE_POSTGRES_IMAGE } = {}) {
   const network = dockerNetwork(url);
   const { url: urlWithoutPassword, password } = splitPassword(network.url);
   const envArgs = ['-e', 'PGURL', ...(password ? ['-e', 'PGPASSWORD'] : [])];
-  const args = ['run', '--rm', '-i', ...network.args, ...envArgs, POSTGRES_IMAGE, 'sh', '-c', command];
+  const args = ['run', '--rm', '-i', ...network.args, ...envArgs, image, 'sh', '-c', command];
 
   return new Promise((resolve, reject) => {
     const child = spawn('docker', args, {
@@ -118,6 +119,37 @@ function runPostgresTool(url, command, { input, output, capture = false } = {}) 
   });
 }
 
+async function detectServerMajorVersion(url) {
+  let raw;
+  try {
+    raw = await runPostgresTool(
+      url,
+      'psql -XAt -v ON_ERROR_STOP=1 -c "SHOW server_version_num" "$PGURL"',
+      { capture: true, image: PROBE_POSTGRES_IMAGE }
+    );
+  } catch (error) {
+    throw new Error(`Não foi possível descobrir a versão principal do PostgreSQL: ${error.message}`);
+  }
+
+  const versionNum = raw.trim();
+  if (!/^[1-9]\d{5,}$/.test(versionNum)) {
+    throw new Error(
+      `Não foi possível descobrir a versão principal do PostgreSQL (server_version_num inválido: "${versionNum || 'vazio'}").`
+    );
+  }
+
+  return Math.floor(Number(versionNum) / 10000);
+}
+
+async function resolvePostgresImage(url) {
+  if (CUSTOM_POSTGRES_IMAGE) {
+    return CUSTOM_POSTGRES_IMAGE;
+  }
+
+  const major = await detectServerMajorVersion(url);
+  return `postgres:${major}-alpine`;
+}
+
 function timestamp() {
   return new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
 }
@@ -129,12 +161,13 @@ async function dump(args) {
     fail('Informe o banco com --url ou BACKUP_DATABASE_URL.');
   }
 
+  const image = await resolvePostgresImage(url);
   const outDir = path.resolve(option(args, '--out') || path.join(repoRoot, 'backups'));
   const database = new URL(url).pathname.slice(1);
   const file = path.join(outDir, `${database}-${timestamp()}.dump`);
   mkdirSync(outDir, { recursive: true });
 
-  console.log(`Exportando ${database} para ${file}...`);
+  console.log(`Exportando ${database} para ${file} (imagem ${image})...`);
   // Grava em .partial e so renomeia no fim: um dump que falha (Docker
   // desligado, conexao caida) nao deixa um arquivo com nome de backup bom.
   const partial = `${file}.partial`;
@@ -142,7 +175,7 @@ async function dump(args) {
   try {
     // Formato custom (-Fc): comprimido e restauravel tabela a tabela. Sem dono
     // nem permissoes, para restaurar em outro servidor com outro usuario.
-    await runPostgresTool(url, 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"', { output });
+    await runPostgresTool(url, 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"', { output, image });
     await new Promise((resolve) => output.end(resolve));
   } catch (error) {
     output.destroy();
@@ -153,12 +186,12 @@ async function dump(args) {
   console.log(`Backup concluído (${Math.round(statSync(file).size / 1024)} KB).`);
 }
 
-async function countRows(url) {
+async function countRows(url, image) {
   const tables = (
     await runPostgresTool(
       url,
       `psql "$PGURL" -At -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"`,
-      { capture: true }
+      { capture: true, image }
     )
   )
     .split('\n')
@@ -180,7 +213,8 @@ async function countRows(url) {
   }
 
   const result = await runPostgresTool(url, `psql "$PGURL" -At -F '|' -c "${queries.join(' UNION ALL ').replace(/"/g, '\\"')}"`, {
-    capture: true
+    capture: true,
+    image
   });
 
   return new Map(
@@ -225,19 +259,22 @@ async function restoreCheck(args) {
 
   const adminUrl = new URL(target);
   adminUrl.pathname = '/postgres';
+  const targetImage = await resolvePostgresImage(adminUrl.toString());
 
-  console.log(`Recriando o banco ${database}...`);
+  console.log(`Recriando o banco ${database} (imagem ${targetImage})...`);
   await runPostgresTool(
     adminUrl.toString(),
-    `psql "$PGURL" -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS "${database}"' -c 'CREATE DATABASE "${database}"'`
+    `psql "$PGURL" -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS "${database}"' -c 'CREATE DATABASE "${database}"'`,
+    { image: targetImage }
   );
 
   console.log(`Restaurando ${file}...`);
   await runPostgresTool(target, 'pg_restore --no-owner --no-privileges --exit-on-error -d "$PGURL"', {
-    input: createReadStream(file)
+    input: createReadStream(file),
+    image: targetImage
   });
 
-  const restored = await countRows(target);
+  const restored = await countRows(target, targetImage);
 
   // Um dump do banco errado (ou vazio) tambem restaura sem erro: sem as
   // tabelas da loja, o ensaio nao prova nada.
@@ -245,7 +282,7 @@ async function restoreCheck(args) {
     fail('O backup restaurado não tem as tabelas da loja (users e _prisma_migrations). Confira a URL usada no backup.');
   }
 
-  const source = compare ? await countRows(compare) : null;
+  const source = compare ? await countRows(compare, await resolvePostgresImage(compare)) : null;
   // Uniao das chaves: uma tabela que so existe na origem tambem e diferenca.
   const names = [...new Set([...restored.keys(), ...(source?.keys() ?? [])])];
   let mismatches = 0;
