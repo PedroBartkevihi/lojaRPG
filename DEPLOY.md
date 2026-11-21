@@ -391,8 +391,10 @@ Antes de uma atualização sensível, crie também um branch de backup no Neon
 
 ### Backup manual (do seu computador)
 
-Os scripts rodam o `pg_dump` e o `pg_restore` na imagem oficial do
-PostgreSQL 17 pelo Docker, sem instalar nada além dele. Para a senha do banco
+Os scripts descobrem a versão principal do servidor e rodam o `pg_dump` e o
+`pg_restore` na imagem oficial `postgres:<versão>-alpine` correspondente pelo
+Docker, sem instalar nada além dele (para forçar outra imagem, defina
+`BACKUP_POSTGRES_IMAGE`). Para a senha do banco
 não ficar no histórico do terminal, ponha a URL no `backend/.env` (que o Git
 ignora), em vez de passá-la na linha de comando:
 
@@ -415,8 +417,10 @@ usa o `DATABASE_URL` do `.env` (o banco de desenvolvimento). Também aceita
 ### Backup semanal automático (GitHub Actions)
 
 O workflow `.github/workflows/backup.yml` roda toda segunda-feira às 06:00 UTC
-(e sob demanda pela aba Actions). Ele exporta o banco, **criptografa** o
-arquivo com GPG (AES-256) e o guarda como artefato do workflow por 30 dias. A
+(e sob demanda pela aba Actions). Ele descobre a versão principal do servidor,
+exporta o banco com a imagem `postgres:<versão>-alpine` correspondente,
+**criptografa** o arquivo com GPG (AES-256) e o guarda como artefato do
+workflow por 30 dias. A
 criptografia é obrigatória porque os artefatos de um repositório público podem
 ser baixados por qualquer conta do GitHub. Para ligar, crie dois segredos em
 *Settings > Secrets and variables > Actions*:

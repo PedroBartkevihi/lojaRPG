@@ -245,12 +245,16 @@ pede participa da mesa e qual é o papel dele nela.
   na demonstração porque site e API estão em subdomínios do `onrender.com`,
   que contam como sites diferentes; vale com um domínio próprio. Os testes de
   ponta a ponta rodam nos dois modos.
-- **TypeScript gradual.** O código segue em JavaScript; o `tsc` confere, com
-  `strict`, os módulos listados em cada `tsconfig.json` (no back, schemas,
-  validação, senhas, convites e o cálculo de desconto, com tipos tirados dos
-  schemas Zod por `z.infer`; no front, dinheiro, peso e a leitura do CSV, pelos
-  contratos de `frontend/src/types.d.ts`). Para tipar mais um módulo, basta
-  acrescentá-lo ao `include`. O CI roda `npm run typecheck` nos dois.
+- **TypeScript gradual.** No back-end, o código mistura JavaScript com JSDoc e
+  o cálculo de desconto em `backend/src/utils/pricing.ts`, que o Node 24
+  executa removendo os tipos sozinho, sem etapa de build. O `tsc` confere, com
+  `strict`, os arquivos `.js` e `.ts` listados no `include` de cada
+  `tsconfig.json` (no back, schemas, validação, senhas, convites e o
+  `pricing.ts`, com tipos tirados dos schemas Zod por `z.infer`; no front,
+  dinheiro, peso e a leitura do CSV em JavaScript, pelos contratos de
+  `frontend/src/types.d.ts`). Para tipar mais um módulo, basta acrescentá-lo
+  ao `include` com JSDoc — ou, no back-end, convertê-lo para `.ts` com sintaxe
+  só de tipos (`erasableSyntaxOnly`). O CI roda `npm run typecheck` nos dois.
 - **App.jsx dividido.** Sessão (`useSession`), mesa ativa e personagens
   (`useActiveCampaign`), convite pendente (`usePendingInvite`) e um contexto da
   mesa ativa lido pelo topo do app; a tela de entrada tem componente próprio.
@@ -395,7 +399,8 @@ Autenticação:
 - `POST /auth/refresh`
 - `POST /auth/logout`
 - `GET /auth/me`
-- `POST /auth/forgot-password`: manda o link de senha nova (resposta sempre 202)
+- `POST /auth/forgot-password`: manda o link de senha nova (202 para e-mail
+  cadastrado ou não; 503 em produção sem `RESEND_API_KEY` e `EMAIL_FROM`)
 - `POST /auth/reset-password`: `token` do link e `password` nova
 
 No modo cookie (cabeçalho `X-Refresh-Transport: cookie`), login, cadastro e
