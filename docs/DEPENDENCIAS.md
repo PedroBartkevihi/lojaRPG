@@ -1,56 +1,71 @@
 # Pendência de segurança das dependências
 
-Verificação em 20/11/2026 (anterior: 11/10/2026). Status: **R06 ainda não resolvida**.
+Verificação em 21/11/2026 (anteriores: 20/11/2026, 11/10/2026). Status: **R06 encerrada**.
 
-## Evidência e alcance
+## Resolução
 
-O lockfile do backend contém `prisma@6.19.3 -> @prisma/config@6.19.3 -> deepmerge-ts@7.1.5`.
-O [aviso GHSA-ggr8-5vv4-36mx / CVE-2026-40345](https://github.com/advisories/GHSA-ggr8-5vv4-36mx)
-afeta `deepmerge-ts < 8.0.0`: mesclar objetos com referências circulares pode esgotar a pilha.
-JSON comum, sozinho, não cria essas referências.
+O back-end foi migrado de `prisma@6.19.3` e `@prisma/client@6.19.3` para
+`prisma@7.10.1`, `@prisma/client@7.10.1` e `@prisma/adapter-pg@7.10.1` (versão
+estável mais recente da série 7; a tag `latest` `8.0.0-rc.34` segue como prévia).
 
-`npm audit --json` e `npm audit --omit=dev --json`, executados no backend,
-retornaram três entradas de gravidade alta, todas propagadas pelo mesmo aviso:
-`deepmerge-ts`, `@prisma/config` e `prisma`. No frontend, `npm audit --omit=dev` retornou zero alertas.
-Isso confirma a presença da dependência vulnerável; não demonstra exploração remota da aplicação.
+Com isso, `@prisma/config@7.10.1` passou a resolver `deepmerge-ts@8.0.2`,
+eliminando o aviso de gravidade alta
+[GHSA-ggr8-5vv4-36mx / CVE-2026-40345](https://github.com/advisories/GHSA-ggr8-5vv4-36mx)
+(`deepmerge-ts < 8.0.0`) sem forçar override de versão principal e sem abrir
+alertas novos.
 
-Outro alerta transitivo do mesmo pacote (`@prisma/config@6.19.3 -> effect@3.21.0`,
-[GHSA-7589-6fvf-x4pw](https://github.com/advisories/GHSA-7589-6fvf-x4pw), `effect <= 3.22.0`)
-foi mitigado sem mudança de versão principal via `overrides` restrito a `@prisma/config`
-(`effect: ^3.22.1`, resolvido em `3.22.5`, mesma série `3.x`).
+### Mitigação mantida para `effect`
 
-Não foi identificado um caminho das entradas HTTP até essa operação de merge.
-O uso localizado está no carregamento de configuração do Prisma. Ainda assim, o CLI
-participa da publicação e das migrações na inicialização (`backend/Dockerfile`);
-o alerta não deve ser descartado por isso. Desde a imagem Docker menor (D7), `prisma` é
-dependência de produção, e `npm audit --omit=dev` também mostra o alerta.
+O `overrides` restrito a `@prisma/config` em `backend/package.json`
+(`effect: ^3.22.1`, resolvido em `effect@3.22.5`, mesma série `3.x`) permanece
+ativo porque `@prisma/config@7.10.1` ainda fixa `effect@3.20.0`, afetado por
+[GHSA-7589-6fvf-x4pw](https://github.com/advisories/GHSA-7589-6fvf-x4pw)
+(`effect <= 3.22.0`). Sem esse override, `npm audit` e `npm audit --omit=dev`
+reportam três entradas altas propagadas por `effect` (`effect`,
+`@prisma/config` e `prisma`); com ele, ambas as auditorias retornam zero
+vulnerabilidades. Esse override poderá ser removido quando uma versão estável
+do Prisma deixar de depender de `effect <= 3.22.0` (ou remover `@prisma/config`).
 
-## Por que a atualização ficou bloqueada
+## Validação do critério para encerrar R06
 
-- O [registro oficial do Prisma](https://registry.npmjs.org/prisma) ainda lista `6.19.3`
-  como a versão estável mais recente da série 6 consultada.
-- O manifest oficial de [@prisma/config 7.10.1](https://registry.npmjs.org/@prisma%2fconfig/7.10.1)
-  atualizou `deepmerge-ts` para `8.0.2` (antes fixado em `7.1.5` na `7.10.0`), mas
-  `prisma@7.10.1` exige migração de versão principal (`6.x -> 7.x`, com mudanças incompatíveis
-  em `schema.prisma`, `prisma.config.js` e `PrismaClient`) e ainda fixa `effect` em `3.20.0`
-  (vulnerável a GHSA-7589-6fvf-x4pw).
-- A tag `latest` consultada aponta para `8.0.0-rc.34`, uma prévia (já sem `@prisma/config`,
-  mas ainda sem lançamento estável). Ela não foi adotada automaticamente como substituição estável.
-- A sugestão automática do `npm audit fix --force` é atualizar `prisma` para `7.10.1`, uma
-  quebra de versão principal (sem migrar `@prisma/client` nem o código do cliente).
-- Forçar `deepmerge-ts@8` com `overrides` troca uma versão principal exigida pelo Prisma;
-  a compatibilidade não está confirmada. Fazer o audit ficar verde não basta para validar essa troca.
+Os quatro itens exigidos foram validados em 21/11/2026:
 
-Nenhum alerta de `deepmerge-ts` foi suprimido nesta pendência.
+1. **`npm ci`, auditoria integral e auditoria com `--omit=dev`:** no `backend`,
+   `npm ci` e `npm ci --omit=dev` concluíram a partir do novo
+   `package-lock.json`; `npm audit` e `npm audit --omit=dev` retornaram
+   `found 0 vulnerabilities` (assim como `npm audit --omit=dev` no `frontend`).
+2. **`prisma validate`, `prisma generate` e aplicação das migrations em banco
+   descartável:** `npx prisma validate` e `npx prisma generate` (inclusive sem
+   `DATABASE_URL`, como no build) concluíram com sucesso; `npx prisma migrate
+   deploy` aplicou todas as 16 migrations existentes em bancos descartáveis
+   (`lojarpg_test`, `lojarpg_docker_test` e `lojarpg_render_test`) sem gerar
+   migration nova nem alterar o schema.
+3. **Suítes completas, lint dos dois projetos e build do front-end:**
+   - `backend`: `npm run lint` e `npm run typecheck` sem erros (inclusive antes
+     de gerar `src/generated/prisma`, como no CI) e `npm test` com `6` arquivos
+     e `141` testes passando (incluindo cobertura para deadlock `40P01` no
+     `@prisma/adapter-pg`).
+   - `frontend`: `npm run lint`, `npm run typecheck`, `npm test` (`33` arquivos,
+     `134` testes) e `npm run build` passando.
+   - `e2e`: suíte Playwright completa (`11` testes) e recorte no modo cookie
+     (`E2E_REFRESH_COOKIE=true`, `5` testes) passando contra `lojarpg_e2e`.
+4. **Inicialização do container com a mesma configuração usada na publicação:**
+   `docker build -f backend/Dockerfile .` concluiu sem erro; o container
+   (`NODE_ENV=production`, `DEMO_RESET_ON_START=true`, `USER node`, sem
+   `node_modules/typescript`) aplicou as migrations, executou `node
+   prisma/seed.js`, respondeu `200` em `/health` e `/ready` e autenticou a conta
+   de demonstração. O fluxo do `render.yaml` (`buildCommand` sem `DATABASE_URL`
+   seguido de `startCommand`) também foi validado contra banco descartável com
+   `200` em `/health` e `/ready`.
 
-## Critério para encerrar R06
+## Histórico da pendência
 
-Adotar uma versão estável compatível do Prisma que inclua a correção, ou aprovar e
-validar separadamente uma migração de versão principal/override. A validação deve incluir:
-
-1. `npm ci`, auditoria integral e auditoria com `--omit=dev`.
-2. `prisma validate`, `prisma generate` e aplicação das migrações em banco descartável.
-3. Suítes completas, lint dos dois projetos e build do frontend.
-4. Inicialização do container com a mesma configuração usada na publicação.
-
-Até lá, manter esta pendência aberta e não carregar configurações Prisma de origem não confiável.
+Em 11/10/2026 e 20/11/2026, o lockfile do back-end continha
+`prisma@6.19.3 -> @prisma/config@6.19.3 -> deepmerge-ts@7.1.5`, gerando três
+entradas de gravidade alta em `npm audit` e `npm audit --omit=dev`
+(`deepmerge-ts`, `@prisma/config` e `prisma`) pelo aviso
+GHSA-ggr8-5vv4-36mx / CVE-2026-40345 (mesclagem de objetos com referências
+circulares capaz de esgotar a pilha no carregamento de configuração do Prisma).
+Como `6.19.3` permanecia a última versão estável da série 6 e a correção para
+`deepmerge-ts@8.0.2` saiu em `@prisma/config@7.10.1`, a pendência ficou aberta
+até a migração completa e validada para a série 7.

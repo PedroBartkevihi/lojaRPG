@@ -14,7 +14,10 @@ descritos no `render.yaml`) e do Neon (PostgreSQL).
 
 1. No Neon, crie um projeto na região AWS US East 2 (Ohio) e copie a
    connection string direta, sem pooling. Ela tem o formato
-   `postgresql://usuario:senha@host/banco?sslmode=require`. A região é a mesma
+   `postgresql://usuario:senha@host/banco?sslmode=require` (o driver `pg` usado
+   pelo `@prisma/adapter-pg` trata `sslmode=require` como `verify-full`, compatível
+   com o certificado público do Neon, mas emite um aviso recomendando
+   `sslmode=verify-full` visando compatibilidade futura com `pg@9`). A região é a mesma
    da API no Render (`region: ohio` no `render.yaml`), que não oferece
    servidores na América do Sul: uma compra faz mais de dez consultas ao banco,
    então o banco precisa ficar ao lado da API, e não do usuário. Se usar outra
@@ -264,6 +267,14 @@ Se hospedar front-end e API separadamente:
 
 ## Prisma em ambientes
 
+O back-end usa Prisma 7 com `@prisma/adapter-pg`, configuração da CLI em
+`backend/prisma.config.js` e cliente gerado em `backend/src/generated/prisma`
+(TypeScript ESM executado direto pelo Node 24, ignorado pelo Git). Por isso,
+`npx prisma generate` precisa rodar no build antes de iniciar a API — o
+`render.yaml` faz isso no `buildCommand` e o `backend/Dockerfile` gera no
+estágio `deps` e copia `src/generated` para a imagem final, sem exigir
+`DATABASE_URL` no build.
+
 Comandos úteis no diretório `backend`:
 
 ```bash
@@ -272,6 +283,10 @@ npx prisma generate
 npx prisma studio
 npx prisma db seed
 ```
+
+No Prisma 7, `prisma migrate dev` e `prisma migrate reset` não executam
+`prisma generate` nem `prisma db seed` automaticamente; rode-os explicitamente
+quando necessário (ou use `npm run db:reset` no banco local).
 
 Em produção, rode as migrations antes de subir a nova versão (o
 `render.yaml` e o Dockerfile já fazem isso ao iniciar a API):
