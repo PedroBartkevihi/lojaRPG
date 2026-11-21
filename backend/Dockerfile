@@ -26,6 +26,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/package*.json backend/prisma.config.js ./
 COPY backend/prisma ./prisma
 COPY backend/src ./src
+COPY --from=deps /app/src/generated ./src/generated
 
 # Sem root dentro do container.
 USER node
