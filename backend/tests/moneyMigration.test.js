@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
 import { expect, it } from 'vitest';
+import { createPrismaClient } from '../src/database/connection.js';
 
 it('converte dinheiro e snapshots de operações antigas sem overflow ou perda do histórico', async () => {
   const url = process.env.TEST_DATABASE_URL || 'postgresql://lojarpg:lojarpg@127.0.0.1:5432/lojarpg_test';
   if (!new URL(url).pathname.endsWith('_test')) throw new Error('Use somente um banco _test.');
-  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  const prisma = createPrismaClient(url);
   const schema = `money_migration_${randomBytes(6).toString('hex')}`;
   const sql = readFileSync(new URL('../prisma/migrations/20261012050000_copper_currency/migration.sql', import.meta.url), 'utf8');
   try {

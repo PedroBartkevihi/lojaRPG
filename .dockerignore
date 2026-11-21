@@ -2,6 +2,7 @@
 **/dist
 **/.env
 backend/data
+backend/src/generated
 **/*.sqlite
 **/*.sqlite-shm
 **/*.sqlite-wal
