@@ -264,7 +264,8 @@ pede participa da mesa e qual é o papel dele nela.
   com o id da última requisição.
 - **Imagem Docker da API enxuta.** Build em duas etapas, só com dependências
   de produção (o CLI do Prisma, que aplica as migrations no início, passou para
-  elas) e sem root: de cerca de 1 GB para 600 MB.
+  elas, e o cliente gerado em `src/generated/prisma` vem da primeira etapa) e
+  sem root: de cerca de 1 GB para cerca de 710 MB.
 - **Limpeza e limites.** Refresh tokens vencidos ou revogados são apagados
   no início da API e a cada 6 horas, e uma conta mestra no máximo 10 mesas ao
   mesmo tempo (`MAX_CAMPAIGNS_PER_USER`).
@@ -282,7 +283,7 @@ pede participa da mesa e qual é o papel dele nela.
 
 - Front-end: React, Vite e React Router.
 - Back-end: Node.js, Express, Zod, JWT (access + refresh token).
-- Banco: PostgreSQL com Prisma e migrations versionadas.
+- Banco: PostgreSQL com Prisma 7 (`@prisma/adapter-pg`) e migrations versionadas.
 - Testes e qualidade: Vitest, Supertest, Testing Library, Playwright e ESLint.
 - Infra: Docker Compose, GitHub Actions, Render e Neon.
 
@@ -321,6 +322,8 @@ O container do banco cria o `lojarpg` (desenvolvimento), o `lojarpg_test`
 
 Scripts do diretório `backend`:
 
+- `npm run prisma:generate`: gera o cliente do Prisma em
+  `src/generated/prisma` (ignorado pelo Git e executado direto pelo Node 24).
 - `npm run db:init`: aplica as migrations pendentes.
 - `npm run db:seed`: recria a mesa de demonstração e as contas de exemplo de
   `prisma/seed.js`, sem tocar nas outras mesas.

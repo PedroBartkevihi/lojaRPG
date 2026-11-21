@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default [
-  { ignores: ['coverage'] },
+  { ignores: ['coverage', 'src/generated'] },
   js.configs.recommended,
   ...tseslint.configs.recommended.map((config) => ({
     ...config,

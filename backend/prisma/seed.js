@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
 import { pathToFileURL } from 'node:url';
 import { DEMO_ACCOUNT_EMAILS } from '../src/config/demo.js';
 import { STARTER_CATEGORIES, STARTER_ITEMS, STARTER_RARITIES } from '../src/data/starterCatalog.js';
+import { createPrismaClient } from '../src/database/connection.js';
 import { deleteCampaigns } from '../src/models/campaignModel.js';
 
 const mestreHash =
@@ -177,10 +178,11 @@ export async function seed(prisma) {
   await resetSequences(prisma);
 }
 
-// `npm run db:seed`, `prisma migrate reset` e o inicio da API no Render
+// `npm run db:seed`, `npm run db:reset` e o inicio da API no Render
 // (DEMO_RESET_ON_START) so mexem na demonstracao.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const prisma = new PrismaClient();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  dotenv.config({ path: new URL('../.env', import.meta.url) });
+  const prisma = createPrismaClient();
 
   resetDemo(prisma)
     .then(async () => {

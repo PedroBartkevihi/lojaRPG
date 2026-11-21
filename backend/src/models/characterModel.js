@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client.ts';
 import { ApiError } from '../utils/ApiError.js';
 import { getPrisma } from '../database/connection.js';
 

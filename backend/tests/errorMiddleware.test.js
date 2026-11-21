@@ -8,6 +8,31 @@ function response() {
 }
 
 describe('errorHandler', () => {
+  it('reconhece deadlock em $queryRaw encapsulado pelo driver adapter (P2010 / 40P01)', () => {
+    const res = response();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = Object.assign(
+      new Error('\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `40P01`. Message: `deadlock detected`'),
+      {
+        name: 'PrismaClientKnownRequestError',
+        code: 'P2010',
+        meta: {
+          driverAdapterError: {
+            name: 'DriverAdapterError',
+            cause: {
+              originalCode: '40P01',
+              originalMessage: 'deadlock detected',
+              kind: 'TransactionWriteConflict'
+            }
+          }
+        }
+      }
+    );
+    errorHandler(error, {}, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Outra operação usava os mesmos dados. Tente de novo.' });
+  });
+
   it('reconhece o deadlock real do conector Prisma sem error.code', () => {
     const res = response();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
