@@ -25,11 +25,18 @@ export function errorHandler(error, req, res, _next) {
 
   // Conflito ou deadlock (P2034) e transacao que passou do tempo esperando
   // outra (P2028): a operacao foi desfeita inteira e pode ser repetida.
-  // O conector do Prisma 6 tambem pode encapsular SQLSTATE 40P01 sem code.
-  const postgresDeadlock = error.name === 'PrismaClientUnknownRequestError' &&
+  // Em consultas raw ($queryRaw), o driver adapter encapsula 40P01/40001 como
+  // P2010 com a causa original em meta.driverAdapterError.
+  const driverCause = error.meta?.driverAdapterError?.cause;
+  const driverWriteConflict =
+    driverCause?.kind === 'TransactionWriteConflict' ||
+    driverCause?.originalCode === '40P01' ||
+    driverCause?.originalCode === '40001';
+  const legacyDeadlock = error.name === 'PrismaClientUnknownRequestError' &&
     /PostgresError\s*\{\s*code:\s*"40P01"/.test(error.message);
-  if (error.code === 'P2034' || error.code === 'P2028' || postgresDeadlock) {
-    (req.log || logger).warn(`Transação desfeita (${error.code || '40P01'}): ${errorReason(error)}`);
+  if (error.code === 'P2034' || error.code === 'P2028' || driverWriteConflict || legacyDeadlock) {
+    const code = error.code === 'P2034' || error.code === 'P2028' ? error.code : driverCause?.originalCode || '40P01';
+    (req.log || logger).warn(`Transação desfeita (${code}): ${errorReason(error)}`);
     return res.status(409).json({ message: 'Outra operação usava os mesmos dados. Tente de novo.' });
   }
 
